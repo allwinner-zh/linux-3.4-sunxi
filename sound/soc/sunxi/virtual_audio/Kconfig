@@ -1,0 +1,9 @@
+
+config SND_SUNXI_SOC_VIRTUAL_AUDIO_INTERFACE
+	tristate 
+	#"SoC virtual audio interface for the ReuuiMlla SUNXI chips"
+	default n
+	help
+	  Say Y or M if you want to add support for codecs attached to
+	  the SUNXI VIRTUAL AUDIO interface. You will also need
+	  to select the audio interfaces to support below.

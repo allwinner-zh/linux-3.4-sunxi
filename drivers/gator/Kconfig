@@ -1,0 +1,28 @@
+#
+# gator driver configuration
+#
+
+config GATOR_PERF
+        tristate "Gator driver for DS-5"
+        default n
+        select PROFILING
+        select TRACEPOINTS
+        select RING_BUFFER
+        select EVENT_TRACING
+        select EVENT_POWER_TRACING_DEPRECATED
+        select CONTEXT_SWITCH_TRACER
+        select TRACING
+        select FTRACE
+        select ENABLE_DEFAULT_TRACERS
+        select BRANCH_PROFILE_NONE
+        select PERF_EVENTS
+        ---help---
+          Gator driver is a driver for streamline, which is
+          a function in arm's DS-5.
+          Strongly recommended that it should be configured
+          as a module!
+          NOTE
+          Enable the High Resolution Timer Support option.
+          Enable Use local timer interrupts if you are using
+          a Symmetric MultiProcessing (SMP) target.
+          

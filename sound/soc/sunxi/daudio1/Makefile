@@ -1,0 +1,5 @@
+obj-$(CONFIG_SND_SUNXI_SOC_DAUDIO1_INTERFACE) += sunxi-daudio1.o
+obj-$(CONFIG_SND_SUNXI_SOC_DAUDIO1_INTERFACE) += sunxi-daudiodma1.o
+obj-$(CONFIG_SND_SUNXI_SOC_DAUDIO1_INTERFACE) += snddaudio1.o
+obj-$(CONFIG_SND_SUNXI_SOC_DAUDIO1_INTERFACE) += sunxi-snddaudio1.o
+

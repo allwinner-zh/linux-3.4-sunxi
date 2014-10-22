@@ -1,0 +1,10 @@
+
+config SUNXI_G2D
+	depends on (ARCH_SUN8IW1P1 || ARCH_SUN9IW1P1)
+	tristate "sunxi g2d driver"
+	default N
+	select ION
+	select ION_SUNXI
+	help
+
+

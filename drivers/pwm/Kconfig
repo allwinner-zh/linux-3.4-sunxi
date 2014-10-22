@@ -1,0 +1,13 @@
+menuconfig PWM
+	bool "Pulse-Width Modulation (PWM) Support"
+	help
+	  Generic Pulse-Width Modulation (PWM) support.
+
+config PWM_SUNXI
+	tristate "sunxi pwm support"
+	depends on PWM
+	help
+		Generic PWM framework driver for sunxi.
+
+		To compile this driver as a moudle, choose M here: the module
+		will be called pwm-sunxi

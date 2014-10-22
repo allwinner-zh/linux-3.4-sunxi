@@ -1,0 +1,7 @@
+config SND_SUNXI_SOC_SUPPORT_AUDIO_RAW
+	bool "Support Audio Raw Data"
+	depends on (SND_SUNXI_SOC_HDMIAUDIO || SND_SUNXI_SOC_SPDIF) && (ARCH_SUN8IW6 || ARCH_SUN9IW1)
+	default n
+	help
+	  Say Y support Audio raw date. It's suitable for Homlet product.
+
