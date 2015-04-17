@@ -280,4 +280,9 @@ endif # NETWORK_FILESYSTEMS
 source "fs/nls/Kconfig"
 source "fs/dlm/Kconfig"
 
+
+# for fs compat
+source "fs/fs_compat.kconfig"
+
+
 endmenu

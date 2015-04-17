@@ -34,7 +34,7 @@
 
 #define sndpcm_RATES  (SNDRV_PCM_RATE_8000_192000|SNDRV_PCM_RATE_KNOT)
 #define sndpcm_FORMATS (SNDRV_PCM_FMTBIT_S8 | SNDRV_PCM_FMTBIT_S16_LE | \
-		                     SNDRV_PCM_FMTBIT_S18_3LE | SNDRV_PCM_FMTBIT_S20_3LE)
+		                     SNDRV_PCM_FMTBIT_S18_3LE | SNDRV_PCM_FMTBIT_S20_3LE | SNDRV_PCM_FMTBIT_S24_LE | SNDRV_PCM_FMTBIT_S32_LE)
 static void  __iomem *baseaddr;
 static struct regulator* hp_ldo = NULL;
 static char *hp_ldo_str = NULL;
@@ -42,16 +42,93 @@ static char *hp_ldo_str = NULL;
 /*for pa gpio ctrl*/
 static script_item_u item;
 static script_item_value_type_e  type;
-
-static int pa_vol 						= 0;
-static int cap_vol 						= 0;
-static int earpiece_vol 				= 0;
-static int headphone_vol 				= 0;
-static int pa_double_used 				= 0;
-static int phone_main_mic_vol 			= 0;
-static int phone_headset_mic_vol 		= 0;
-
+static	bool adcagc_used       = false;
+static	bool adcdrc_used       = false;
+static	bool dacdrc_used       = false;
+static	bool adchpf_used       = false;
+static	bool dachpf_used       = false;
+static int audio_used = 1;
+static int play_running = 0;
+static int cap_vol 		  = 0;
+static int lineout_vol 	  = 0;
+static int codec_cap_mode = 0;
+static bool codec_lineout_en = false;
+static  bool codec_addadrc_en = false;
+static  bool codec_lineinin_en  = false;
+static bool codec_addaloop_en = false;
 static struct clk *codec_pll,*codec_moduleclk;
+
+#define    DAC_Digital_Part_Control 0x00
+#define    DAC_FIFO_Control        0x04
+#define    DAC_FIFO_Status         0x08
+#define    DAC_TX_DATA             0x0c
+#define    ADC_FIFO_Control        0x10
+#define    ADC_FIFO_Status         0x14
+#define    ADC_RX_DATA             0x18
+#define    DAC_TX_Counter          0x40
+#define    ADC_RX_Counter          0x44
+#define    DAC_Debug               0x48
+#define    ADC_Debug               0x4c
+
+#define    Headphone_Volume_Control 			0x0  
+#define    Left_Output_Mixer_Source_Control 		0x1  
+#define    Right_Output_Mixer_Source_Control 		0x2  
+#define    DAC_Analog_Enable_and_PA_Source_Control 	0x3  
+#define    Phonein_Stereo_Gain_Control 			0x4  
+#define    Linein_and_Phone_P_N_Gain_Control 		0x5  
+#define    MIC1_and_MIC2_GAIN_Control 			0x6  
+#define    PA_Enable_and_HP_Control 			0x7  
+#define    Phoneout_Control 				0x8  
+#define    Lineout_Volume_Control 			0x9  
+#define    Mic2_Boost_and_Lineout_Enable_Control 	0xA  
+#define    Mic1_Boost_and_MICBIAS_Control 		0xB  
+#define    Left_ADC_Mixer_Source_Control 		0xC  
+#define    Right_ADC_Mixer_Source_Control 		0xD  
+
+#define    PA_UPTIME_CTRL                                   0xE  
+#define    ADC_ANALIG_PART_ENABLE_REG                    0xF  
+
+struct label {
+    const char *name;
+    int value;
+};
+
+#define LABEL(constant) { #constant, constant }
+#define LABEL_END { NULL, -1 }
+static struct label reg_labels[]={
+        LABEL(DAC_Digital_Part_Control),
+        LABEL(DAC_FIFO_Control),
+        LABEL(DAC_FIFO_Status),
+        LABEL(DAC_TX_DATA),
+        LABEL(ADC_FIFO_Control),
+        LABEL(ADC_FIFO_Status),
+        LABEL(ADC_RX_DATA),
+        LABEL(DAC_TX_Counter),
+        LABEL(ADC_RX_Counter),
+        LABEL(DAC_Debug),
+        LABEL(ADC_Debug),
+       
+        LABEL(Headphone_Volume_Control), 		  
+        LABEL(Left_Output_Mixer_Source_Control), 
+        LABEL(Right_Output_Mixer_Source_Control), 
+        LABEL(DAC_Analog_Enable_and_PA_Source_Control), 
+        LABEL(Phonein_Stereo_Gain_Control), 
+        LABEL(Linein_and_Phone_P_N_Gain_Control), 
+        LABEL(MIC1_and_MIC2_GAIN_Control),   
+        LABEL(PA_Enable_and_HP_Control),  
+        LABEL(Phoneout_Control), 
+        LABEL(Lineout_Volume_Control), 
+        LABEL(Mic2_Boost_and_Lineout_Enable_Control),  
+        LABEL(Mic1_Boost_and_MICBIAS_Control), 
+        LABEL(Left_ADC_Mixer_Source_Control), 
+        LABEL(Right_ADC_Mixer_Source_Control),  
+		LABEL(PA_UPTIME_CTRL),
+		LABEL(ADC_ANALIG_PART_ENABLE_REG),
+	LABEL_END,
+};
+
+static void codec_init_events(struct work_struct *work);
+static DECLARE_WORK(codec_init_work, codec_init_events);
 
 static struct sunxi_dma_params sunxi_pcm_pcm_stereo_out = {
 	.name		= "audio_play",
@@ -270,16 +347,181 @@ static int codec_wr_control(u32 reg, u32 mask, u32 shift, u32 val)
 	return 0;
 }
 
+static void adcagc_config(void)
+{
+
+}
+static void adcdrc_config(void)
+{
+	codec_wr_control( SUNXI_ADC_DRC_CTRL    , 0xffff, 0, 0x00000003);
+	codec_wr_control( SUNXI_ADC_DRC_LPFHAT  , 0xffff, 0, 0x0000000B);
+	codec_wr_control( SUNXI_ADC_DRC_LPFLAT  , 0xffff, 0, 0x000077EF);
+	codec_wr_control( SUNXI_ADC_DRC_RPFHAT  , 0xffff, 0, 0x0000000B);
+	codec_wr_control( SUNXI_ADC_DRC_RPFLAT  , 0xffff, 0, 0x000077EF);
+	codec_wr_control( SUNXI_ADC_DRC_LPFHRT  , 0xffff, 0, 0x000000FF);
+	codec_wr_control( SUNXI_ADC_DRC_LPFLRT  , 0xffff, 0, 0x0000E1F8);
+	codec_wr_control( SUNXI_ADC_DRC_RPFHRT  , 0xffff, 0, 0x000000FF);
+	codec_wr_control( SUNXI_ADC_DRC_RPFLRT  , 0xffff, 0, 0x0000E1F8);
+	codec_wr_control( SUNXI_ADC_DRC_LRMSHAT , 0xffff, 0, 0x00000001);
+	codec_wr_control( SUNXI_ADC_DRC_LRMSLAT , 0xffff, 0, 0x00002BAF);
+	codec_wr_control( SUNXI_ADC_DRC_RRMSHAT , 0xffff, 0, 0x00000001);
+	codec_wr_control( SUNXI_ADC_DRC_RRMSLAT , 0xffff, 0, 0x00002BAF);
+	codec_wr_control( SUNXI_ADC_DRC_HCT     , 0xffff, 0, 0x000005D0);
+	codec_wr_control( SUNXI_ADC_DRC_LCT     , 0xffff, 0, 0x00003948);
+	codec_wr_control( SUNXI_ADC_DRC_HKC     , 0xffff, 0, 0x00000100);
+	codec_wr_control( SUNXI_ADC_DRC_LKC     , 0xffff, 0, 0x00000000);
+	codec_wr_control( SUNXI_ADC_DRC_HOPC    , 0xffff, 0, 0x0000FA2F);
+	codec_wr_control( SUNXI_ADC_DRC_LOPC    , 0xffff, 0, 0x0000C6B8);
+	codec_wr_control( SUNXI_ADC_DRC_HLT     , 0xffff, 0, 0x000001A9);
+	codec_wr_control( SUNXI_ADC_DRC_LLT     , 0xffff, 0, 0x000034F0);
+	codec_wr_control( SUNXI_ADC_DRC_HKI     , 0xffff, 0, 0x00000100);
+	codec_wr_control( SUNXI_ADC_DRC_LKI     , 0xffff, 0, 0x00000000);
+	codec_wr_control( SUNXI_ADC_DRC_HOPL    , 0xffff, 0, 0x0000FE56);
+	codec_wr_control( SUNXI_ADC_DRC_LOPL    , 0xffff, 0, 0x0000CB10);
+	codec_wr_control( SUNXI_ADC_DRC_HET     , 0xffff, 0, 0x000006A4);
+	codec_wr_control( SUNXI_ADC_DRC_LET     , 0xffff, 0, 0x0000D3C0);
+	codec_wr_control( SUNXI_ADC_DRC_HKE     , 0xffff, 0, 0x00000200);
+	codec_wr_control( SUNXI_ADC_DRC_LKE     , 0xffff, 0, 0x00000000);
+	codec_wr_control( SUNXI_ADC_DRC_HOPE    , 0xffff, 0, 0x0000F8B1);
+	codec_wr_control( SUNXI_ADC_DRC_LOPE    , 0xffff, 0, 0x00001713);
+	codec_wr_control( SUNXI_ADC_DRC_HKN     , 0xffff, 0, 0x000001CC);
+	codec_wr_control( SUNXI_ADC_DRC_LKN     , 0xffff, 0, 0x0000CCCC);
+	codec_wr_control( SUNXI_ADC_DRC_SFHAT   , 0xffff, 0, 0x00000002);
+	codec_wr_control( SUNXI_ADC_DRC_SFLAT   , 0xffff, 0, 0x00005600);
+	codec_wr_control( SUNXI_ADC_DRC_SFHRT   , 0xffff, 0, 0x00000000);
+	codec_wr_control( SUNXI_ADC_DRC_SFLRT   , 0xffff, 0, 0x00000F04);
+	codec_wr_control( SUNXI_ADC_DRC_MXGHS   , 0xffff, 0, 0x0000FE56);
+	codec_wr_control( SUNXI_ADC_DRC_MXGLS   , 0xffff, 0, 0x0000CB0F);
+	codec_wr_control( SUNXI_ADC_DRC_MNGHS   , 0xffff, 0, 0x0000F95B);
+	codec_wr_control( SUNXI_ADC_DRC_MNGLS   , 0xffff, 0, 0x00002C3F);
+	codec_wr_control( SUNXI_ADC_DRC_EPSHC   , 0xffff, 0, 0x00000000);
+	codec_wr_control( SUNXI_ADC_DRC_EPSLC   , 0xffff, 0, 0x0000640C);
+	codec_wr_control( SUNXI_ADC_DRC_OPT     , 0xffff, 0, 0x00000400);
+}
+static void dacdrc_config(void)
+{
+	codec_wr_control(SUNXI_DAC_DRC_CTRL     , 0xffff, 0,    0x00000003);
+	codec_wr_control(SUNXI_DAC_DRC_LPFHAT   , 0xffff, 0,    0x0000000B);
+	codec_wr_control(SUNXI_DAC_DRC_LPFLAT   , 0xffff, 0,    0x000077EF);
+	codec_wr_control(SUNXI_DAC_DRC_RPFHAT   , 0xffff, 0,    0x0000000B);
+	codec_wr_control(SUNXI_DAC_DRC_RPFLAT   , 0xffff, 0,    0x000077EF);
+	codec_wr_control(SUNXI_DAC_DRC_LPFHRT   , 0xffff, 0,    0x000000FF);
+	codec_wr_control(SUNXI_DAC_DRC_LPFLRT   , 0xffff, 0,    0x0000E1F8);
+	codec_wr_control(SUNXI_DAC_DRC_RPFHRT   , 0xffff, 0,    0x000000FF);
+	codec_wr_control(SUNXI_DAC_DRC_RPFLRT   , 0xffff, 0,    0x0000E1F8);
+	codec_wr_control(SUNXI_DAC_DRC_LRMSHAT  , 0xffff, 0,    0x00000001);
+	codec_wr_control(SUNXI_DAC_DRC_LRMSLAT  , 0xffff, 0,    0x00002BAF);
+	codec_wr_control(SUNXI_DAC_DRC_RRMSHAT  , 0xffff, 0,    0x00000001);
+	codec_wr_control(SUNXI_DAC_DRC_RRMSLAT  , 0xffff, 0,    0x00002BAF);
+	codec_wr_control(SUNXI_DAC_DRC_HCT      , 0xffff, 0,    0x000004FB);
+	codec_wr_control(SUNXI_DAC_DRC_LCT      , 0xffff, 0,    0x00009ED0);
+	codec_wr_control(SUNXI_DAC_DRC_HKC      , 0xffff, 0,    0x00000100);
+	codec_wr_control(SUNXI_DAC_DRC_LKC      , 0xffff, 0,    0x00000000);
+	codec_wr_control(SUNXI_DAC_DRC_HOPC     , 0xffff, 0,    0x0000FBD8);
+	codec_wr_control(SUNXI_DAC_DRC_LOPC     , 0xffff, 0,    0x0000FBA8);
+	codec_wr_control(SUNXI_DAC_DRC_HLT      , 0xffff, 0,    0x00000352);
+	codec_wr_control(SUNXI_DAC_DRC_LLT      , 0xffff, 0,    0x000069E0);
+	codec_wr_control(SUNXI_DAC_DRC_HKI      , 0xffff, 0,    0x00000080);
+	codec_wr_control(SUNXI_DAC_DRC_LKI      , 0xffff, 0,    0x00000000);
+	codec_wr_control(SUNXI_DAC_DRC_HOPL     , 0xffff, 0,    0x0000FD82);
+	codec_wr_control(SUNXI_DAC_DRC_LOPL     , 0xffff, 0,    0x00003098);
+	codec_wr_control(SUNXI_DAC_DRC_HET      , 0xffff, 0,    0x00000779);
+	codec_wr_control(SUNXI_DAC_DRC_LET      , 0xffff, 0,    0x00006E38);
+	codec_wr_control(SUNXI_DAC_DRC_HKE      , 0xffff, 0,    0x00000100);
+	codec_wr_control(SUNXI_DAC_DRC_LKE      , 0xffff, 0,    0x00000000);
+	codec_wr_control(SUNXI_DAC_DRC_HOPE     , 0xffff, 0,    0x0000F906);
+	codec_wr_control(SUNXI_DAC_DRC_LOPE     , 0xffff, 0,    0x000021A9);
+	codec_wr_control(SUNXI_DAC_DRC_HKN      , 0xffff, 0,    0x00000122);
+	codec_wr_control(SUNXI_DAC_DRC_LKN      , 0xffff, 0,    0x00002222);
+	codec_wr_control(SUNXI_DAC_DRC_SFHAT    , 0xffff, 0,    0x00000002);
+	codec_wr_control(SUNXI_DAC_DRC_SFLAT    , 0xffff, 0,    0x00005600);
+	codec_wr_control(SUNXI_DAC_DRC_SFHRT    , 0xffff, 0,    0x00000000);
+	codec_wr_control(SUNXI_DAC_DRC_SFLRT    , 0xffff, 0,    0x00000F04);
+	codec_wr_control(SUNXI_DAC_DRC_MXGHS    , 0xffff, 0,    0x0000FE56);
+	codec_wr_control(SUNXI_DAC_DRC_MXGLS    , 0xffff, 0,    0x0000CB0F);
+	codec_wr_control(SUNXI_DAC_DRC_MNGHS    , 0xffff, 0,    0x0000F95B);
+	codec_wr_control(SUNXI_DAC_DRC_MNGLS    , 0xffff, 0,    0x00002C3F);
+	codec_wr_control(SUNXI_DAC_DRC_EPSHC    , 0xffff, 0,    0x00000000);
+	codec_wr_control(SUNXI_DAC_DRC_EPSLC    , 0xffff, 0,    0x0000640C);
+
+}
+
+static void adcdrc_enable(bool on)
+{
+	if (on) {
+		codec_wr_control( SUNXI_ADC_DAP_CTR	, 0x3, 25, 	3);
+	} else {
+		codec_wr_control( SUNXI_ADC_DAP_CTR	, 0x3, 25, 0);
+	}
+
+}
+static void dacdrc_enable(bool on)
+{
+	if (on) {
+		codec_wr_control( SUNXI_DAC_DAP_CTR	, 0x1, 15, 	1);
+		codec_wr_control( SUNXI_DAC_DAP_CTR	, 0x1, 31, 	1);
+
+	} else {
+		codec_wr_control( SUNXI_DAC_DAP_CTR	, 0x1, 15, 	0);
+		codec_wr_control( SUNXI_DAC_DAP_CTR	, 0x1, 31, 	0);
+	}
+
+}
+static void adcagc_enable(bool on)
+{
+	if (on) {
+
+	} else {
+
+	}
+}
+static void adchpf_config(void)
+{
+	codec_wr_control( SUNXI_ADC_DRC_HHPFC	, 0xffff, 0, 0x000000FF );
+	codec_wr_control( SUNXI_ADC_DRC_LHPFC	, 0xffff, 0, 0x0000FAC1 );
+	codec_wr_control( SUNXI_ADC_HPF_HG	, 0xffff, 0, 0x00000100 );
+	codec_wr_control( SUNXI_ADC_HPF_LG	, 0xffff, 0, 0x00000000 );
+}
+static void dachpf_config(void)
+{
+	codec_wr_control(SUNXI_DAC_DRC_HHPFC	, 0xffff, 0, 	0x000000FF);
+	codec_wr_control(SUNXI_DAC_DRC_LHPFC	, 0xffff, 0, 	0x0000FAC1);
+	codec_wr_control(SUNXI_DAC_HPF_HG	, 0xffff, 0, 	0x00000100);
+	codec_wr_control(SUNXI_DAC_HPF_LG	, 0xffff, 0, 	0x00000000);
+
+}
+static void dachpf_enable(bool on)
+{
+	if (on) {
+		codec_wr_control( SUNXI_DAC_DAP_CTR	, 0x1, 14, 	1);
+		codec_wr_control( SUNXI_DAC_DAP_CTR	, 0x1, 31, 	1);
+	} else {
+		codec_wr_control( SUNXI_DAC_DAP_CTR	, 0x1, 14, 	0);
+		codec_wr_control( SUNXI_DAC_DAP_CTR	, 0x1, 31, 	0);
+	}
+
+}
+static void adchpf_enable(bool on)
+{
+	if (on) {
+		codec_wr_control( SUNXI_ADC_DAP_CTR	, 0x1, 24, 	1);
+		codec_wr_control( SUNXI_ADC_DAP_CTR	, 0x1, 26, 	1);
+	} else {
+		codec_wr_control( SUNXI_ADC_DAP_CTR	, 0x1, 24, 	1);
+		codec_wr_control( SUNXI_ADC_DAP_CTR	, 0x1, 26, 	1);
+	}
+
+}
 static void get_audio_param(void)
 {
 	script_item_value_type_e  type;
 	script_item_u val;
 
-	type = script_get_item("audio0", "headphone_vol", &val);
+	type = script_get_item("audio0", "lineout_vol", &val);
 	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
-		pr_err("[audiocodec] headphone_vol type err!\n");
+		pr_err("[audiocodec] lineout_vol type err!\n");
 	}  else { 
-		headphone_vol = val.val;
+		lineout_vol = val.val;
 	}
 
 	type = script_get_item("audio0", "cap_vol", &val);
@@ -289,12 +531,42 @@ static void get_audio_param(void)
 		cap_vol = val.val;
 	}
 
-	pr_debug("headphone_vol=0x%x, earpiece_vol=0x%x, cap_vol=0x%x, \
-		phone_headset_mic_vol=0x%x, phone_main_mic_vol=0x%x, \
-		pa_double_used=0x%x, pa_vol=0x%x \n" \
-		,headphone_vol, earpiece_vol, cap_vol,  \
-		phone_headset_mic_vol, phone_main_mic_vol, \
-		pa_double_used, pa_vol);
+	pr_debug("lineout_vol=0x%x, cap_vol=0x%x \n", lineout_vol, cap_vol);
+
+	type = script_get_item("audio0", "adcagc_used", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+        	pr_err("[audiocodec] adcagc_used type err!\n");
+    	} else {
+		adcagc_used = val.val;
+	}
+
+	type = script_get_item("audio0", "adcdrc_used", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+        	pr_err("[audiocodec] adcdrc_used type err!\n");
+    	} else {
+		adcdrc_used = val.val;
+	}
+
+	type = script_get_item("audio0", "dacdrc_used", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+        	pr_err("[audiocodec] dacdrc_used type err!\n");
+    	} else {
+		dacdrc_used = val.val;
+	}
+
+	type = script_get_item("audio0", "adchpf_used", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+        	pr_err("[audiocodec] adchpf_used type err!\n");
+    	} else {
+		adchpf_used = val.val;
+	}
+
+	type = script_get_item("audio0", "dachpf_used", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+        	pr_err("[audiocodec] dachpf_used type err!\n");
+    	} else {
+		dachpf_used = val.val;
+	}
 }
 
 /*
@@ -308,13 +580,40 @@ static void codec_init(void)
 	/*when TX FIFO available room less than or equal N,
 	* DRQ Requeest will be de-asserted.
 	*/
-	codec_wr_control(SUNXI_DAC_FIFOC, 0x3, DAC_DRQ_CLR_CNT, 0x3);
+	codec_wr_control(SUNXI_DAC_FIFOC, 0x3, DAC_DRQ_CLR_CNT, 0x0);
 
 	/*write 1 to flush tx fifo*/
 	codec_wr_control(SUNXI_DAC_FIFOC, 0x1, FIFO_FLUSH, 0x1);
 	/*write 1 to flush rx fifo*/
 	codec_wr_control(SUNXI_ADC_FIFOC, 0x1, ADC_FIFO_FLUSH, 0x1);
-	codec_wr_control(SUNXI_DAC_FIFOC, 0x1, FIR_VER, 0x1);
+	codec_wr_prcm_control(LINEOUT_VOLC, 0x1f, LINEOUTVOL, lineout_vol);
+
+	codec_wr_prcm_control(PAEN_CTR, 0x1, LINEOUTEN, 0x1);
+	codec_wr_prcm_control(MIC2G_LINEOUT_CTR, 0x1, LINEOUTL_EN, 0x1);
+	codec_wr_prcm_control(MIC2G_LINEOUT_CTR, 0x1, LINEOUTR_EN, 0x1);
+	msleep(1250);
+	gpio_set_value(item.gpio.gpio, 1);
+	if (adcagc_used) {
+		adcagc_config();
+	}
+	if (adcdrc_used) {
+		adcdrc_config();
+	}
+	if (adchpf_used) {
+		adchpf_config();
+	}
+	if (dacdrc_used) {
+		dacdrc_config();
+	}
+	if (dachpf_used) {
+		dachpf_config();
+	}
+}
+
+static void codec_init_events(struct work_struct *work)
+{
+	codec_init();
+	pr_debug("====codec_init_events===\n");
 }
 
 /*
@@ -323,39 +622,44 @@ static void codec_init(void)
 */
 static int codec_pa_play_open(void)
 {
+	int l_vol = 0;
+
 	/*enable dac digital*/
 	codec_wr_control(SUNXI_DAC_DPC, 0x1, DAC_EN, 0x1);
 	codec_wr_prcm_control(LINEOUT_PA_GAT, 0x1, PA_CLK_GC, 0x0);
 
 	/*set TX FIFO send drq level*/
 	codec_wr_control(SUNXI_DAC_FIFOC ,0x7f, TX_TRI_LEVEL, 0xf);
-	/*set TX FIFO MODE*/
-	codec_wr_control(SUNXI_DAC_FIFOC ,0x1, FIFO_MODE, 0x1);
-
-	//send last sample when dac fifo under run
+	/*send last sample when dac fifo under run*/
 	codec_wr_control(SUNXI_DAC_FIFOC ,0x1, SEND_LASAT, 0x0);
+	codec_wr_prcm_control(PAEN_CTR, 0x3, PA_ANTI_POP_CTRL, 0x3);
 
 	codec_wr_prcm_control(DAC_PA_SRC, 0x1, DACALEN, 0x1);
 	codec_wr_prcm_control(DAC_PA_SRC, 0x1, DACAREN, 0x1);
 
 	codec_wr_prcm_control(DAC_PA_SRC, 0x1, LMIXEN, 0x1);
 	codec_wr_prcm_control(DAC_PA_SRC, 0x1, RMIXEN, 0x1);
-    //by xzd left select dacl&dacr
-	codec_wr_prcm_control(ROMIXSC, 0x7f, RMIXMUTE, 0x0);
-	//by xzd right don't select src
-	codec_wr_prcm_control(LOMIXSC, 0x7f, LMIXMUTE, 0x3);
+	msleep(10);
 
-	gpio_set_value(item.gpio.gpio, 1);
-	msleep(62);
-
+	codec_wr_prcm_control(ROMIXSC, 0x1, RMIXMUTEDACR, 0x1);
+	codec_wr_prcm_control(LOMIXSC, 0x1, LMIXMUTEDACL, 0x1);
+	/*while adjust volume from app interface, so read the hardware vol first*/
+	l_vol = read_prcm_wvalue(LINEOUT_VOLC);
+	l_vol = l_vol>>3;
+	codec_wr_prcm_control(LINEOUT_VOLC, 0x1f, LINEOUTVOL, l_vol);
 	return 0;
 }
 
 /*
 *	use for the base system record(for pad record).
 */
-static int codec_capture_open(void)
+int codec_capture_open(void)
 {
+	/*disable Right linein Boost stage*/
+	codec_wr_prcm_control(RADCMIXSC, 0x1, RADCMIXMUTELINEINR, 0x0);
+	/*disable Left linein Boost stage*/
+	codec_wr_prcm_control(LADCMIXSC, 0x1, LADCMIXMUTELINEINL, 0x0);
+
 	/*enable mic1 pa*/
 	codec_wr_prcm_control(MIC1G_MICBIAS_CTR, 0x1, MIC1AMPEN, 0x1);
 	/*mic1 gain 36dB,if capture volume is too small, enlarge the mic1boost*/
@@ -363,10 +667,17 @@ static int codec_capture_open(void)
 	/*enable Master microphone bias*/
 	codec_wr_prcm_control(MIC1G_MICBIAS_CTR, 0x1, MMICBIASEN, 0x1);
 
-	/*enable Left MIC1 Boost stage*/
-	codec_wr_prcm_control(LADCMIXSC, 0x1, LADCMIXMUTEMIC1BOOST, 0x1);
-	/*enable Right MIC1 Boost stage*/
-	codec_wr_prcm_control(RADCMIXSC, 0x1, RADCMIXMUTEMIC1BOOST, 0x1);
+	if (codec_addaloop_en) {
+		/*enable Left output Boost stage*/
+		codec_wr_prcm_control(LADCMIXSC, 0x1, LADCMIXMUTELOUTPUT, 0x1);
+		/*enable Right output Boost stage*/
+		codec_wr_prcm_control(RADCMIXSC, 0x1, RADCMIXMUTEROUTPUT, 0x1);
+	} else {
+		/*enable Left MIC1 Boost stage*/
+		codec_wr_prcm_control(LADCMIXSC, 0x1, LADCMIXMUTEMIC1BOOST, 0x1);
+		/*enable Right MIC1 Boost stage*/
+		codec_wr_prcm_control(RADCMIXSC, 0x1, RADCMIXMUTEMIC1BOOST, 0x1);
+	}
 
 	/*enable adc_r adc_l analog*/
 	codec_wr_prcm_control(ADC_AP_EN, 0x1,  ADCREN, 0x1);
@@ -384,6 +695,87 @@ static int codec_capture_open(void)
 	msleep(200);
 	return 0;
 }
+EXPORT_SYMBOL(codec_capture_open);
+
+/*
+*	use for the line_in record
+*/
+int codec_linein_capture_open(void)
+{
+	/*disable mic1 pa*/
+	codec_wr_prcm_control(MIC1G_MICBIAS_CTR, 0x1, MIC1AMPEN, 0x0);
+	/*disable Master microphone bias*/
+	codec_wr_prcm_control(MIC1G_MICBIAS_CTR, 0x1, MMICBIASEN, 0x0);
+
+	codec_wr_prcm_control(MIC2G_LINEOUT_CTR, 0x1, MIC2AMPEN, 0x0);
+	/*disable Right MIC2 Boost stage*/
+	codec_wr_prcm_control(RADCMIXSC, 0x1, RADCMIXMUTEMIC2BOOST, 0x0);
+	/*disable Left MIC1 Boost stage*/
+	codec_wr_prcm_control(LADCMIXSC, 0x1, LADCMIXMUTEMIC1BOOST, 0x0);
+
+	/*enable Right linein Boost stage*/
+	codec_wr_prcm_control(RADCMIXSC, 0x1, RADCMIXMUTELINEINR, 0x1);
+	/*enable Left linein Boost stage*/
+	codec_wr_prcm_control(LADCMIXSC, 0x1, LADCMIXMUTELINEINL, 0x1);
+
+	/*enable adc_r adc_l analog*/
+	codec_wr_prcm_control(ADC_AP_EN, 0x1,  ADCREN, 0x1);
+	codec_wr_prcm_control(ADC_AP_EN, 0x1,  ADCLEN, 0x1);
+
+	/*set RX FIFO mode*/
+	codec_wr_control(SUNXI_ADC_FIFOC, 0x1, RX_FIFO_MODE, 0x1);
+	/*set RX FIFO rec drq level*/
+	codec_wr_control(SUNXI_ADC_FIFOC, 0x1f, RX_FIFO_TRG_LEVEL, 0xf);
+	/*enable adc digital part*/
+	codec_wr_control(SUNXI_ADC_FIFOC, 0x1, EN_AD, 0x1);
+	/*enable adc drq*/
+	codec_wr_control(SUNXI_ADC_FIFOC ,0x1, ADC_DRQ_EN, 0x1);
+	/*hardware fifo delay*/
+	msleep(200);
+	return 0;
+}
+
+/*
+*	use for the phone noise reduced while in phone model.
+*	use the mic1 and mic2 to reduecd the noise from record
+*/
+static int codec_mic1_2_capture_open(void)
+{
+	/*disable Right linein Boost stage*/
+	codec_wr_prcm_control(RADCMIXSC, 0x1, RADCMIXMUTELINEINR, 0x0);
+	/*disable Left linein Boost stage*/
+	codec_wr_prcm_control(LADCMIXSC, 0x1, LADCMIXMUTELINEINL, 0x0);
+	/*disable Right MIC1 Boost stage*/
+	codec_wr_prcm_control(RADCMIXSC, 0x1, RADCMIXMUTEMIC1BOOST, 0x0);
+
+	/*enable mic1 pa*/
+	codec_wr_prcm_control(MIC1G_MICBIAS_CTR, 0x1, MIC1AMPEN, 0x1);
+	/*enable Master microphone bias*/
+	codec_wr_prcm_control(MIC1G_MICBIAS_CTR, 0x1, MMICBIASEN, 0x1);
+
+	codec_wr_prcm_control(MIC2G_LINEOUT_CTR, 0x1, MIC2AMPEN, 0x1);
+
+	/*enable Right MIC2 Boost stage*/
+	codec_wr_prcm_control(RADCMIXSC, 0x1, RADCMIXMUTEMIC2BOOST, 0x1);
+	/*enable Left MIC1 Boost stage*/
+	codec_wr_prcm_control(LADCMIXSC, 0x1, LADCMIXMUTEMIC1BOOST, 0x1);
+	
+	/*enable adc_r adc_l analog*/
+	codec_wr_prcm_control(ADC_AP_EN, 0x1,  ADCREN, 0x1);
+	codec_wr_prcm_control(ADC_AP_EN, 0x1,  ADCLEN, 0x1);
+
+	/*set RX FIFO mode*/
+	codec_wr_control(SUNXI_ADC_FIFOC, 0x1, RX_FIFO_MODE, 0x1);
+	/*set RX FIFO rec drq level*/
+	codec_wr_control(SUNXI_ADC_FIFOC, 0x1f, RX_FIFO_TRG_LEVEL, 0xf);
+	/*enable adc digital part*/
+	codec_wr_control(SUNXI_ADC_FIFOC, 0x1, EN_AD, 0x1);
+	/*enable adc drq*/
+	codec_wr_control(SUNXI_ADC_FIFOC ,0x1, ADC_DRQ_EN, 0x1);
+	/*hardware fifo delay*/
+	msleep(200);
+	return 0;
+}
 
 /*
 *	codec_speaker_headset_earpiece_en == 3, earpiece is open,speaker and headphone is close.
@@ -393,52 +785,73 @@ static int codec_capture_open(void)
 */
 static int codec_play_start(void)
 {
+	codec_wr_control(SUNXI_DAC_FIFOC ,0x7f, TX_TRI_LEVEL, 0x40);
 	/*enable dac drq*/
 	codec_wr_control(SUNXI_DAC_FIFOC ,0x1, DAC_DRQ_EN, 0x1);
 	/*DAC FIFO Flush,Write '1' to flush TX FIFO, self clear to '0'*/
 	codec_wr_control(SUNXI_DAC_FIFOC ,0x1, FIFO_FLUSH, 0x1);
-
 	return 0;
 }
 
 static int codec_play_stop(void)
 {
+	codec_wr_prcm_control(ROMIXSC, 0x1, RMIXMUTEDACR, 0x0);
+	codec_wr_prcm_control(LOMIXSC, 0x1, LMIXMUTEDACL, 0x0);
+
+	codec_wr_control(SUNXI_DAC_FIFOC, 0x1, FIFO_FLUSH, 0x1);
 	return 0;
 }
 
-static int codec_capture_stop(void)
+int codec_capture_stop(void)
 {
 	/*disable adc digital part*/
 	codec_wr_control(SUNXI_ADC_FIFOC, 0x1,EN_AD, 0x0);
 	/*disable adc drq*/
 	codec_wr_control(SUNXI_ADC_FIFOC ,0x1, ADC_DRQ_EN, 0x0);
+	codec_wr_control(SUNXI_ADC_FIFOC ,0x1, ADC_FIFO_FLUSH, 0x1);
 
 	/*disable mic1 pa*/
 	codec_wr_prcm_control(MIC1G_MICBIAS_CTR, 0x1, MIC1AMPEN, 0x0);
 	/*disable Master microphone bias*/
 	codec_wr_prcm_control(MIC1G_MICBIAS_CTR, 0x1, MMICBIASEN, 0x0);
 	codec_wr_prcm_control(MIC2G_LINEOUT_CTR, 0x1, MIC2AMPEN, 0x0);
+	
+	/*disable Right linein Boost stage*/
+	codec_wr_prcm_control(RADCMIXSC, 0x1, RADCMIXMUTELINEINR, 0x0);
+	/*disable Left linein Boost stage*/
+	codec_wr_prcm_control(LADCMIXSC, 0x1, LADCMIXMUTELINEINL, 0x0);
 
 	/*disable Left MIC1 Boost stage*/
-	codec_wr_prcm_control(LADCMIXSC, 0x1, LADCMIXMUTEMIC1BOOST, 0x1);
+	codec_wr_prcm_control(LADCMIXSC, 0x1, LADCMIXMUTEMIC1BOOST, 0x0);
 	/*disable Right MIC1 Boost stage*/
-	codec_wr_prcm_control(RADCMIXSC, 0x1, RADCMIXMUTEMIC1BOOST, 0x1);
+	codec_wr_prcm_control(RADCMIXSC, 0x1, RADCMIXMUTEMIC1BOOST, 0x0);
 
-	/*disable Left MIC1 Boost stage*/
-	codec_wr_prcm_control(LADCMIXSC, 0x1, LADCMIXMUTEMIC2BOOST, 0x1);
-	/*disable Right MIC1 Boost stage*/
-	codec_wr_prcm_control(RADCMIXSC, 0x1, RADCMIXMUTEMIC2BOOST, 0x1);
+	/*disable Left output Boost stage*/
+	codec_wr_prcm_control(LADCMIXSC, 0x1, LADCMIXMUTELOUTPUT, 0x0);
+	/*disable Right output Boost stage*/
+	codec_wr_prcm_control(RADCMIXSC, 0x1, RADCMIXMUTEROUTPUT, 0x0);
 
-	/*disable LINEINL ADC*/
-	codec_wr_prcm_control(LADCMIXSC, 0x1, LADCMIXMUTELINEINL, 0x1);
-	/*disable LINEINR ADC*/
-	codec_wr_prcm_control(RADCMIXSC, 0x1, RADCMIXMUTELINEINR, 0x1);
+	/*disable Left MIC2 Boost stage*/
+	codec_wr_prcm_control(LADCMIXSC, 0x1, LADCMIXMUTEMIC2BOOST, 0x0);
+	/*disable Right MIC2 Boost stage*/
+	codec_wr_prcm_control(RADCMIXSC, 0x1, RADCMIXMUTEMIC2BOOST, 0x0);
 
 	/*disable adc_r adc_l analog*/
 	codec_wr_prcm_control(ADC_AP_EN, 0x1,  ADCREN, 0x0);
 	codec_wr_prcm_control(ADC_AP_EN, 0x1,  ADCLEN, 0x0);
 	return 0;
 }
+EXPORT_SYMBOL(codec_capture_stop);
+
+void audiocodec_hub_enable(int hub_en)
+{
+	if (hub_en) {
+		codec_wr_control(SUNXI_DAC_DPC, 0x1, HUB_EN, 0x1);
+	} else {
+		codec_wr_control(SUNXI_DAC_DPC, 0x1, HUB_EN, 0x0);
+	}
+}
+EXPORT_SYMBOL(audiocodec_hub_enable);
 
 static int sndpcm_mute(struct snd_soc_dai *dai, int mute)
 {
@@ -448,25 +861,61 @@ static int sndpcm_mute(struct snd_soc_dai *dai, int mute)
 static int sndpcm_startup(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *dai)
 {
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		if (dacdrc_used) {
+			dacdrc_enable(1);
+		}
+		if (dachpf_used) {
+			dachpf_enable(1);
+		}
+	} else {
+		if (adcdrc_used) {
+			adcdrc_enable(1);
+		}
+		if (adcagc_used) {
+			adcagc_enable(1);
+		}
+		if (adchpf_used) {
+			adchpf_enable(1);
+		}
+	}
 	return 0;
 }
 
 static void sndpcm_shutdown(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *dai)
 {
-	codec_wr_prcm_control(ADDA_APT2, 0x1, ZERO_CROSS_EN, 0x0);
-
-	codec_wr_prcm_control(DAC_PA_SRC, 0x1, LMIXEN, 0x0);
-	codec_wr_prcm_control(DAC_PA_SRC, 0x1, RMIXEN, 0x0);
-
-	/*disable dac drq*/
-	codec_wr_control(SUNXI_DAC_FIFOC ,0x1, DAC_DRQ_EN, 0x0);
-	codec_wr_prcm_control(DAC_PA_SRC, 0x1, DACALEN, 0x0);
-	codec_wr_prcm_control(DAC_PA_SRC, 0x1, DACAREN, 0x0);
-	/*disable dac digital*/
-	codec_wr_control(SUNXI_DAC_DPC ,  0x1, DAC_EN, 0x0);
-	codec_wr_prcm_control(LINEOUT_PA_GAT, 0x1, PA_CLK_GC, 0x0);
-
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		codec_wr_prcm_control(ADDA_APT2, 0x1, ZERO_CROSS_EN, 0x0);
+		if (!codec_lineout_en) {
+			codec_wr_prcm_control(DAC_PA_SRC, 0x1, LMIXEN, 0x0);
+			codec_wr_prcm_control(DAC_PA_SRC, 0x1, RMIXEN, 0x0);
+		}
+		/*disable dac drq*/
+		codec_wr_control(SUNXI_DAC_FIFOC ,0x1, DAC_DRQ_EN, 0x0);
+		codec_wr_prcm_control(DAC_PA_SRC, 0x1, DACALEN, 0x0);
+		codec_wr_prcm_control(DAC_PA_SRC, 0x1, DACAREN, 0x0);
+		/*disable dac digital*/
+		codec_wr_control(SUNXI_DAC_DPC ,  0x1, DAC_EN, 0x0);
+		codec_wr_prcm_control(LINEOUT_PA_GAT, 0x1, PA_CLK_GC, 0x0);
+		play_running = 0;
+		if (dacdrc_used) {
+			dacdrc_enable(0);
+		}
+		if (dachpf_used) {
+			dachpf_enable(0);
+		}
+	} else {
+	    if (adcdrc_used) {
+			adcdrc_enable(0);
+		}
+		if (adcagc_used) {
+			adcagc_enable(0);
+		}
+		if (adchpf_used) {
+			adchpf_enable(0);
+		}
+	}
 }
 
 static int sndpcm_perpare(struct snd_pcm_substream *substream,
@@ -784,9 +1233,16 @@ static int sndpcm_perpare(struct snd_pcm_substream *substream,
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		play_ret = codec_pa_play_open();
 		codec_play_start();
+		play_running = 1;
 		return play_ret;
 	} else {
-   		codec_capture_open();
+		if (codec_cap_mode == 1) {
+			codec_mic1_2_capture_open();
+		} else if (codec_cap_mode == 2) {
+			codec_linein_capture_open();
+		} else {
+   			codec_capture_open();
+   		}
 		return capture_ret;
 	}
 }
@@ -840,6 +1296,20 @@ static int sndpcm_hw_params(struct snd_pcm_substream *substream,
 		dma_data = &sunxi_pcm_pcm_stereo_in;
 
 	snd_soc_dai_set_dma_data(rtd->cpu_dai, substream, dma_data);
+
+	switch (params_format(params)) {
+		case SNDRV_PCM_FORMAT_S24_LE:
+		case SNDRV_PCM_FORMAT_S32_LE:
+			codec_wr_control(SUNXI_DAC_FIFOC ,0x1, FIFO_MODE, 0x0);
+			codec_wr_control(SUNXI_DAC_FIFOC ,0x1, TX_SAMPLE_BITS, 0x1);
+		break;
+		case SNDRV_PCM_FORMAT_S16_LE:
+		default:
+			/*set TX FIFO MODE*/
+			codec_wr_control(SUNXI_DAC_FIFOC ,0x1, FIFO_MODE, 0x1);
+			codec_wr_control(SUNXI_DAC_FIFOC ,0x1, TX_SAMPLE_BITS, 0x0);
+		break;
+	}
 	return 0;
 }
 
@@ -860,25 +1330,156 @@ static int sndpcm_set_dai_fmt(struct snd_soc_dai *codec_dai,
 	return 0;
 }
 
-static const char *spk_headset_earpiece_function[] = {"headset", "spk", "spk_headset"};
-static const struct soc_enum spk_headset_earpiece_enum[] = {
-        SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(spk_headset_earpiece_function), spk_headset_earpiece_function),
+/*
+*	codec_lineinin_en == 1, open the linein in.
+*	codec_lineinin_en == 0, close the linein in.
+*/
+static int codec_set_lineinin(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	codec_lineinin_en = ucontrol->value.integer.value[0];
+	if (codec_lineinin_en) {
+		/*select LINEINL*/
+		codec_wr_prcm_control(LOMIXSC, 0x1, LMIXMUTELINEINL, 0x1);
+		/*select LINEINR*/
+		codec_wr_prcm_control(ROMIXSC, 0x1, RMIXMUTELINEINR, 0x1);
+	} else {
+		/*close LINEINL*/
+		codec_wr_prcm_control(LOMIXSC, 0x1, LMIXMUTELINEINL, 0x0);
+		/*close LINEINR*/
+		codec_wr_prcm_control(ROMIXSC, 0x1, RMIXMUTELINEINR, 0x0);
+	}
+
+	return 0;
+}
+
+static int codec_get_lineinin(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = codec_lineinin_en;
+	return 0;
+}
+
+/*
+*	codec_lineout_en == 1, open the speaker.
+*	codec_lineout_en == 0, close the speaker.
+*/
+static int codec_set_lineout(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	codec_lineout_en = ucontrol->value.integer.value[0];
+
+	if (codec_lineout_en) {
+		codec_wr_prcm_control(LOMIXSC, 0x1, LMIXMUTELINEINL, 0x1);
+		codec_wr_prcm_control(ROMIXSC, 0x1, RMIXMUTELINEINR, 0x1);
+		codec_wr_prcm_control(PAEN_CTR, 0x1, LINEOUTEN, 0x1);
+		codec_wr_prcm_control(MIC2G_LINEOUT_CTR, 0x1, LINEOUTL_EN, 0x1);
+		codec_wr_prcm_control(MIC2G_LINEOUT_CTR, 0x1, LINEOUTR_EN, 0x1);
+
+		codec_wr_prcm_control(DAC_PA_SRC, 0x1, LMIXEN, 0x1);
+		codec_wr_prcm_control(DAC_PA_SRC, 0x1, RMIXEN, 0x1);
+		usleep_range(2000, 3000);
+		gpio_set_value(item.gpio.gpio, 1);
+		msleep(62);
+	} else {
+		codec_wr_prcm_control(LOMIXSC, 0x1, LMIXMUTELINEINL, 0x0);
+		codec_wr_prcm_control(ROMIXSC, 0x1, RMIXMUTELINEINR, 0x0);
+		if (!play_running) {
+			codec_wr_prcm_control(PAEN_CTR, 0x1, LINEOUTEN, 0x0);
+			codec_wr_prcm_control(MIC2G_LINEOUT_CTR, 0x1, LINEOUTL_EN, 0x0);
+			codec_wr_prcm_control(MIC2G_LINEOUT_CTR, 0x1, LINEOUTR_EN, 0x0);
+
+			codec_wr_prcm_control(DAC_PA_SRC, 0x1, LMIXEN, 0x0);
+			codec_wr_prcm_control(DAC_PA_SRC, 0x1, RMIXEN, 0x0);
+			gpio_set_value(item.gpio.gpio, 0);
+		}
+	}
+
+	return 0;
+}
+
+static int codec_get_lineout(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = codec_lineout_en;
+	return 0;
+}
+
+static int codec_set_addadrc(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	codec_addadrc_en = ucontrol->value.integer.value[0];
+
+	if (codec_addadrc_en) {
+		adcdrc_used       		= 1;
+		dacdrc_used       		= 1;
+		adchpf_used       		= 1;
+		codec_init();
+	} else {
+		adcdrc_used       		= 0;
+		dacdrc_used       		= 0;
+		adchpf_used       		= 0;
+	}
+
+	return 0;
+}
+
+static int codec_get_addadrc(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = codec_addadrc_en;
+	return 0;
+}
+static int codec_set_addaloop(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	codec_addaloop_en = ucontrol->value.integer.value[0];
+
+	return 0;
+}
+
+static int codec_get_addaloop(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = codec_addaloop_en;
+	return 0;
+}
+static int codec_set_audio_capture_mode(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	codec_cap_mode = ucontrol->value.integer.value[0];
+
+	return 0;
+}
+
+static int codec_get_audio_capture_mode(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = codec_cap_mode;
+	return 0;
+}
+
+static const char *audio_capture_function[] = {"main mic", "mic1_2", "linein"};
+static const struct soc_enum audio_capture_enum[] = {
+        SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(audio_capture_function), audio_capture_function),
 };
 
 static const struct snd_kcontrol_new sunxi_codec_controls[] = {
-	/*SUNXI_PA_CTRL = 0x24*/
 	CODEC_SINGLE("MIC1_G boost stage output mixer control", 	MIC_GCTR, MIC1G, 0x7, 0),
 	CODEC_SINGLE("MIC2_G boost stage output mixer control", 	MIC_GCTR, MIC2G, 0x7, 0),
 	CODEC_SINGLE("LINEIN_G boost stage output mixer control", 	LINEIN_GCTR, LINEING, 0x7, 0),
 
-	/*SUNXI_MIC_CTRL = 0x28*/
 	CODEC_SINGLE("MIC1 boost AMP gain control", 				MIC1G_MICBIAS_CTR, MIC1BOOST, 0x7, 0),
 	CODEC_SINGLE("MIC2 boost AMP gain control", 				MIC2G_LINEOUT_CTR, MIC2BOOST, 0x7, 0),
 
 	CODEC_SINGLE("Lineout volume control", 						LINEOUT_VOLC, LINEOUTVOL, 0x1f, 0),
 
-	/*SUNXI_ADC_ACTL = 0x2c*/
 	CODEC_SINGLE("ADC input gain ctrl", 						ADC_AP_EN, ADCG, 0x7, 0),
+	SOC_SINGLE_BOOL_EXT("Audio linein in", 		0, codec_get_lineinin, 	codec_set_lineinin),
+	SOC_SINGLE_BOOL_EXT("Audio lineout", 	0, codec_get_lineout, 	codec_set_lineout),
+	SOC_SINGLE_BOOL_EXT("Audio adda drc", 	0, codec_get_addadrc, 	codec_set_addadrc),
+	SOC_SINGLE_BOOL_EXT("Audio adda loop", 	0, codec_get_addaloop, 	codec_set_addaloop),
+	SOC_ENUM_EXT("audio capture mode", audio_capture_enum[0], codec_get_audio_capture_mode, codec_set_audio_capture_mode),
 };
 
 static struct snd_soc_dai_ops sndpcm_dai_ops = {
@@ -931,9 +1532,9 @@ static int sndpcm_suspend(struct snd_soc_codec *codec)
 		pr_debug("In talking standby, audio codec do not suspend!!\n");
 		return 0;
 	}
+	gpio_set_value(item.gpio.gpio, 0);
 
 	codec_wr_prcm_control(MIC1G_MICBIAS_CTR, 0x1, MMICBIASEN, 0x0);
-	codec_wr_prcm_control(MIC1G_MICBIAS_CTR, 0x1, HMICBIAS_MODE, 0x0);
 
 	codec_wr_prcm_control(DAC_PA_SRC, 0x1, LMIXEN, 0x0);
 	codec_wr_prcm_control(DAC_PA_SRC, 0x1, RMIXEN, 0x0);
@@ -946,7 +1547,10 @@ static int sndpcm_suspend(struct snd_soc_codec *codec)
 	codec_wr_prcm_control(ADDA_APT2, 0x1, ZERO_CROSS_EN, 0x0);
 
 	//codec_wr_prcm_control(LINEOUT_VOLC, 0x1f, LINEOUTVOL, 0x0);
-	gpio_set_value(item.gpio.gpio, 0);
+
+	codec_wr_prcm_control(PAEN_CTR, 0x1, LINEOUTEN, 0x0);
+	codec_wr_prcm_control(MIC2G_LINEOUT_CTR, 0x1, LINEOUTL_EN, 0x0);
+	codec_wr_prcm_control(MIC2G_LINEOUT_CTR, 0x1, LINEOUTR_EN, 0x0);
 
 	if ((NULL == codec_moduleclk)||(IS_ERR(codec_moduleclk))) {
 		pr_err("codec_moduleclk handle is invaled, just return\n");
@@ -967,30 +1571,16 @@ static int sndpcm_resume(struct snd_soc_codec *codec)
 		pr_err("open codec_moduleclk failed; \n");
 	}
 
-	if (headphone_direct_used) {
-		codec_wr_prcm_control(PAEN_CTR, 0x3, HPCOM_FC, 0x3);
-		codec_wr_prcm_control(PAEN_CTR, 0x1, COMPTEN, 0x1);
-	} else {
-		codec_wr_prcm_control(PAEN_CTR, 0x3, HPCOM_FC, 0x0);
-		codec_wr_prcm_control(PAEN_CTR, 0x1, COMPTEN, 0x0);
-	}
-
 	/*process for normal standby*/
 	if (NORMAL_STANDBY == standby_type) {
 	/*process for super standby*/
 	} else if(SUPER_STANDBY == standby_type) {
-		/*when TX FIFO available room less than or equal N,
-		* DRQ Requeest will be de-asserted.
-		*/
-		codec_wr_control(SUNXI_DAC_FIFOC, 0x3, DAC_DRQ_EN_CLR_CNT,0x3);
 		/*write 1 to flush tx fifo*/
 		codec_wr_control(SUNXI_DAC_FIFOC, 0x1, FIFO_FLUSH, 0x1);
 		/*write 1 to flush rx fifo*/
 		codec_wr_control(SUNXI_ADC_FIFOC, 0x1, ADC_FIFO_FLUSH, 0x1);
 	}
-
-	codec_wr_control(SUNXI_DAC_FIFOC, 0x1, FIR_VER, 0x1);
-
+	schedule_work(&codec_init_work);
 	pr_debug("[audio codec]:resume end\n");
 	return 0;
 }
@@ -1112,7 +1702,6 @@ static struct attribute_group audio_debug_attr_group = {
 	.attrs  = audio_debug_attrs,
 };
 
-
 static int __init sndpcm_codec_probe(struct platform_device *pdev)
 {
 	int err = -1;
@@ -1144,8 +1733,6 @@ static int __init sndpcm_codec_probe(struct platform_device *pdev)
 		pr_err("err:open codec_moduleclk failed; \n");
 	}
 
-	codec_init();
-	
 	/* check if hp_vcc_ldo exist, if exist enable it */
 	type = script_get_item("audio0", "audio_hp_ldo", &item);
 	if (SCIRPT_ITEM_VALUE_TYPE_STR != type) {
@@ -1178,13 +1765,13 @@ static int __init sndpcm_codec_probe(struct platform_device *pdev)
 	gpio_direction_output(item.gpio.gpio, 1);
 
 	gpio_set_value(item.gpio.gpio, 0);
-	
+	schedule_work(&codec_init_work);
 	snd_soc_register_codec(&pdev->dev, &soc_codec_dev_sndpcm, &sndpcm_dai, 1);
 
-       err=sysfs_create_group(&pdev->dev.kobj, &audio_debug_attr_group);
-       if (err){
+	err=sysfs_create_group(&pdev->dev.kobj, &audio_debug_attr_group);
+	if (err){
 		pr_err("failed to create attr group\n");
-       }
+	}
 
 	return 0;
 }
@@ -1260,13 +1847,21 @@ static struct platform_driver sndpcm_codec_driver = {
 static int __init sndpcm_codec_init(void)
 {
 	int err = 0;
+	static script_item_u   val;
+	script_item_value_type_e  type;
+	type = script_get_item("audio0", "audio_used", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+		pr_err("get audio_used type err!");
+	}
+	audio_used=val.val;
 
-	if((err = platform_device_register(&sndpcm_codec_device)) < 0)
-		return err;
+	if (audio_used) {
+		if((err = platform_device_register(&sndpcm_codec_device)) < 0)
+			return err;
 
-	if ((err = platform_driver_register(&sndpcm_codec_driver)) < 0)
-		return err;
-	
+		if ((err = platform_driver_register(&sndpcm_codec_driver)) < 0)
+			return err;
+	}
 	return 0;
 }
 module_init(sndpcm_codec_init);

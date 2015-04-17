@@ -35,9 +35,11 @@
  */
 static inline void putc(int c)
 {
+#if 0
 	while(!(UART_SR & TX_BUSY))
 		cpu_relax();
 	UART_TF = c;
+#endif
 }
 static inline void flush(void) {}
 static inline void arch_decomp_setup(void) {}

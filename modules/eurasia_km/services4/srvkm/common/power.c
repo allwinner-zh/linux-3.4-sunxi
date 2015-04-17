@@ -692,6 +692,7 @@ PVRSRV_ERROR PVRSRVSetPowerStateKM(PVRSRV_SYS_POWER_STATE eNewSysPowerState)
 	SYS_DATA		*psSysData;
 
 	SysAcquireData(&psSysData);
+
 	eError = PVRSRVSystemPrePowerStateKM(eNewSysPowerState);
 	if(eError != PVRSRV_OK)
 	{

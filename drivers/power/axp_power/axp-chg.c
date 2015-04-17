@@ -174,7 +174,7 @@ static void axp_usb(struct work_struct *work)
 				} else if (var < 3500) {
 					tmp = 0x60;   /* 3000mA */
 					axp_update(axp_charger->master, AXP_CHARGE_CONTROL3, tmp,0xf0);
-				} else if (var < 3500) {
+				} else if (var < 4000) {
 					tmp = 0x70;   /* 3500mA */
 					axp_update(axp_charger->master, AXP_CHARGE_CONTROL3, tmp,0xf0);
 				} else {
@@ -252,7 +252,7 @@ static void axp_usb(struct work_struct *work)
 				} else if (var < 3500) {
 					tmp = 0x60;   /* 3000mA */
 					axp_update(axp_charger->master, AXP_CHARGE_CONTROL3, tmp,0xf0);
-				} else if (var < 3500) {
+				} else if (var < 4000) {
 					tmp = 0x70;   /* 3500mA */
 					axp_update(axp_charger->master, AXP_CHARGE_CONTROL3, tmp,0xf0);
 				} else {
@@ -322,7 +322,6 @@ static void axp_usb(struct work_struct *work)
 				if(var >= 4000000 && var <=4700000){
 					tmp = (var - 4000000)/100000;
 					val = tmp << 3;
-					axp_write(axp_charger->master, AXP_CHARGE_AC,val);
 					axp_update(axp_charger->master, AXP_CHARGE_AC, val,0x38);
 				}else
 					DBG_PSY_MSG(DEBUG_CHG, "set usb limit voltage error,%d mV\n",axp_config->pmu_usbvol);
@@ -441,20 +440,48 @@ void axp_usbac_checkst(struct axp_charger *charger)
 
 void axp_usbac_in(struct axp_charger *charger)
 {
+	u32 var;
+	u8 tmp;
+
 	if (!axp_config->pmu_init_bc_en) {
 		DBG_PSY_MSG(DEBUG_CHG, "axp ac/usb in!\n");
 		if(timer_pending(&charger->usb_status_timer))
 			del_timer_sync(&charger->usb_status_timer);
 		/* must limit the current now,and will again fix it while usb/ac detect finished! */
 		if(axp_config->pmu_usbcur_pc){
-		        if(axp_config->pmu_usbcur_pc >= 900)
-		                axp_clr_bits(charger->master, AXP_CHARGE_VBUS, 0x03);
-		        else if (axp_config->pmu_usbcur_pc < 900) {
-		                axp_clr_bits(charger->master, AXP_CHARGE_VBUS, 0x02);
-		                axp_set_bits(charger->master, AXP_CHARGE_VBUS, 0x01);
-		        }
-		}else//not limit
-		        axp_set_bits(charger->master, AXP_CHARGE_VBUS, 0x03);
+			var = axp_config->pmu_usbcur_pc;
+			if(var < 500) {
+				tmp = 0x00;   /* 100mA */
+				axp_update(axp_charger->master, AXP_CHARGE_CONTROL3, tmp,0xf0);
+			} else if (var < 900) {
+				tmp = 0x10;   /* 500mA */
+				axp_update(axp_charger->master, AXP_CHARGE_CONTROL3, tmp,0xf0);
+			} else if (var < 1500) {
+				tmp = 0x20;   /* 900mA */
+				axp_update(axp_charger->master, AXP_CHARGE_CONTROL3, tmp,0xf0);
+			} else if (var < 2000) {
+				tmp = 0x30;   /* 1500mA */
+				axp_update(axp_charger->master, AXP_CHARGE_CONTROL3, tmp,0xf0);
+			} else if (var < 2500) {
+				tmp = 0x40;   /* 2000mA */
+				axp_update(axp_charger->master, AXP_CHARGE_CONTROL3, tmp,0xf0);
+			} else if (var < 3000) {
+				tmp = 0x50;   /* 2500mA */
+				axp_update(axp_charger->master, AXP_CHARGE_CONTROL3, tmp,0xf0);
+			} else if (var < 3500) {
+				tmp = 0x60;   /* 3000mA */
+				axp_update(axp_charger->master, AXP_CHARGE_CONTROL3, tmp,0xf0);
+			} else if (var < 4000) {
+				tmp = 0x70;   /* 3500mA */
+				axp_update(axp_charger->master, AXP_CHARGE_CONTROL3, tmp,0xf0);
+			} else {
+				tmp = 0x80;   /* 4000mA */
+				axp_update(axp_charger->master, AXP_CHARGE_CONTROL3, tmp,0xf0);
+			}
+		} else {
+			tmp = 0x10;   /* 500mA */
+			axp_update(axp_charger->master, AXP_CHARGE_CONTROL3, tmp,0xf0);
+		}
 		/* this is about 3.5s,while the flag set in usb drivers after usb plugged */
 		mod_timer(&charger->usb_status_timer,jiffies + msecs_to_jiffies(5000));
 	}

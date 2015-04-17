@@ -46,6 +46,9 @@
 
 #include <asm/uaccess.h>
 
+#ifdef eMMC_Magician_SDK_Changes
+#include <linux/delay.h>
+#endif
 #include "queue.h"
 
 MODULE_ALIAS("mmc:block");
@@ -60,6 +63,10 @@ MODULE_ALIAS("mmc:block");
 #define INAND_CMD38_ARG_SECERASE 0x80
 #define INAND_CMD38_ARG_SECTRIM1 0x81
 #define INAND_CMD38_ARG_SECTRIM2 0x88
+
+//#define MMC_BLK_TIMEOUT_MS  (10 * 60 * 1000)        /* 10 minute timeout */
+#define MMC_SANITIZE_REQ_TIMEOUT 240000
+#define MMC_EXTRACT_INDEX_FROM_ARG(x) ((x & 0x00FF0000) >> 16)
 
 static DEFINE_MUTEX(block_mutex);
 
@@ -146,7 +153,14 @@ static struct mmc_blk_data *mmc_blk_get(struct gendisk *disk)
 
 static inline int mmc_get_devidx(struct gendisk *disk)
 {
+#ifndef eMMC_Magician_SDK_Changes
 	int devidx = disk->first_minor / perdev_minors;
+#else
+	int devmaj = MAJOR(disk_devt(disk));
+	int devidx = MINOR(disk_devt(disk)) / perdev_minors;
+	if (!devmaj)
+		devidx = disk->first_minor / perdev_minors;
+#endif
 	return devidx;
 }
 
@@ -356,6 +370,34 @@ out:
 	return ERR_PTR(err);
 }
 
+static int ioctl_do_sanitize(struct mmc_card *card)
+{
+	int err;
+
+	if (!mmc_can_sanitize(card)) {
+			pr_warn("%s: %s - SANITIZE is not supported\n",
+				mmc_hostname(card->host), __func__);
+			err = -EOPNOTSUPP;
+			goto out;
+	}
+
+	pr_info("%s: %s - SANITIZE IN PROGRESS...\n",
+		mmc_hostname(card->host), __func__);
+
+	err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
+					EXT_CSD_SANITIZE_START, 1,
+					MMC_SANITIZE_REQ_TIMEOUT);
+
+	if (err)
+		pr_err("%s: %s - EXT_CSD_SANITIZE_START failed. err=%d\n",
+		       mmc_hostname(card->host), __func__, err);
+
+	pr_info("%s: %s - SANITIZE COMPLETED\n", mmc_hostname(card->host),
+					     __func__);
+out:
+	return err;
+}
+
 static int mmc_blk_ioctl_cmd(struct block_device *bdev,
 	struct mmc_ioc_cmd __user *ic_ptr)
 {
@@ -442,6 +484,17 @@ static int mmc_blk_ioctl_cmd(struct block_device *bdev,
 			goto cmd_rel_host;
 	}
 
+	if ((MMC_EXTRACT_INDEX_FROM_ARG(cmd.arg) == EXT_CSD_SANITIZE_START) &&
+	    (cmd.opcode == MMC_SWITCH)) {
+		err = ioctl_do_sanitize(card);
+
+		if (err)
+			pr_err("%s: ioctl_do_sanitize() failed. err = %d",
+			       __func__, err);
+
+		goto cmd_rel_host;
+	}
+
 	mmc_wait_for_req(card->host, &mrq);
 
 	if (cmd.error) {
@@ -487,12 +540,908 @@ cmd_done:
 	return err;
 }
 
+
+static inline int mmc_blk_part_switch(struct mmc_card *card,
+				      struct mmc_blk_data *md);
+static int mmc_blk_reset(struct mmc_blk_data *md, struct mmc_host *host,
+			 int type);
+static inline void mmc_blk_reset_success(struct mmc_blk_data *md, int type);
+
+
+static int mmc_blk_ioctl_erase_cmd(struct block_device *bdev,
+	struct mmc_ioc_erase_cmd __user *ic_ptr)
+{
+	int err;
+	struct mmc_ioc_erase_cmd erase_cmd;
+	struct mmc_blk_data *md;
+	struct mmc_card *card;
+	int arg = 0;
+	struct gendisk *disk = bdev->bd_disk;
+    __u64 offset, size;
+    int part_num  = 0;
+
+
+
+    part_num = MINOR(bdev->bd_dev)-disk->first_minor;
+    size = (disk->part_tbl->part[part_num]->nr_sects<<9);
+    offset = (disk->part_tbl->part[part_num]->start_sect<<9);
+
+    pr_err("\n%s, %d part_num:%d, size:%012llx, offset:%012llx, disk->disk_name:%s\n",
+        __func__, __LINE__, part_num, size, offset, disk->disk_name);
+
+	// The caller must have CAP_SYS_RAWIO, and must be calling this on the
+	// whole block device, not on a partition.  This prevents overspray
+	// between sibling partitions.
+
+
+	//if ((!capable(CAP_SYS_RAWIO)) || (bdev != bdev->bd_contains))
+	//	return -EPERM;
+
+	if (copy_from_user(&erase_cmd, ic_ptr, sizeof(erase_cmd))) {
+		err = -EFAULT;
+		goto cpy_err;
+	}
+
+	//clear all data in the part
+	if(erase_cmd.flags == 0xa){
+		erase_cmd.start_sec = offset>>9;
+		erase_cmd.size_sec = size>>9;
+		pr_info("erase whole part, start: %d, size: %d\n",
+			erase_cmd.start_sec,erase_cmd.size_sec);
+	}else if((erase_cmd.start_sec<(offset>>9))||(erase_cmd.size_sec>(size>>9))) {
+		pr_err("start sec or size is over the range of disk\n");
+		return -EPERM;
+	}
+
+	pr_info("%s start sec %d,size %d sec\n",
+		bdev->bd_disk->disk_name,erase_cmd.start_sec,erase_cmd.size_sec);
+	md = mmc_blk_get(bdev->bd_disk);
+	if (!md) {
+		pr_err("%s, failed to get mmc blk\n", __func__);
+		err = -EINVAL;
+		goto blk_get_err;
+	}
+
+	card = md->queue.card;
+
+	if(!mmc_card_mmc(card)){
+		pr_err("No mmc, do nothing\n");
+		err = 0;
+		goto dev_card_err;
+	}
+
+
+	if (!mmc_can_erase(card)) {
+		pr_err("device do not support erase, do nothing\n");
+		err = 0;
+		goto dev_card_err;
+	}
+
+	mmc_claim_host(card->host);
+
+	err = mmc_blk_part_switch(card, md);
+	if (err){
+		pr_err("Part switch failed\n");
+		goto cmd_rel_host;
+	 }
+
+	//force erase here
+	//	if (mmc_can_discard(card))
+	//		arg = MMC_DISCARD_ARG;
+	//	else if (mmc_can_trim(card))
+	//		arg = MMC_TRIM_ARG;
+	//	else
+			arg = MMC_ERASE_ARG;
+	pr_err("%s %d: erase arg: 0x%x\n", __FUNCTION__, __LINE__, arg);
+
+retry:
+
+	if (card->quirks & MMC_QUIRK_INAND_CMD38) {
+				pr_err("checked MMC_QUIRK_INAND_CMD38 here\n");
+		err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
+				 INAND_CMD38_ARG_EXT_CSD,
+				 arg == MMC_TRIM_ARG ?
+				 INAND_CMD38_ARG_TRIM :
+				 INAND_CMD38_ARG_ERASE,
+				 0);
+		if (err)
+			goto out;
+	}
+
+
+	err = mmc_erase(card, erase_cmd.start_sec, erase_cmd.size_sec, arg);
+out:
+	if (err == -EIO && !mmc_blk_reset(md, card->host, MMC_BLK_DISCARD)){
+		pr_err("Erase failed and retry here\n");
+		goto retry;
+	}
+
+	if (!err){
+		mmc_blk_reset_success(md, MMC_BLK_DISCARD);
+	}
+	else{
+		pr_err("Erase failed and err:%d\n", err);
+	}
+
+cmd_rel_host:
+	mmc_release_host(card->host);
+
+dev_card_err:
+	mmc_blk_put(md);
+
+blk_get_err:
+	pr_err("%s completed, err:%d \n", __func__, err);
+
+cpy_err:
+
+	return err;
+
+}
+
+static int mmc_do_secure_wipe(struct mmc_card *card, unsigned int from,
+	unsigned int nr)
+{
+	int err;
+	unsigned int arg = 0;
+
+	pr_info("%s: start %s...\n", mmc_hostname(card->host), __func__);
+	if (nr == 0) {
+		pr_info("%s:%s: on space need to erase, nr %d\n",
+			mmc_hostname(card->host), __func__, nr);
+		return 0;
+	}
+
+	if (card->ext_csd.rev <= 5) /* ver 4.41 or older */
+	{
+		if (mmc_can_secure_erase_trim(card) && mmc_can_trim(card))
+		{
+			/* support secure trim operation */
+			pr_info("%s:%s: start secure trim...\n",
+				mmc_hostname(card->host), __func__);
+			arg = MMC_SECURE_TRIM1_ARG;
+			if (card->quirks & MMC_QUIRK_INAND_CMD38) {
+				err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
+						 INAND_CMD38_ARG_EXT_CSD,
+						 arg == MMC_SECURE_TRIM1_ARG ?
+						 INAND_CMD38_ARG_SECTRIM1 :
+						 INAND_CMD38_ARG_SECERASE,
+						 0);
+				if (err) {
+					pr_err("%s:%s: switch for secure trim 1 fail.\n",
+						mmc_hostname(card->host), __func__);
+					goto out;
+				}
+			}
+			err = mmc_erase(card, from, nr, arg);
+			if (err) {
+				pr_info("%s:%s: secure trim 1 fail\n",
+					mmc_hostname(card->host), __func__);
+				goto out;
+			}
+
+			if (!err && arg == MMC_SECURE_TRIM1_ARG) {
+				if (card->quirks & MMC_QUIRK_INAND_CMD38) {
+					err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
+							 INAND_CMD38_ARG_EXT_CSD,
+							 INAND_CMD38_ARG_SECTRIM2,
+							 0);
+					if (err) {
+						pr_err("%s:%s: switch for secure trim 2 fail.\n",
+							mmc_hostname(card->host), __func__);
+						goto out;
+					}
+				}
+				err = mmc_erase(card, from, nr, MMC_SECURE_TRIM2_ARG);
+				if (err) {
+					pr_err("%s:%s: secure trim 2 fail\n",
+						mmc_hostname(card->host), __func__);
+					goto out;
+				}
+			}
+		}
+		else if (mmc_can_secure_erase_trim(card) && mmc_can_erase(card))
+		{
+			/* support secure erase operation */
+			pr_info("%s:%s: start secure erase...\n",
+				mmc_hostname(card->host), __func__);
+			if (!mmc_erase_group_aligned(card, from, nr)) {
+				pr_info("%s:%s: not erase group aligned, group:%d!!\n",
+					mmc_hostname(card->host), __func__, card->erase_size);
+			}
+			arg = MMC_SECURE_ERASE_ARG;
+			if (card->quirks & MMC_QUIRK_INAND_CMD38) {
+				err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
+						 INAND_CMD38_ARG_EXT_CSD,
+						 arg == MMC_SECURE_TRIM1_ARG ?
+						 INAND_CMD38_ARG_SECTRIM1 :
+						 INAND_CMD38_ARG_SECERASE,
+						 0);
+				if (err) {
+					pr_err("%s:%s: switch for secure erase fail.\n",
+						mmc_hostname(card->host), __func__);
+					goto out;
+				}
+			}
+			err = mmc_erase(card, from, nr, arg);
+			if (err) {
+				pr_err("%s:%s: secure erase fail\n",
+					mmc_hostname(card->host), __func__);
+				goto out;
+			}
+
+		}
+		else if (mmc_can_trim(card))
+		{
+			/* support insecure trim operation */
+			pr_info("%s:%s: start trim...\n",
+				mmc_hostname(card->host), __func__);
+			arg = MMC_TRIM_ARG;
+			if (card->quirks & MMC_QUIRK_INAND_CMD38) {
+				err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
+					 INAND_CMD38_ARG_EXT_CSD,
+					 arg == MMC_TRIM_ARG ?
+					 INAND_CMD38_ARG_TRIM :
+					 INAND_CMD38_ARG_ERASE,
+					 0);
+				if (err) {
+					pr_err("%s:%s: switch for trim fail.\n",
+						mmc_hostname(card->host), __func__);
+					goto out;
+				}
+			}
+			err = mmc_erase(card, from, nr, arg);
+			if (err) {
+				pr_err("%s:%s: trim fail\n",
+					mmc_hostname(card->host), __func__);
+				goto out;
+			}
+		}
+		else
+		{
+			pr_err("%s:%s: no method to wipe data for current emmc %d(<=v4.41)!\n",
+				mmc_hostname(card->host), __func__, card->ext_csd.rev);
+			err = -EOPNOTSUPP;
+			goto out;
+		}
+	}
+	else if (card->ext_csd.rev <= 7) /* v4.5 or newer */
+	{
+		if (!mmc_can_sanitize(card)
+			|| (!mmc_can_trim(card) && !mmc_can_erase(card)))
+		{
+			pr_err("%s:%s: no method to wipe data for current emmc %d(>v4.5)!\n",
+				mmc_hostname(card->host), __func__, card->ext_csd.rev);
+			err = -EOPNOTSUPP;
+			goto out;
+		}
+
+		if (mmc_can_trim(card))
+		{
+			pr_info("%s:%s: start trim...\n",
+				mmc_hostname(card->host), __func__);
+			arg = MMC_TRIM_ARG;
+			if (card->quirks & MMC_QUIRK_INAND_CMD38) {
+				err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
+					 INAND_CMD38_ARG_EXT_CSD,
+					 arg == MMC_TRIM_ARG ?
+					 INAND_CMD38_ARG_TRIM :
+					 INAND_CMD38_ARG_ERASE,
+					 0);
+				if (err) {
+					pr_err("%s:%s: switch for trim fail.\n",
+						mmc_hostname(card->host), __func__);
+					goto out;
+				}
+			}
+			err = mmc_erase(card, from, nr, arg);
+			if (err) {
+				pr_err("%s:%s: trim fail\n", mmc_hostname(card->host),
+					__func__);
+				goto out;
+			}
+		}
+		else // if (mmc_can_erase(card))
+		{
+			pr_info("%s:%s: start erase...\n",
+				mmc_hostname(card->host), __func__);
+			if (!mmc_erase_group_aligned(card, from, nr)) {
+				pr_info("%s:%s: not erase group aligned, group:%d!!\n",
+					mmc_hostname(card->host), __func__, card->erase_size);
+			}
+			arg = MMC_ERASE_ARG;
+			if (card->quirks & MMC_QUIRK_INAND_CMD38) {
+				err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
+					 INAND_CMD38_ARG_EXT_CSD,
+					 arg == MMC_TRIM_ARG ?
+					 INAND_CMD38_ARG_TRIM :
+					 INAND_CMD38_ARG_ERASE,
+					 0);
+				if (err) {
+					pr_err("%s:%s: switch for erase fail.\n",
+						mmc_hostname(card->host), __func__);
+					goto out;
+				}
+			}
+			err = mmc_erase(card, from, nr, arg);
+			if (err) {
+				pr_err("%s:%s: erase fail\n",
+					mmc_hostname(card->host), __func__);
+				goto out;
+			}
+		}
+
+		err = ioctl_do_sanitize(card);
+		if (err) {
+			pr_err("%s:%s: do sanitize failed!!\n",
+				mmc_hostname(card->host), __func__);
+			goto out;
+		}
+	}
+	else
+	{
+		pr_err("%s:%s: Unknown mmc version %d\n",
+			mmc_hostname(card->host), __func__, card->ext_csd.rev);
+		err = -EOPNOTSUPP;
+		goto out;
+	}
+
+out:
+	pr_info("%s: end %s ret: %d\n", mmc_hostname(card->host), __func__, err);
+	return err;
+}
+
+static int mmc_blk_ioctl_secure_wipe_cmd(struct block_device *bdev,
+	struct mmc_ioc_erase_cmd __user *ic_ptr)
+{
+	int err;
+	struct mmc_ioc_erase_cmd erase_cmd;
+	struct mmc_blk_data *md;
+	struct mmc_card *card;
+	struct gendisk *disk = bdev->bd_disk;
+	__u64 offset, size;
+	int part_num = 0;
+	int type = MMC_BLK_SECDISCARD;
+
+	part_num = MINOR(bdev->bd_dev) - disk->first_minor;
+	size = (disk->part_tbl->part[part_num]->nr_sects <<9);
+	offset = (disk->part_tbl->part[part_num]->start_sect <<9);
+
+	pr_err("%s: part_num:%d, size:0x%012llx, offset:0x%012llx, disk->disk_name:%s\n",
+		__func__, part_num, size, offset, disk->disk_name);
+
+	if (copy_from_user(&erase_cmd, ic_ptr, sizeof(erase_cmd))) {
+		err = -EFAULT;
+		goto cpy_err;
+	}
+
+	/* 0xA is a special cmd flag defined by ourselves to erase whole partition */
+	if (erase_cmd.flags == 0xA) {
+		erase_cmd.start_sec = offset>>9;
+		erase_cmd.size_sec = size>>9;
+		pr_info("wipe the whole part start 0x%x size 0x%x\n",
+			erase_cmd.start_sec, erase_cmd.size_sec);
+	} else if ((erase_cmd.start_sec >= (offset>>9))
+				&& (erase_cmd.start_sec <= ((offset+size)>>9))
+				&& ((erase_cmd.start_sec+erase_cmd.size_sec) <= ((offset+size)>>9))) {
+		pr_err("start or size is out of the range of disk\n");
+		return -EPERM;
+	}
+
+	pr_info("start wipe %s: start: 0x%x sect, size 0x%x sect\n",
+		bdev->bd_disk->disk_name, erase_cmd.start_sec,erase_cmd.size_sec);
+	md = mmc_blk_get(bdev->bd_disk);
+	if (!md) {
+		pr_err("%s, failed to get mmc blk\n", __func__);
+		err = -EINVAL;
+		goto blk_get_err;
+	}
+	card = md->queue.card;
+	pr_info("%s: erase group size: %d\n",
+		mmc_hostname(card->host), card->erase_size);
+	if (card->host->platform_cap & MMC_HOST_PLATFORM_CAP_DIS_SECURE_WIPE_OP) {
+		pr_err("%s: don't support secure wipe operation!!\n", mmc_hostname(card->host));
+		err = -EINVAL;
+		goto dev_card_err;
+	}
+
+	if (!mmc_card_mmc(card)) {
+		pr_err("%s: not mmc, do nothing\n", __func__);
+		err = 0;
+		goto dev_card_err;
+	}
+
+	mmc_claim_host(card->host);
+
+	err = mmc_blk_part_switch(card, md);
+	if (err) {
+		pr_err("%s: part switch failed\n", __func__);
+		goto cmd_rel_host;
+	 }
+
+retry:
+	 err = mmc_do_secure_wipe(card, erase_cmd.start_sec, erase_cmd.size_sec);
+	 if (err) {
+		pr_err("%s: secure wipe %s part fail\n",
+			__func__, bdev->bd_disk->disk_name);
+	 }
+	if (err == -EIO && !mmc_blk_reset(md, card->host, type))
+		goto retry;
+	if (!err)
+		mmc_blk_reset_success(md, type);
+
+cmd_rel_host:
+	mmc_release_host(card->host);
+
+dev_card_err:
+	mmc_blk_put(md);
+
+blk_get_err:
+	pr_err("%s completed, err:%d \n", __func__, err);
+
+cpy_err:
+
+	return err;
+
+}
+
+#ifdef eMMC_Magician_SDK_Changes
+struct mmc_blk_ioc_mag_sdk_data {
+	struct mmc_ioc_mag_sdk_cmd ic[MAX_MMC_IOC_MAG_SDK_CMD];
+	unsigned char *buf;
+	u64 buf_bytes;
+};
+
+struct scatterlist *mmc_blk_get_sg(struct mmc_card *card,
+		unsigned char *buf, int *sg_len, int size)
+{
+	struct scatterlist *sg;
+	struct scatterlist *sl;
+	int total_sec_cnt, sec_cnt;
+	int max_seg_size, len;
+
+	total_sec_cnt = size;
+	max_seg_size = card->host->max_seg_size;
+	len = (size - 1 + max_seg_size) / max_seg_size;
+	sl = kmalloc(sizeof(struct scatterlist) * len, GFP_KERNEL);
+
+	if (!sl) {
+		return NULL;
+	}
+	sg = (struct scatterlist *)sl;
+	sg_init_table(sg, len);
+
+	while (total_sec_cnt) {
+		if (total_sec_cnt < max_seg_size)
+			sec_cnt = total_sec_cnt;
+		else
+			sec_cnt = max_seg_size;
+			sg_set_page(sg, virt_to_page(buf), sec_cnt, offset_in_page(buf));
+			buf = buf + sec_cnt;
+			total_sec_cnt = total_sec_cnt - sec_cnt;
+			if (total_sec_cnt == 0)
+				break;
+			sg = sg_next(sg);
+	}
+
+	if (sg)
+		sg_mark_end(sg);
+	*sg_len = len;
+	return sl;
+}
+
+
+static struct mmc_blk_ioc_mag_sdk_data *mmc_blk_mag_sdk_ioctl_copy_from_user(
+	struct mmc_ioc_mag_sdk_cmd __user (*user)[], int *ioc_len)
+{
+	struct mmc_blk_ioc_mag_sdk_data *idata;
+	int err;
+	int ic_idx;
+	int buf_alloc_flag = 0;
+
+	idata = kzalloc(sizeof(*idata), GFP_KERNEL);
+	if (!idata)
+	{
+		err = -ENOMEM;
+		MagRelPr("MAG_SDK::Memory allocation failed for idata\n");
+		goto out;
+	}
+	for (ic_idx = 0; ic_idx < MAX_MMC_IOC_MAG_SDK_CMD ; ic_idx++)
+	{
+		if (copy_from_user(&(idata->ic[ic_idx]), &((*user)[ic_idx]), sizeof(struct mmc_ioc_mag_sdk_cmd)))
+		{
+			err = -EFAULT;
+			MagRelPr("MAG_SDK::copy_from_user failed\n");
+			goto idata_err;
+		}
+		if (idata->ic[ic_idx].opcode == 255)
+		{
+			*ioc_len = ic_idx;
+			MagDbgPr("MAG_SDK::Number of commands passed = %d\n", ic_idx);
+			break;
+		}
+		if ((buf_alloc_flag==0) && (idata->ic[ic_idx].data_ptr != 0)
+			&& (idata->ic[ic_idx].flags & MMC_CMD_ADTC))
+		{
+			buf_alloc_flag = 1;
+			idata->buf_bytes = (u64) idata->ic[ic_idx].blksz * idata->ic[ic_idx].blocks;
+			MagDbgPr("MAG_SDK::Data length passed in bytes %llu", idata->buf_bytes);
+
+			if (idata->buf_bytes > MMC_IOC_MAG_SDK_MAX_BYTES)
+			{
+				err = -EOVERFLOW;
+				MagRelPr("MAG_SDK::Data length exceeds MMC_IOC_MAG_SDK_MAX_BYTES");
+				goto idata_err;
+			}
+
+			if (!idata->buf_bytes)
+			{
+				return idata;
+			}
+
+			idata->buf = kzalloc(idata->buf_bytes, GFP_KERNEL);
+			if (!idata->buf)
+			{
+				err = -ENOMEM;
+				MagRelPr("MAG_SDK::Memory allocation failed data buffer\n");
+				goto idata_err;
+			}
+			if (idata->ic[ic_idx].write_flag)
+			{
+				if (copy_from_user(idata->buf, (void __user *)(unsigned long)idata->ic[ic_idx].data_ptr, idata->buf_bytes))
+				{
+					MagRelPr("MAG_SDK::copy_from_user failed for write data\n");
+					err = -EFAULT;
+					goto copy_err;
+				}
+			}
+		}
+	}
+
+	return idata;
+
+copy_err:
+	kfree(idata->buf);
+idata_err:
+	kfree(idata);
+out:
+	return ERR_PTR(err);
+}
+
+static int mmc_blk_mag_sdk_ioctl_cmd(struct block_device *bdev,struct mmc_ioc_mag_sdk_cmd __user (*ic_ptr)[])
+{
+	struct mmc_blk_ioc_mag_sdk_data *idata;
+	struct mmc_blk_data *md;
+	struct mmc_card *card;
+	struct mmc_command cmd = {0};
+	struct mmc_command stop = {0};
+	struct mmc_data data = {0};
+	struct mmc_request mrq = {0};
+	struct scatterlist *sg = 0;
+	int err = 0;
+	int sg_len;
+	int ic_len = 0;
+	int ic_idx = 0;
+	int is_need_to_reset = 0;
+	int response = 0;
+	int ibytesNotCopied = 0;
+	int previous_cmd = 0;
+	__u32 execution_status = 0; // 0 - Not executed 1 - success 2- failure
+
+	MagDbgPr("MAG_SDK::Entered %s ...\n", __func__);
+
+	mutex_lock(&block_mutex);
+	/*
+	 * The caller must have CAP_SYS_RAWIO, and must be calling this on the
+	 * whole block device, not on a partition.  This prevents overspray
+	 * between sibling partitions.
+	 */
+	if ((!capable(CAP_SYS_RAWIO)) || (bdev != bdev->bd_contains))
+	{
+		mutex_unlock(&block_mutex);
+		return -EPERM;
+	}
+
+	idata = mmc_blk_mag_sdk_ioctl_copy_from_user(ic_ptr, &ic_len);
+	if (IS_ERR(idata))
+	{
+		MagRelPr("MAG_SDK::Error in mmc_blk_mag_sdk_ioctl_copy_from_user\n");
+		mutex_unlock(&block_mutex);
+		return PTR_ERR(idata);
+	}
+
+	md = mmc_blk_get(bdev->bd_disk);
+	if (!md)
+	{
+		MagRelPr("MAG_SDK::Error in getting md\n");
+		err = -EINVAL;
+		goto cmd_done;
+	}
+
+	card = md->queue.card;
+	if (IS_ERR(card))
+	{
+		MagRelPr("MAG_SDK::Error in getting reference to card\n");
+		err = PTR_ERR(card);
+		goto cmd_done;
+	}
+
+	mmc_claim_host(card->host);
+
+	for (ic_idx = 0; ic_idx < ic_len; ic_idx++)
+	{
+		execution_status = 0;
+		sg = NULL;
+		memset(&mrq, 0, sizeof(struct mmc_request));
+		memset(&cmd, 0, sizeof(struct mmc_command));
+		memset(&data, 0, sizeof(struct mmc_data));
+		memset(&stop, 0, sizeof(struct mmc_command));
+		cmd.opcode = idata->ic[ic_idx].opcode;
+		cmd.arg = idata->ic[ic_idx].arg;
+		cmd.flags = idata->ic[ic_idx].flags;
+
+		MagDbgPr("MAG_SDK::CMD = %d ARG = 0x%08X\n", cmd.opcode, cmd.arg);
+
+		if (cmd.flags & MMC_CMD_ADTC)
+		{
+			sg = (struct scatterlist *)mmc_blk_get_sg(card, idata->buf, &sg_len, idata->buf_bytes);
+
+			if (sg == NULL)
+			{
+				MagRelPr("MAG_SDK::Error in sg\n");
+				err = -ENOMEM;
+				goto cmd_rel_host;
+			}
+
+			data.sg = sg;
+			data.sg_len = sg_len;
+			data.blksz = idata->ic[ic_idx].blksz;
+			data.blocks = idata->ic[ic_idx].blocks;
+
+			if (idata->ic[ic_idx].write_flag)
+			{
+				data.flags = MMC_DATA_WRITE;
+			}
+			else
+			{
+				data.flags = MMC_DATA_READ;
+			}
+
+			if (cmd.opcode == MMC_WRITE_MULTIPLE_BLOCK)
+			{
+				if(previous_cmd != 23)
+				{
+					MagDbgPr("MAG_SDK::Packing CMD12 as it is open ended transfer\n");
+					stop.opcode = MMC_STOP_TRANSMISSION;
+					stop.arg = 0;
+					stop.flags = MMC_RSP_SPI_R1B | MMC_RSP_R1B | MMC_CMD_AC;
+					mrq.stop = &stop;
+				}
+				else
+					MagDbgPr("MAG_SDK::Dont pack CMD12 as it is predefined transfer\n");
+			}
+			else if(cmd.opcode == MMC_READ_MULTIPLE_BLOCK)
+			{
+				/*
+				  WJQ, 20141116
+				  must add some delay here!!!
+
+				  magician tool sends serval vendor cmd 62 followed send a cmd 18.
+				  during debug, we found if these is no delay before cmd 18, the mmc will have no reponse
+				  or reponse timeout error.
+				  the delay time value is just a try value. maybe it should be changed on different samsung emmc.
+				*/
+				mdelay(10000);
+				if(previous_cmd != 23)
+				{
+					MagDbgPr("MAG_SDK::Packing CMD12 as it is open ended transfer\n");
+					stop.opcode = MMC_STOP_TRANSMISSION;
+					stop.arg = 0;
+					stop.flags = MMC_RSP_SPI_R1B | MMC_RSP_R1B | MMC_CMD_AC;
+					mrq.stop = &stop;
+				}
+				else
+				MagDbgPr("MAG_SDK::Dont pack CMD12 as it is predefined transfer\n");
+			}
+			mrq.data = &data;
+			mmc_set_data_timeout(&data, card);
+		}
+
+		if (idata->ic[ic_idx].data_timeout_ns > 0)
+		{
+			data.timeout_ns = idata->ic[ic_idx].data_timeout_ns;
+			data.timeout_clks = 0;
+		}
+
+		if (idata->ic[ic_idx].cmd_timeout_ms > 0)
+		{
+			cmd.cmd_timeout_ms = idata->ic[ic_idx].cmd_timeout_ms;
+		}
+
+		mrq.cmd = &cmd;
+		mrq.sbc = NULL; // not to use cmd23
+
+		if (idata->ic[ic_idx].is_acmd)
+		{
+			err = mmc_app_cmd(card->host, card);
+			if (err)
+			{
+				goto cmd_rel_host;
+			}
+		}
+
+		mmc_wait_for_req(card->host, &mrq);
+
+		if (cmd.error)
+		{
+			dev_err(mmc_dev(card->host), "MAG_SDK::%s: cmd error %d\n",
+							__func__, cmd.error);
+			err = cmd.error;
+			execution_status = 2;
+			ibytesNotCopied = copy_to_user(&((*ic_ptr)[ic_idx].response[4]), &execution_status, sizeof(__u32));
+			//goto cmd_rel_host;
+			continue;
+		}
+
+		if (data.error)
+		{
+			dev_err(mmc_dev(card->host), "MAG_SDK::%s: data error %d\n",
+							__func__, data.error);
+			err = data.error;
+			execution_status = 2;
+			ibytesNotCopied = copy_to_user(&((*ic_ptr)[ic_idx].response[4]), &execution_status, sizeof(__u32));
+			//goto cmd_rel_host;
+			continue;
+		}
+
+		/*
+		 * According to the SD specs, some commands require a delay after
+		 * issuing the command.
+		 */
+		if (idata->ic[ic_idx].postsleep_min_us)
+		{
+			usleep_range(idata->ic[ic_idx].postsleep_min_us, idata->ic[ic_idx].postsleep_max_us);
+		}
+
+		if (copy_to_user(&((*ic_ptr)[ic_idx].response), cmd.resp, sizeof(cmd.resp)))
+		{
+			err = -EFAULT;
+			execution_status = 2;
+			ibytesNotCopied = copy_to_user(&((*ic_ptr)[ic_idx].response[4]), &execution_status, sizeof(__u32));
+			//goto cmd_rel_host;
+			continue;
+		}
+
+		MagDbgPr("MAG_SDK::Response = 0x%08X\n", (unsigned int)(*ic_ptr)[ic_idx].response[0]);
+
+		if(cmd.opcode == MMC_WRITE_MULTIPLE_BLOCK || cmd.opcode == MMC_READ_MULTIPLE_BLOCK)
+		{
+			if(previous_cmd != 23)
+			{
+				MagDbgPr("MAG_SDK::CMD12 Response = 0x%08X\n", stop.resp[0]);
+				ibytesNotCopied = copy_to_user(&((*ic_ptr)[ic_idx].response[1]), cmd.resp, sizeof(cmd.resp));
+			}
+		}
+
+		if (cmd.flags & MMC_CMD_ADTC)
+		{
+			if (!idata->ic[ic_idx].write_flag)
+			{
+				ibytesNotCopied = copy_to_user((void __user *)(unsigned long) idata->ic[ic_idx].data_ptr, 
+				                           idata->buf, idata->buf_bytes);
+
+				if (ibytesNotCopied != 0)
+				{
+					MagRelPr ("MAG_SDK::Bytes not copied = %d\n", ibytesNotCopied);
+					execution_status = 2;
+					ibytesNotCopied = copy_to_user(&((*ic_ptr)[ic_idx].response[4]), &execution_status, sizeof(__u32));
+					err = -EFAULT;
+					//goto cmd_rel_host;
+					continue;
+				}
+			}
+		}
+
+		if (((cmd.opcode == MMC_SET_WRITE_PROT && cmd.arg != 0x000000FA) || (cmd.opcode == MMC_WRITE_MULTIPLE_BLOCK) ||
+			(cmd.opcode == MMC_ERASE) || (cmd.opcode == MMC_READ_MULTIPLE_BLOCK)) && (idata->ic[ic_idx].is_not_need_to_cmd13 != 1))
+		{
+			do
+			{
+				memset(&cmd, 0, sizeof(struct mmc_command));
+
+				cmd.opcode = MMC_SEND_STATUS;
+				if (!mmc_host_is_spi(card->host))
+				{
+					cmd.arg = card->rca << 16;
+				}
+				cmd.flags = MMC_RSP_SPI_R2 | MMC_RSP_R1 | MMC_CMD_AC;
+				err = mmc_wait_for_cmd(card->host, &cmd, 0);
+				if (err)
+				{
+					MagRelPr("MAG_SDK::Error %d sending status command", err);
+				}
+				else
+					MagDbgPr("MAG_SDK::CMD13 Response = 0x%08X\n", cmd.resp[0]);
+
+				response = cmd.resp[0] & 0x1F00;
+
+			} while (response != 0x900);
+
+			if (err)
+			{
+				execution_status = 2;
+				ibytesNotCopied = copy_to_user(&((*ic_ptr)[ic_idx].response[4]), &execution_status, sizeof(__u32));
+				//goto cmd_rel_host;
+				continue;
+			}
+		}
+
+		if (idata->ic[ic_idx].is_need_to_reset == 1)
+		{
+			is_need_to_reset = 1;
+		}
+
+		if (idata->ic[ic_idx].is_need_to_delay == 1)
+		{
+			mdelay(2000);
+		}
+		execution_status = 1;
+		ibytesNotCopied = copy_to_user(&((*ic_ptr)[ic_idx].response[4]), &execution_status, sizeof(__u32));
+		MagDbgPr("MAG_SDK::execution status = %d\n", (unsigned int)(*ic_ptr)[ic_idx].response[4]);
+		previous_cmd = idata->ic[ic_idx].opcode;
+	}
+
+	MagDbgPr("MAG_SDK::IOCTL Succeeded\n");
+
+	if (is_need_to_reset)
+	{
+		MagDbgPr("MAG_SDK::mmc_release_host\n");
+		mmc_release_host(card->host);
+#ifdef CONFIG_PM
+		MagDbgPr("MAG_SDK::mmc_resume_host\n");
+		mmc_resume_host(card->host);
+#endif 
+		MagDbgPr("MAG_SDK::mmc_claim_host\n");
+		mmc_claim_host(card->host);
+	}
+
+cmd_rel_host:
+	mmc_release_host(card->host);
+
+cmd_done:
+	if (md)
+	{
+		mmc_blk_put(md);
+	}
+	if (sg)
+	{
+		kfree(sg);
+	}
+
+	kfree(idata->buf);
+	kfree(idata);
+	mutex_unlock(&block_mutex);
+
+	MagDbgPr("MAG_SDK::exit %s, err: %d\n", __func__, err);
+	return err;
+}
+
+#endif
+
 static int mmc_blk_ioctl(struct block_device *bdev, fmode_t mode,
 	unsigned int cmd, unsigned long arg)
 {
 	int ret = -EINVAL;
 	if (cmd == MMC_IOC_CMD)
 		ret = mmc_blk_ioctl_cmd(bdev, (struct mmc_ioc_cmd __user *)arg);
+	if (cmd == MMC_IOC_ERASE_CMD)
+		ret = mmc_blk_ioctl_erase_cmd(bdev, (struct mmc_ioc_erase_cmd __user *)arg);
+	if (cmd == MMC_IOC_SECURE_WIPE_CMD)
+		ret = mmc_blk_ioctl_secure_wipe_cmd(bdev, (struct mmc_ioc_erase_cmd __user *)arg);
+#ifdef eMMC_Magician_SDK_Changes
+	if (cmd == MMC_IOC_MAG_SDK_CMD)
+		ret = mmc_blk_mag_sdk_ioctl_cmd(bdev, (struct mmc_ioc_mag_sdk_cmd __user (*)[])arg);
+#endif
+
 	return ret;
 }
 
@@ -833,6 +1782,8 @@ static int mmc_blk_issue_discard_rq(struct mmc_queue *mq, struct request *req)
 	unsigned int from, nr, arg;
 	int err = 0, type = MMC_BLK_DISCARD;
 
+	pr_info("+%s,%d\n",__FUNCTION__,__LINE__);
+
 	if (!mmc_can_erase(card)) {
 		err = -EOPNOTSUPP;
 		goto out;
@@ -867,7 +1818,7 @@ out:
 	spin_lock_irq(&md->lock);
 	__blk_end_request(req, err, blk_rq_bytes(req));
 	spin_unlock_irq(&md->lock);
-
+	pr_info("-%s,%d\n",__FUNCTION__,__LINE__);
 	return err ? 0 : 1;
 }
 
@@ -876,34 +1827,32 @@ static int mmc_blk_issue_secdiscard_rq(struct mmc_queue *mq,
 {
 	struct mmc_blk_data *md = mq->data;
 	struct mmc_card *card = md->queue.card;
-	unsigned int from, nr, arg, trim_arg, erase_arg;
+	unsigned int from = 0, nr = 0, arg = 0;
 	int err = 0, type = MMC_BLK_SECDISCARD;
 
-	if (!(mmc_can_secure_erase_trim(card) || mmc_can_sanitize(card))) {
+	pr_info("+%s,%d\n",__FUNCTION__,__LINE__);
+
+	if (!(mmc_can_secure_erase_trim(card) /*|| mmc_can_sanitize(card)*/)) {
 		err = -EOPNOTSUPP;
 		goto out;
 	}
 
+	/* The sanitize operation is supported at v4.5 only */
+	/*
+	if (mmc_can_sanitize(card)) {
+		err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
+				EXT_CSD_SANITIZE_START, 1, 0);
+		goto out;
+	}
+	*/
+
 	from = blk_rq_pos(req);
 	nr = blk_rq_sectors(req);
 
-	/* The sanitize operation is supported at v4.5 only */
-	if (mmc_can_sanitize(card)) {
-		erase_arg = MMC_ERASE_ARG;
-		trim_arg = MMC_TRIM_ARG;
-	} else {
-		erase_arg = MMC_SECURE_ERASE_ARG;
-		trim_arg = MMC_SECURE_TRIM1_ARG;
-	}
-
-	if (mmc_erase_group_aligned(card, from, nr))
-		arg = erase_arg;
-	else if (mmc_can_trim(card))
-		arg = trim_arg;
-	else {
-		err = -EINVAL;
-		goto out;
-	}
+	if (mmc_can_trim(card) && !mmc_erase_group_aligned(card, from, nr))
+		arg = MMC_SECURE_TRIM1_ARG;
+	else
+		arg = MMC_SECURE_ERASE_ARG;
 retry:
 	if (card->quirks & MMC_QUIRK_INAND_CMD38) {
 		err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
@@ -913,48 +1862,29 @@ retry:
 				 INAND_CMD38_ARG_SECERASE,
 				 0);
 		if (err)
-			goto out_retry;
+			goto out;
 	}
-
 	err = mmc_erase(card, from, nr, arg);
-	if (err == -EIO)
-		goto out_retry;
-	if (err)
-		goto out;
-
-	if (arg == MMC_SECURE_TRIM1_ARG) {
+	if (!err && arg == MMC_SECURE_TRIM1_ARG) {
 		if (card->quirks & MMC_QUIRK_INAND_CMD38) {
 			err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
 					 INAND_CMD38_ARG_EXT_CSD,
 					 INAND_CMD38_ARG_SECTRIM2,
 					 0);
 			if (err)
-				goto out_retry;
+				goto out;
 		}
-
 		err = mmc_erase(card, from, nr, MMC_SECURE_TRIM2_ARG);
-		if (err == -EIO)
-			goto out_retry;
-		if (err)
-			goto out;
 	}
-
-	if (mmc_can_sanitize(card)) {
-		trace_mmc_blk_erase_start(EXT_CSD_SANITIZE_START, 0, 0);
-		err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
-				 EXT_CSD_SANITIZE_START, 1, 0);
-		trace_mmc_blk_erase_end(EXT_CSD_SANITIZE_START, 0, 0);
-	}
-out_retry:
-	if (err && !mmc_blk_reset(md, card->host, type))
+out:
+	if (err == -EIO && !mmc_blk_reset(md, card->host, type))
 		goto retry;
 	if (!err)
 		mmc_blk_reset_success(md, type);
-out:
 	spin_lock_irq(&md->lock);
 	__blk_end_request(req, err, blk_rq_bytes(req));
 	spin_unlock_irq(&md->lock);
-
+	pr_info("-%s,%d\n",__FUNCTION__,__LINE__);
 	return err ? 0 : 1;
 }
 

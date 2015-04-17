@@ -114,6 +114,14 @@ int __cpuinit __cpu_up(unsigned int cpu)
 	__cpuc_flush_dcache_area(&secondary_data, sizeof(secondary_data));
 	outer_clean_range(__pa(&secondary_data), __pa(&secondary_data + 1));
 
+	#ifdef CONFIG_HAVE_UNSTABLE_SCHED_CLOCK
+	/*
+	 * sync the time for the cpu which is powered up,
+	 * to make the return value of 'cpu_clock' be more resonable when the calling by itself.
+	 */
+	cpu_clock(cpu);
+	#endif
+
 	/*
 	 * Now bring the CPU into our world.
 	 */
@@ -614,7 +622,7 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 	switch (ipinr) {
 	case IPI_WAKEUP:
 		break;
-	
+
 	case IPI_TIMER:
 		irq_enter();
 		tick_receive_broadcast();

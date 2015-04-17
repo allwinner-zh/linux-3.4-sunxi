@@ -22,6 +22,7 @@ obj-$(CONFIG_ARCH_SUN8IW9)	+= pinctrl-sun8iw9.o
 obj-$(CONFIG_ARCH_SUN9IW1)	+= pinctrl-sun9iw1.o
 obj-$(CONFIG_SUNXI_PINCTRL_TEST)     += sunxi_pinctrl_test.o
 obj-$(CONFIG_PINCTRL_AXP)       += pinctrl-axp.o
+obj-$(CONFIG_PINCTRL_AXP_TEST)  += pinctrl-axp-test.o
 obj-$(CONFIG_PINCTRL_TEGRA)	+= pinctrl-tegra.o
 obj-$(CONFIG_PINCTRL_TEGRA20)	+= pinctrl-tegra20.o
 obj-$(CONFIG_PINCTRL_TEGRA30)	+= pinctrl-tegra30.o

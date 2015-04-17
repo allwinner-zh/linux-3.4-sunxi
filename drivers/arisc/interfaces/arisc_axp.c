@@ -175,6 +175,39 @@ int arisc_axp_get_chip_id(unsigned char *chip_id)
 }
 EXPORT_SYMBOL(arisc_axp_get_chip_id);
 
+int arisc_set_led_bln(unsigned long led_rgb, unsigned long led_onms,  \
+                      unsigned long led_offms, unsigned long led_darkms)
+{
+	int result;
+	struct arisc_message *pmessage;
+
+	/* allocate a message frame */
+	pmessage = arisc_message_allocate(ARISC_MESSAGE_ATTR_HARDSYN);
+	if (pmessage == NULL) {
+		ARISC_WRN("allocate message failed\n");
+		return -ENOMEM;
+	}
+
+	/* initialize message */
+	pmessage->type       = ARISC_SET_LED_BLN;
+	pmessage->private    = (void *)0; /* set charge magic flag */
+	pmessage->paras[0]   = led_rgb;
+	pmessage->paras[1]   = led_onms;
+	pmessage->paras[2]   = led_offms;
+	pmessage->paras[3]   = led_darkms;
+
+	/* send message use hwmsgbox */
+	arisc_hwmsgbox_send_message(pmessage, ARISC_SEND_MSG_TIMEOUT);
+
+	/* free message */
+	result = pmessage->result;
+	arisc_message_free(pmessage);
+
+	return result;
+
+}
+EXPORT_SYMBOL(arisc_set_led_bln);
+
 #if (defined CONFIG_ARCH_SUN8IW5P1)
 int arisc_adjust_pmu_chgcur(unsigned int max_chgcur, unsigned int chg_ic_temp)
 {
@@ -366,3 +399,36 @@ unsigned int arisc_pmu_get_voltage(u32 type)
 }
 EXPORT_SYMBOL(arisc_pmu_get_voltage);
 
+#if (defined CONFIG_ARCH_SUN8IW7P1)
+/* type:0:shutdown, 1:IR wait, 2:reboot */
+static int arisc_pmu_reboot(u32 type)
+{
+	struct arisc_message *pmessage;
+
+	/* allocate a message frame */
+	pmessage = arisc_message_allocate(ARISC_MESSAGE_ATTR_ASYN);
+	if (pmessage == NULL) {
+		ARISC_WRN("allocate message failed\n");
+		return -ENOMEM;
+	}
+
+	/* initialize message */
+	pmessage->type       = ARISC_AXP_REBOOT;
+	pmessage->state      = ARISC_MESSAGE_INITIALIZED;
+	pmessage->cb.handler = NULL;
+	pmessage->cb.arg     = NULL;
+	pmessage->paras[0]   = type;
+	pmessage->paras[1]   = 0;
+
+	/* send message use hwmsgbox */
+	arisc_hwmsgbox_send_message(pmessage, ARISC_SEND_MSG_TIMEOUT);
+
+	return 0;
+}
+
+void arisc_power_off(void)
+{
+	ARISC_LOG("arisc power off\n");
+	arisc_pmu_reboot(0);
+}
+#endif

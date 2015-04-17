@@ -28,10 +28,7 @@
 #include "sst_debug.h"
 
 char *user_path="/data/secure_store";
-static  char* oem_class[MAX_OEM_STORE_NUM]=
-{
-	"HDMI" , "Miracast" , "Widevine",
-};
+static  char oem_class[MAX_OEM_STORE_NUM][64];
 
 static int sst_open( st_path_t path, type_t type);
 static int sst_write( st_path_t path, char *src , ssize_t len, type_t type);
@@ -45,6 +42,7 @@ extern int sunxi_secure_storage_read(const char *item_name, char *buffer, int bu
 extern int sunxi_secure_storage_update(const char *item_name, char *buffer, int length);
 extern int sunxi_secure_storage_init(void);
 extern int sunxi_secure_storage_probe(const char *item_name);
+extern int sunxi_secure_storage_init_oem_class(void *oem_class);
 
 static int __help_oem_object_encrypt(store_object_t *object)
 {
@@ -109,11 +107,7 @@ static int __help_oem_object_encrypt(store_object_t *object)
 }
 
 
-static int _sst_oem_read(
-		const char * name	,
-		char *buf, 
-		ssize_t len
-		)
+static int _sst_oem_read( const char * name	, char *buf, ssize_t len)
 {
 
 	int retLen = -1;
@@ -125,54 +119,19 @@ static int _sst_oem_read(
 	}
 	return retLen ;
 }
-static int _sst_oem_write(
-		const char *name, 
-		char *buf, 
-		ssize_t len
-		)
+
+static int _sst_oem_write( const char *name, char *buf, ssize_t len)
 {
 	return sunxi_secure_storage_write(name, buf , len ) ;
 }
 
 static int _sst_oem_open(void)
 {
-/*	
-	struct file *fd;
-    mm_segment_t old_fs ;
-    int ret ;
-	char *filename = oem_path ; 
 
-	if(!filename){
-		dprintk("- filename NULL\n");
-		return (-EINVAL);
-	}
-
-	dprintk(": file %s\n" , filename);
-    old_fs = get_fs();
-    set_fs(KERNEL_DS);
-    
-    fd = filp_open(filename, O_RDONLY, 0);
-    
-    if(IS_ERR(fd)){
-			dprintk(" -file open fail\n");
-        return -1;
-    }   
-		if( (ret = fd->f_op->unlocked_ioctl(fd,SECBLK_IOCTL,0) )<0){
-			dprintk(" -file ioctl access fail\n");
-			return -1;
-		}
-
-	filp_close(fd, NULL);
-    
-	set_fs(old_fs);
-	dprintk(": file %s init done \n",filename);
-	return (ret) 
-	*/	
 	return  sunxi_secure_storage_init();
 }
 
-
-static int _sst_user_open(char *filename )
+int _sst_user_open(char *filename )
 {
     struct file *fd;
     mm_segment_t old_fs ;
@@ -195,18 +154,54 @@ static int _sst_user_open(char *filename )
     }   
 	
 	filp_close(fd, NULL);
-    
     set_fs(old_fs);
+
 	dprintk(": file %s open done \n",filename);
 	return (0) ;
 }
 
-static int _sst_user_read(
-		char *filename, 
-		char *buf, 
-		ssize_t len,
-		int offset
-		)
+int _sst_user_ioctl(char *filename, int ioctl, void *param)
+{
+	struct file *fd;
+	int ret = -1;
+
+	mm_segment_t old_fs = get_fs();
+
+	if(!filename ){
+		dprintk("- filename NULL\n");
+		return (-EINVAL);
+	}
+
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	fd = filp_open(filename, O_WRONLY|O_CREAT, 0666);
+
+	if(IS_ERR(fd)) {
+		dprintk(" -file open fail\n");
+		return -1;
+	}
+	do{
+		if ((fd->f_op == NULL) || (fd->f_op->unlocked_ioctl == NULL))
+		{
+			dprintk(" -file can't to write!!\n");
+			break;
+		} 
+
+		ret = fd->f_op->unlocked_ioctl(
+				fd,
+				ioctl,
+				(unsigned int)(param));			
+
+	}while(false);
+
+	vfs_fsync(fd, 0);
+	filp_close(fd, NULL);
+	set_fs(old_fs);
+
+	return ret ;
+}
+int _sst_user_read(char *filename, char *buf, ssize_t len,int offset)
 {	
 	struct file *fd;
 	//ssize_t ret;
@@ -253,13 +248,12 @@ static int _sst_user_read(
 	}while(false);
 
 	filp_close(fd, NULL);
-
 	set_fs(old_fs);
 
 	return retLen;
 }
 
-static int _sst_user_write(char *filename, char *buf, ssize_t len, int offset)
+int _sst_user_write(char *filename, char *buf, ssize_t len, int offset)
 {	
 	struct file *fd;
 	//ssize_t ret;
@@ -307,9 +301,7 @@ static int _sst_user_write(char *filename, char *buf, ssize_t len, int offset)
 	}while(false);
 
 	vfs_fsync(fd, 0);
-
 	filp_close(fd, NULL);
-
 	set_fs(old_fs);
 
 	dprintk("Write %x to %s done\n",retLen,filename);
@@ -342,57 +334,6 @@ static int _sst_user_create(char *filename )
 	dprintk(": file %s create done \n",filename);
 	return (0) ;
 }
-/*
-static int _sst_probe_user_data(struct secure_storage_t *sst)
-{
-	int	ret = 0 ;
-	store_map_t	*map	;
-	store_object_t *object ;	
-
-	object= ( store_object_t *)kzalloc(\
-										sizeof(store_object_t),
-										GFP_KERNEL
-										);
-	if(!object){
-		derr("- out of memory\n");
-		return (-ENOMEM);
-	}
-
-	dprintk("(%p)\n", _sst_probe_user_data);
-	list_for_each_entry(map, &sst->user_list,list)	{
-		if( _sst_user_open(map->desc->dir) ==0)
-		{
-			fprintk(" . ");	
-
-			ret = _sst_user_read(map->desc->dir,
-					(char *)object,
-					sizeof(store_object_t),
-					0);
-			if(ret != sizeof(store_object_t) ){
-				derr("-object read fail\n");
-				ret = -1 ;
-				goto out ;
-			}
-			
-			dprintk("Find a valid user object 11\n");
-			sst->user_size ++ ;
-			sst_memcpy( map->object,
-					object,
-					sizeof(store_object_t)) ;
-
-			map->desc->vaild = true;
-			map->desc->flag = STORE_PROBE_DONE_MAGIC ; 
-		}else
-			goto out;		
-	}
-	dprintk(" done\n");	
-out:
-	sst_memset(object, 0, sizeof(store_object_t));
-	kfree(object);
-	return ret ;
-
-}
-*/
 
 /*
  * Test for user storage file operation
@@ -661,6 +602,7 @@ out:
 
 extern char *ext_class ;
 
+#if 0
 static int __vaild_oem_class(void) 
 {
 	int i ;
@@ -679,7 +621,6 @@ static void  __fill_oem_class( char *name  )
 	strncpy( oem_class[size], name, 64);
 
 }
-#if 0
 static int __find_oem_class( char *name  )
 {
 	int i ;
@@ -692,7 +633,6 @@ static int __find_oem_class( char *name  )
 		}
 	return -1 ;
 }
-#endif 
 static void  __fetch_oem_ext_class(void)
 {
 	int i =0 ;
@@ -712,6 +652,7 @@ static void  __fetch_oem_ext_class(void)
 	}
 }
 
+#endif 
 
 static int _sst_oem_probe( struct secure_storage_t *sst )
 {
@@ -742,8 +683,12 @@ static int _sst_oem_probe( struct secure_storage_t *sst )
 		return - EINVAL ;
 	}
 	
+	memset(oem_class, 0, 64*MAX_OEM_STORE_NUM);	
+	size = sunxi_secure_storage_init_oem_class(oem_class);
+#if 0
 	__fetch_oem_ext_class();
 	size= __vaild_oem_class();
+#endif
 	index =0 ;
 	list_for_each_entry(map, head ,list) {
 		if( sunxi_secure_storage_probe( oem_class[index ] ) < 0 ){
@@ -774,10 +719,11 @@ static int _sst_oem_probe( struct secure_storage_t *sst )
 					}
 					
 					object->id = index ;
-					if( (ret = __help_oem_object_encrypt(object)) != 0 ){
+/*					if( (ret = __help_oem_object_encrypt(object)) != 0 ){
 						derr("oem re-encrypt fail\n");
 						goto out ;	
 					}
+					*/
 					sst->oem_size ++ ;
 
 				}else{

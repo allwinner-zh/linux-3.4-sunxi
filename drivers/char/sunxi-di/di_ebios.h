@@ -1185,7 +1185,7 @@ typedef struct
 	DI_RESEVED_REG_t              	res0xA80[32]       ;//0xa80~0xaff
 }__di_dev_t;
 
-__s32 DI_Init(void);
+__s32 DI_Init(__s32 mode);
 __s32 DI_Config_Src(__di_buf_addr_t *addr, __di_src_size_t *size, __di_src_type_t *type);
 __s32 DI_Set_Scaling_Factor(__di_src_size_t *in_size, __di_out_size_t *out_size);
 __s32 DI_Set_Scaling_Coef(__di_src_size_t *in_size, __di_out_size_t *out_size,
@@ -1200,6 +1200,7 @@ __s32 DI_Set_Di_MafFlag_Src(__u32 cur_addr, __u32 pre_addr, __u32 stride);
 __s32 DI_Set_Di_Field(u32 field);
 __s32 DI_Set_Reg_Rdy(void);
 __s32 DI_Enable(void);
+__s32 DI_Module_Enable(void);
 __s32 DI_Set_Reset(void);
 __s32 DI_Set_Irq_Enable(__u32 enable);
 __s32 DI_Clear_irq(void);

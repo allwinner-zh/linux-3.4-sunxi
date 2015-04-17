@@ -60,8 +60,10 @@ static int rng_recvmsg(struct kiocb *unused, struct socket *sock,
 	nbyte = crypto_rng_get_bytes(ctx->tfm, buf, iov->iov_len);
 	release_sock(sk);
 	
-	if (nbyte > 0)
-		copy_to_user(iov->iov_base, buf, iov->iov_len);
+	if (nbyte > 0) {
+		if (copy_to_user(iov->iov_base, buf, iov->iov_len))
+			nbyte = -1;
+	}
 
 	kfree(buf);
 	return nbyte;

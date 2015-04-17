@@ -171,8 +171,6 @@ void ss_flow_mode_set(int mode);
 
 int ss_pending_get(void);
 void ss_pending_clear(int flow);
-void ss_dma_enable(int flow);
-void ss_dma_disable(int flow);
 void ss_irq_enable(int flow);
 void ss_irq_disable(int flow);
 
@@ -181,7 +179,7 @@ void ss_cntsize_set(int size);
 void ss_cnt_set(char *cnt, int size);
 void ss_cnt_get(int flow, char *cnt, int size);
 
-void ss_md_get(char *md, int size);
+void ss_md_get(char *dst, char *src, int size);
 void ss_sha_final(void);
 void ss_check_sha_end(void);
 
@@ -194,7 +192,6 @@ void ss_cts_last(void);
 void ss_method_set(int dir, int type);
 void ss_aes_mode_set(int mode);
 void ss_rng_mode_set(int mode);
-int ss_random_rd(char *data, int len);
 void ss_trng_osc_enable(void);
 void ss_trng_osc_disable(void);
 

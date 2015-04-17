@@ -68,4 +68,7 @@ unsigned long gic_get_sgir_physaddr(void);
 
 #endif
 
+#if (defined CONFIG_ARM_SUN8IW6_CPUIDLE)
+extern void hwspinlock_ready_init(void);
+#endif
 #endif

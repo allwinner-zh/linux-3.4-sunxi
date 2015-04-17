@@ -1,0 +1,2 @@
+config SUNXI_BOOTUP_EXTEND
+	bool "Power on triggered by key or IR"

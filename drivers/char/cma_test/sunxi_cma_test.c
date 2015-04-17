@@ -64,9 +64,9 @@ ssize_t time_store(struct class *class, struct class_attribute *attr,
 ssize_t test_show(struct class *class, struct class_attribute *attr, char *buf)
 {
 	struct sysinfo start, end;
-	int i, cnt;
+	int i;
 
-	cnt = sprintf(buf, "%s: enter\n", __func__);
+	pr_info("%s: enter\n", __func__);
 
 	do_sysinfo(&start);
 loop:
@@ -78,14 +78,14 @@ loop:
 			cma_buf[i].size = CONFIG_CMA_SIZE_MBYTES/CMA_NUM;
 		cma_buf[i].virt = dma_alloc_coherent(NULL, cma_buf[i].size*SZ_1M, &cma_buf[i].phys, GFP_KERNEL);
 		if(cma_buf[i].virt)
-			cnt += sprintf(buf+cnt, "%s: alloc %dMbytes success, 0x%08x-0x%08x\n", __func__,
+			pr_info("%s: alloc %dMbytes success, 0x%08x-0x%08x\n", __func__,
 				cma_buf[i].size, (u32)cma_buf[i].virt, cma_buf[i].phys);
 		else
-			cnt += sprintf(buf+cnt, "%s: alloc %dM bytes failed\n", __func__, cma_buf[i].size);
+			pr_info("%s: alloc %dM bytes failed\n", __func__, cma_buf[i].size);
 	}
 	for(i = 0; i < CMA_NUM; i++) {
 		if(cma_buf[i].virt) {
-			cnt += sprintf(buf+cnt, "%s: free %d Mbytes(0x%08x-0x%08x)\n", __func__,
+			pr_info("%s: free %d Mbytes(0x%08x-0x%08x)\n", __func__,
 				cma_buf[i].size, (u32)cma_buf[i].virt, cma_buf[i].phys);
 			dma_free_coherent(NULL, cma_buf[i].size*SZ_1M, cma_buf[i].virt, cma_buf[i].phys);
 		}
@@ -94,8 +94,8 @@ loop:
 	if(end.uptime - start.uptime < test_secs)
 		goto loop;
 
-	cnt += sprintf(buf+cnt, "%s: end\n", __func__);
-	return cnt;
+	pr_info("%s: end\n", __func__);
+	return 0;
 }
 
 ssize_t help_show(struct class *class, struct class_attribute *attr, char *buf)

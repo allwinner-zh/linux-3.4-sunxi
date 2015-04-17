@@ -15,10 +15,11 @@
 
 #ifndef SUNXI_DAUDIO_H_
 #define SUNXI_DAUDIO_H_
-
+#include <mach/platform.h>
 #ifdef CONFIG_ARCH_SUN8IW7
 #define TDM_NAME "pcm2"
 #endif
+extern int hdmi_format;
 struct sunxi_dma_params {
 	char *name;
 	dma_addr_t dma_addr;
@@ -28,7 +29,6 @@ struct sunxi_dma_params {
 
 #ifdef CONFIG_ARCH_SUN8IW7
 #define SUNXI_DAUDIO2BASE 							(0x01c22800)
-#define SUNXI_DAUDIO2_VBASE 						(0xf1c22800)
 #endif
 	#define SUNXI_DAUDIOCTL 	  					(0x00)
 	#define SUNXI_DAUDIOCTL_BCLKOUT					(1<<18)
@@ -74,6 +74,7 @@ struct sunxi_dma_params {
 #define SUNXI_DAUDIORXFIFO							(0x10)
 
 #define SUNXI_DAUDIOFCTL							(0x14)
+	#define SUNXI_DAUDIOFCTL_HUBEN					(1<<31)
 	#define SUNXI_DAUDIOFCTL_FTX					(1<<25)
 	#define SUNXI_DAUDIOFCTL_FRX					(1<<24)
 	#define SUNXI_DAUDIOFCTL_TXTL(v)				((v)<<12)
@@ -224,8 +225,13 @@ struct sunxi_daudio_info1 {
 };
 
 extern struct sunxi_daudio_info sunxi_daudio;
-extern int sunxi_daudio_set_rate(int freq);
 extern int r_i2s_rx_disable(void);
 extern int r_i2s_tx_disable(void);
+extern int tdm2_set_rate(int freq);
+extern int tdm2_set_fmt(unsigned int fmt);
+extern int tdm2_set_clkdiv(int sample_rate);
+extern int tdm2_hw_params(int sample_resolution);
+extern void tdm2_tx_enable(int tx_en, int hub_en);
+extern int tdm2_prepare(struct snd_pcm_substream *substream);
 
 #endif

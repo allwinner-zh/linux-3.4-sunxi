@@ -15,10 +15,20 @@ config ANDROID_SWITCH_GPIO
 	help
 	  Say Y here to enable GPIO based switch support.
 
-
-config ANDROID_SWITCH_GPIO_TS3A225
-	tristate "Android GPIO ts3a225 Switch support"
+config SUNXI_SWITCH_GPIO
+	bool "SUNXI GPIO Switch support"
 	depends on ARCH_SUN8IW6
 	help
 	  Say Y here to enable GPIO based switch support.
-	  
+
+config ANDROID_SWITCH_GPIO_TS3A225
+	tristate "ts3a225 Switch support"
+	depends on ARCH_SUN8IW6 && SUNXI_SWITCH_GPIO
+	help
+	  Say Y here to enable GPIO based switch support.
+
+config SOC_SWITCH_GPIO
+	tristate "GPIO Switch support"
+	depends on ARCH_SUN8IW6 && SUNXI_SWITCH_GPIO
+	help
+	  Say Y here to enable GPIO based switch support.

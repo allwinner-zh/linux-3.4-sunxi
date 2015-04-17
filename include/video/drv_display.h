@@ -392,10 +392,12 @@ typedef struct
 	unsigned int          trd_right_addr[3];//used when in frame packing 3d mode
 	bool                  pre_multiply; //TRUE: pre-multiply fb
 	disp_window           src_win;    // framebuffer source window,only take x,y if is not scaler mode
+#if defined(CONFIG_HOMLET_PLATFORM)
+	bool				  interlace;
+	bool				  top_field_first;
+#endif
 #if 0
-	bool                  interlace;
-	bool                  top_field_first;
-	bool                  pre_frame_valid;
+	bool				  pre_frame_valid;
 #endif
 }disp_fb_info;
 
@@ -487,6 +489,8 @@ typedef struct
 	int (*hdmi_resume)(void);
 	int (*hdmi_early_suspend)(void);
 	int (*hdmi_late_resume)(void);
+	int (*hdmi_get_vendor_id)(__u8 *id);
+	int (*hdmi_get_edid)(void);
 }disp_hdmi_func;
 
 typedef struct
@@ -731,6 +735,8 @@ typedef enum tag_DISP_CMD
 	DISP_CMD_HDMI_SUPPORT_MODE = 0xc4,
 	DISP_CMD_HDMI_GET_HPD_STATUS = 0xc5,
 	DISP_CMD_HDMI_SET_SRC = 0xc6,
+	DISP_CMD_HDMI_GET_VENDOR_ID = 0xc7,
+	DISP_CMD_HDMI_GET_EDID = 0xc8,
 
 	//----lcd----
 	DISP_CMD_LCD_ENABLE = 0x100,
@@ -804,6 +810,12 @@ typedef enum tag_DISP_CMD
 	DISP_CMD_MEM_SELIDX = 0x2c3,
 
 	DISP_CMD_PRINT_REG = 0x2e0,
+
+	// ---- for tv
+	DISP_CMD_TV_ON = 0x300,
+	DISP_CMD_TV_OFF = 0x301,
+	DISP_CMD_TV_SET_MODE = 0x302,
+	DISP_CMD_TV_GET_MODE = 0x303,
 }__disp_cmd_t;
 
 #define FBIOGET_LAYER_HDL_0 0x4700

@@ -367,5 +367,12 @@ config REGULATOR_WM8994
 	  This driver provides support for the voltage regulators on the
 	  WM8994 CODEC.
 
+config REGULATOR_OZ8012X
+	tristate "oz8012x pmic driver"
+	depends on (REGULATOR && ARCH_SUN9IW1)
+    default n
+	help
+	  This option allows you to select oz8012x pmic driver
+
 endif
 

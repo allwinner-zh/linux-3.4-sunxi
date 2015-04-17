@@ -13,6 +13,7 @@
 
 #include <linux/bug.h>
 
+
 /*
  * struct firmware_ops
  *
@@ -26,6 +27,9 @@ struct firmware_ops {
 	unsigned int (*send_command)(u32 arg0, u32 arg1, u32 arg2, u32 arg3);
 	unsigned int (*load_arisc)(void *image, u32 image_size, void *para, u32 para_size, u32 para_offset);
 	unsigned int (*set_secondary_entry)(void *entry);
+	unsigned int (*suspend)(void);
+	unsigned int (*suspend_prepare)(void);
+	unsigned int (*set_standby_status)(u32 arg0, u32 arg1, u32 arg2, u32 arg3);
 };
 
 /* Global pointer for current firmware_ops structure, can't be NULL. */

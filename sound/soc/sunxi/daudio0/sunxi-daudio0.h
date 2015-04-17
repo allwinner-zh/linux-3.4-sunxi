@@ -34,6 +34,7 @@
 #endif
 #if defined CONFIG_ARCH_SUN8IW6
 #define SUNXI_DAUDIOBASE 						(0x01c23000)
+#define SUNXI_DAUDIO_VBASE						(0xf1c23000)
 #endif
 	#define SUNXI_DAUDIOCTL 	  					(0x00)
 	#define SUNXI_DAUDIOCTL_BCLKOUT					(1<<18)
@@ -79,6 +80,7 @@
 #define SUNXI_DAUDIORXFIFO							(0x10)
 
 #define SUNXI_DAUDIOFCTL							(0x14)
+	#define SUNXI_DAUDIOFCTL_HUBEN					(1<<31)
 	#define SUNXI_DAUDIOFCTL_FTX					(1<<25)
 	#define SUNXI_DAUDIOFCTL_FRX					(1<<24)
 	#define SUNXI_DAUDIOFCTL_TXTL(v)				((v)<<12)
@@ -229,7 +231,17 @@ struct sunxi_daudio_info {
 };
 
 extern struct sunxi_daudio_info sunxi_daudio;
-extern int sunxi_daudio_set_rate(int freq);
+extern int sunxi_daudio0_set_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt);
+extern int sunxi_daudio0_hw_params(struct snd_pcm_substream *substream,
+	struct snd_pcm_hw_params *params,	struct snd_soc_dai *dai);
+extern int sunxi_daudio0_set_sysclk(struct snd_soc_dai *cpu_dai, int clk_id,
+                                 unsigned int freq, int daudio_pcm_select);
+extern int sunxi_daudio0_set_clkdiv(struct snd_soc_dai *cpu_dai, int div_id, int sample_rate);
+extern int sunxi_daudio0_perpare(struct snd_pcm_substream *substream,
+	struct snd_soc_dai *cpu_dai);
+extern void sunxi_snd_rxctrl_daudio0(struct snd_pcm_substream *substream, int on);
+extern void sunxi_snd_txctrl_daudio0(struct snd_pcm_substream *substream, int on,int hub_en);
+extern int sunxi_daudio0_set_rate(int freq);
 extern int r_i2s_rx_disable(void);
 extern int r_i2s_tx_disable(void);
 

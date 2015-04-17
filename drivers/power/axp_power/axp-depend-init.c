@@ -116,9 +116,9 @@ void set_pwr_regu_tree(unsigned int value, unsigned int bitmap)
 	return;
 }
 
-unsigned int (* get_pwr_regu_tree(void))[VCC_MAX_INDEX]
+void get_pwr_regu_tree(unsigned int *p)
 {
-	return &power_regu_tree;
+	memcpy((void *)p, (void *)power_regu_tree, sizeof(power_regu_tree));
 }
 
 int axp_check_sys_id(const char *supply_id)
@@ -197,18 +197,47 @@ static int axp81x_regu_dependence(const char *ldo_name)
 	return axp81x_dependence;
 }
 
+static int axp20_regu_dependence(const char *ldo_name)
+{
+	int axp20_dependence = 0;
+
+	if (strcmp("axp20_dcdc2", ldo_name) == 0) {
+		axp20_dependence |= AXP209_DCDC2;
+	} else if (strcmp("axp20_dcdc3", ldo_name) == 0) {
+		axp20_dependence |= AXP209_DCDC3;
+	} else if (strcmp("axp20_ldo1", ldo_name) == 0) {
+		axp20_dependence |= AXP209_LDO1;
+	}else if (strcmp("axp20_ldo2", ldo_name) == 0) {
+		axp20_dependence |= AXP209_LDO2;
+	}else if (strcmp("axp20_ldo3", ldo_name) == 0) {
+		axp20_dependence |= AXP209_LDO3;
+	}else if (strcmp("axp20_ldo4", ldo_name) == 0) {
+		axp20_dependence |= AXP209_LDO4;
+	}else if (strcmp("axp20_ldoio0", ldo_name) == 0) {
+		axp20_dependence |= AXP209_LDOIO0;
+	}else {
+		return -1;
+	}
+	axp20_dependence |= (0 << 30);
+	return axp20_dependence;
+}
+
 int get_ldo_dependence(const char *ldo_name, int count)
 {
 	int ret = -1;
 
-	if((strncmp("axp81x", ldo_name, 6) == 0)) {
+	if((strncmp("axp81x", ldo_name, 6) == 0)){
 		ret = axp81x_regu_dependence(ldo_name);
-		if (ret < 0) {
-			printk(KERN_ERR "%s: get axp81x regu dependence failed\n", __func__);
-			return -1;
-		} else {
-			set_pwr_regu_tree(ret, count);
-		}
+	} else if ((strncmp("axp20", ldo_name, 5) == 0)){
+		ret = axp20_regu_dependence(ldo_name);
+	} else {
+		return 0;
+	}
+	if (ret < 0) {
+		printk(KERN_ERR "%s: get regu dependence failed\n", __func__);
+		return -1;
+	} else {
+		set_pwr_regu_tree(ret, count);
 	}
 	return 0;
 }

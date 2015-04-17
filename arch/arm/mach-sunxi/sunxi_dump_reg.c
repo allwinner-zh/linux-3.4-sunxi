@@ -606,28 +606,32 @@ ssize_t write_store(struct class *class, struct class_attribute *attr,
 #define RTC_REG (SUNXI_R_PRCM_VBASE + 0x1F0)
 static u32 rtc_reg_addr = 0;
 
-static int hwspin_lock_timeout(int hwid, unsigned int timeout)
+static int hwspin_lock_timeout(int hwid, unsigned int timeout, \
+                               spinlock_t *lock, unsigned long *flags)
 {
 #ifdef CONFIG_SUNXI_ARISC
-	return arisc_hwspin_lock_timeout(hwid, timeout);
+	return arisc_hwspin_lock_timeout(hwid, timeout, lock, flags);
 #else
 	return -ESRCH;
 #endif
 }
 
-static int hwspin_unlock(int hwid)
+static int hwspin_unlock(int hwid, spinlock_t *lock, unsigned long *flags)
 {
 #ifdef CONFIG_SUNXI_ARISC
-	return arisc_hwspin_unlock(hwid);
+	return arisc_hwspin_unlock(hwid, lock, flags);
 #else
 	return -ESRCH;
 #endif
 }
+
+static DEFINE_SPINLOCK(rtc_dump_hwlock);
 
 static ssize_t __rtc_reg_store(const char *buf, size_t size)
 {
 	u32 addr, data;
 	u32 temp = 0;
+	unsigned long hwflags;
 
 	sscanf(buf, "%x %x", &addr, &data);
 	if ((addr < 0x1) || (addr > 0x3)) {
@@ -642,14 +646,14 @@ static ssize_t __rtc_reg_store(const char *buf, size_t size)
 
 	rtc_reg_addr = addr;
 
-	if (!hwspin_lock_timeout(AW_RTC_REG_HWSPINLOCK, 100)) {
+	if (!hwspin_lock_timeout(AW_RTC_REG_HWSPINLOCK, 100, &rtc_dump_hwlock, &hwflags)) {
 		temp = (addr << 16) | (data << 8);
 		writel(temp, RTC_REG);
 		temp |= 1 << 31;
 		writel(temp, RTC_REG);
 		temp &= ~(1<< 31);
 		writel(temp, RTC_REG);
-		hwspin_unlock(AW_RTC_REG_HWSPINLOCK);
+		hwspin_unlock(AW_RTC_REG_HWSPINLOCK, &rtc_dump_hwlock, &hwflags);
 		printk(KERN_INFO "[sunxi_dump_reg]: write rtc reg success, rtc reg 0x%x:0x%x\n", addr, data);
 		return size;
 	}
@@ -662,13 +666,14 @@ static ssize_t __rtc_reg_show(char *buf)
 {
 	ssize_t size = 0;
 	u32 temp = 0;
+	unsigned long hwflags;
 
-	if (!hwspin_lock_timeout(AW_RTC_REG_HWSPINLOCK, 100)) {
+	if (!hwspin_lock_timeout(AW_RTC_REG_HWSPINLOCK, 100, &rtc_dump_hwlock, &hwflags)) {
 		temp = rtc_reg_addr << 16;
 		writel(temp, RTC_REG);
 		temp = readl(RTC_REG) & 0xff;
 		size = sprintf(buf, "%x\n", temp);
-		hwspin_unlock(AW_RTC_REG_HWSPINLOCK);
+		hwspin_unlock(AW_RTC_REG_HWSPINLOCK, &rtc_dump_hwlock, &hwflags);
 		return size;
 	}
 
@@ -801,6 +806,7 @@ EXPORT_SYMBOL(sunxi_dump_regs);
 s32 sunxi_rtc_reg_write(u32 addr, u32 data)
 {
 	u32 temp = 0;
+	unsigned long hwflags;
 
 	if ((addr < 0x1) || (addr > 0x3)) {
 		printk(KERN_ERR "[sunxi_dump_reg]: rtc address error, address:0x%x\n", addr);
@@ -812,14 +818,14 @@ s32 sunxi_rtc_reg_write(u32 addr, u32 data)
 		return -EINVAL;
 	}
 
-	if (!hwspin_lock_timeout(AW_RTC_REG_HWSPINLOCK, 100)) {
+	if (!hwspin_lock_timeout(AW_RTC_REG_HWSPINLOCK, 100, &rtc_dump_hwlock, &hwflags)) {
 		temp = (addr << 16) | (data << 8);
 		writel(temp, RTC_REG);
 		temp |= 1 << 31;
 		writel(temp, RTC_REG);
 		temp &= ~(1<< 31);
 		writel(temp, RTC_REG);
-		hwspin_unlock(AW_RTC_REG_HWSPINLOCK);
+		hwspin_unlock(AW_RTC_REG_HWSPINLOCK, &rtc_dump_hwlock, &hwflags);
 		printk(KERN_INFO "[sunxi_dump_reg]: write rtc reg success, rtc reg 0x%x:0x%x\n", addr, data);
 		return 0;
 	}
@@ -832,12 +838,13 @@ EXPORT_SYMBOL(sunxi_rtc_reg_write);
 u32 sunxi_rtc_reg_read(u32 addr)
 {
 	u32 temp = 0;
+	unsigned long hwflags;
 
-	if (!hwspin_lock_timeout(AW_RTC_REG_HWSPINLOCK, 100)) {
+	if (!hwspin_lock_timeout(AW_RTC_REG_HWSPINLOCK, 100, &rtc_dump_hwlock, &hwflags)) {
 		temp = addr << 16;
 		writel(temp, RTC_REG);
 		temp = readl(RTC_REG) & 0xff;
-		hwspin_unlock(AW_RTC_REG_HWSPINLOCK);
+		hwspin_unlock(AW_RTC_REG_HWSPINLOCK, &rtc_dump_hwlock, &hwflags);
 		return 0;
 	}
 

@@ -126,6 +126,10 @@ struct menu_device {
 #define LOAD_INT(x) ((x) >> FSHIFT)
 #define LOAD_FRAC(x) LOAD_INT(((x) & (FIXED_1-1)) * 100)
 
+/* NOTE: this is one of strategies to calculate cpu exit latency,
+ * and not be used now, so, we cancled this code for fix build waring.
+ */
+#if 0
 static int get_loadavg(void)
 {
 	unsigned long this = this_cpu_load();
@@ -133,6 +137,7 @@ static int get_loadavg(void)
 
 	return LOAD_INT(this) * 10 + LOAD_FRAC(this) / 10;
 }
+#endif
 
 static inline int which_bucket(unsigned int duration)
 {

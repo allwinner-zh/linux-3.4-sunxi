@@ -114,6 +114,14 @@ PVRSRV_ERROR OSPerProcessPrivateDataDeInit(IMG_HANDLE hOsPrivateData)
 
 	psEnvPerProc = (PVRSRV_ENV_PER_PROCESS_DATA *)hOsPrivateData;
 
+#if defined(SUPPORT_ION)
+	if (psEnvPerProc->psIONClient)
+	{
+		ion_client_destroy(psEnvPerProc->psIONClient);
+		psEnvPerProc->psIONClient = IMG_NULL;
+	}
+#endif /* defined(SUPPORT_ION) */
+
 	/* Linux specific mmap processing */
 	LinuxMMapPerProcessDisconnect(psEnvPerProc);
 

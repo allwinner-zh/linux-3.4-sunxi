@@ -870,5 +870,6 @@ source "drivers/input/touchscreen/gslx680/Kconfig"
 source "drivers/input/touchscreen/gt818/Kconfig"
 source "drivers/input/touchscreen/bcd/Kconfig"
 source "drivers/input/touchscreen/icn83xx/Kconfig"
+source "drivers/input/touchscreen/gt911/Kconfig"
 
 endif

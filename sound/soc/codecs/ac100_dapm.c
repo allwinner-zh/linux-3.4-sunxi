@@ -38,21 +38,12 @@
 #include <linux/gpio.h>
 #include <linux/arisc/arisc.h>
 #include <linux/power/scenelock.h>
+#include <linux/pinctrl/pinconf-sunxi.h>
+#include <linux/pinctrl/consumer.h>
 #include <mach/gpio.h>
 #include "ac100.h"
 
-
-#if defined(CONFIG_ARCH_SUN9IW1) \
-	|| defined(CONFIG_ARCH_SUN8IW6)
-	#define AUDIO_RSB_BUS
-//	static unsigned int twi_id = 0;
-#else
-	static unsigned int twi_id = 2;
-#endif
-#define SUNXI_CODEC_NAME	"ac100-codec"
-
-//#define CONFIG_ANDROID_SWITCH_GPIO_TS3A225
-#ifndef CONFIG_ANDROID_SWITCH_GPIO_TS3A225
+#ifndef CONFIG_SUNXI_SWITCH_GPIO
 static volatile int reset_flag = 0;
 static int hook_flag1 = 0;
 static int hook_flag2 = 0;
@@ -68,7 +59,7 @@ static struct workqueue_struct *codec_irq_queue;
 #define HEADSET_CHECKCOUNT  (10)
 #define HEADSET_CHECKCOUNT_SUM  (2)
 #endif
-
+struct spk_gpio spkgpio;
 static int speaker_double_used = 0;
 static int double_speaker_val = 0;
 static int single_speaker_val = 0;
@@ -505,11 +496,14 @@ static int ac100_speaker_event(struct snd_soc_dapm_widget *w,
 		if (drc_used) {
 			drc_enable(codec,1);
 		}
-		gpio_set_value(item.gpio.gpio, 1);
+		msleep(30);
+		if (spkgpio.used)
+			gpio_set_value(spkgpio.gpio, 1);
 		break;
 	case	SND_SOC_DAPM_PRE_PMD :
 		AC100_DBG("[speaker close ]%s,line:%d\n",__func__,__LINE__);
-		gpio_set_value(item.gpio.gpio, 0);
+		if (spkgpio.used)
+			gpio_set_value(spkgpio.gpio, 0);
 		if (drc_used) {
 			drc_enable(codec,0);
 		}
@@ -2092,7 +2086,7 @@ static int ac100_aif3_hw_params(struct snd_pcm_substream *substream,
 	snd_soc_update_bits(codec, AIF3_CLK_CTRL, (0x3<<AIF3_WORD_SIZ), aif3_size<<AIF3_WORD_SIZ);
 	return 0;
 }
-#ifndef CONFIG_ANDROID_SWITCH_GPIO_TS3A225
+#ifndef CONFIG_SUNXI_SWITCH_GPIO
 /*
 **switch_hw_config:config the 53 codec register
 */
@@ -2137,14 +2131,14 @@ static int ac100_set_bias_level(struct snd_soc_codec *codec,
 		AC100_DBG("%s,line:%d, SND_SOC_BIAS_PREPARE\n", __func__, __LINE__);
 		break;
 	case SND_SOC_BIAS_STANDBY:
-		#ifndef CONFIG_ANDROID_SWITCH_GPIO_TS3A225
+		#ifndef CONFIG_SUNXI_SWITCH_GPIO
 		switch_hw_config(codec);
 		#endif
 
 		AC100_DBG("%s,line:%d, SND_SOC_BIAS_STANDBY\n", __func__, __LINE__);
 		break;
 	case SND_SOC_BIAS_OFF:
-		#ifndef CONFIG_ANDROID_SWITCH_GPIO_TS3A225
+		#ifndef CONFIG_SUNXI_SWITCH_GPIO
 		snd_soc_update_bits(codec, ADC_APC_CTRL, (0x1<<HBIASEN), (0<<HBIASEN));
 		snd_soc_update_bits(codec, ADC_APC_CTRL, (0x1<<HBIASADCEN), (0<<HBIASADCEN));
 		#endif
@@ -2240,7 +2234,7 @@ static struct snd_soc_dai_driver ac100_dai[] = {
 		.ops = &ac100_aif3_dai_ops,
 	}
 };
-#ifndef CONFIG_ANDROID_SWITCH_GPIO_TS3A225
+#ifndef CONFIG_SUNXI_SWITCH_GPIO
 static ssize_t switch_gpio_print_state(struct switch_dev *sdev, char *buf)
 {
 	struct ac100_priv	*ac100 =
@@ -2448,10 +2442,6 @@ static irqreturn_t audio_hmic_irq(int irq, void *para)
 	if (ac100 == NULL) {
 		return -EINVAL;
 	}
-#ifdef CONFIG_ARCH_SUN8IW6
-	/*clear audio-irq pending bit*/
-	writel((0x1<<12), ((void __iomem *)0xf1f02c00+0x214));
-#endif
 	if(codec_irq_queue == NULL)
 		pr_err("------------codec_irq_queue is null!!----------");
 	if(&ac100->clear_codec_irq == NULL)
@@ -2468,17 +2458,16 @@ static void codec_resume_work(struct work_struct *work)
 	struct ac100_priv *ac100 = container_of(work, struct ac100_priv, codec_resume);
 	struct snd_soc_codec *codec = ac100->codec;
 	int i ,ret =0;
-#ifndef CONFIG_ANDROID_SWITCH_GPIO_TS3A225
+#ifndef CONFIG_SUNXI_SWITCH_GPIO
 	ac100->virq = gpio_to_irq(item_eint.gpio.gpio);
 	if (IS_ERR_VALUE(ac100->virq)) {
-		pr_warn("[AC100] map gpio [%d] to virq failed, errno = %d\n",
-		GPIOL(12), ac100->virq);
+		pr_warn("[AC100] map gpio to virq failed, errno = %d\n",ac100->virq);
 		//return -EINVAL;
 	}
 
 	pr_debug("[AC100] gpio [%d] map to virq [%d] ok\n", item_eint.gpio.gpio, ac100->virq);
 	/* request virq, set virq type to high level trigger */
-	ret = devm_request_irq(codec->dev, ac100->virq, audio_hmic_irq, IRQF_TRIGGER_FALLING, "PL12_EINT", ac100);
+	ret = devm_request_irq(codec->dev, ac100->virq, audio_hmic_irq, IRQF_TRIGGER_FALLING, "SWTICH_EINT", ac100);
 	if (IS_ERR_VALUE(ret)) {
 		pr_warn("[AC100] request virq %d failed, errno = %d\n", ac100->virq, ret);
         	//return -EINVAL;
@@ -2502,9 +2491,11 @@ static void codec_resume_work(struct work_struct *work)
 	}
 	/*enable this bit to prevent leakage from ldoin*/
 	snd_soc_update_bits(codec, ADDA_TUNE3, (0x1<<OSCEN), (0x1<<OSCEN));
-	gpio_direction_output(item.gpio.gpio, 1);
-	gpio_set_value(item.gpio.gpio, 0);
-	#ifndef CONFIG_ANDROID_SWITCH_GPIO_TS3A225
+	if (spkgpio.used) {
+		gpio_direction_output(spkgpio.gpio, 1);
+		gpio_set_value(spkgpio.gpio, 0);
+	}
+	#ifndef CONFIG_SUNXI_SWITCH_GPIO
 	msleep(200);
 	ret = snd_soc_read(codec, HMIC_STS);
 	ret = (ret>>HMIC_DATA);
@@ -2574,32 +2565,21 @@ static int ac100_codec_probe(struct snd_soc_codec *codec)
 {
 	int ret = 0;
 	int i = 0;
-#ifndef CONFIG_ANDROID_SWITCH_GPIO_TS3A225
+#ifndef CONFIG_SUNXI_SWITCH_GPIO
 	int req_status = 0;
 #endif
 	script_item_value_type_e  type;
 	struct ac100_priv *ac100;
 	//struct device *dev = codec->dev;
 	struct snd_soc_dapm_context *dapm = &codec->dapm;
-#ifndef AUDIO_RSB_BUS
-	ret = snd_soc_codec_set_cache_io(codec, 8, 16, SND_SOC_I2C);
-	if (ret < 0) {
-		dev_err(codec->dev, "[AC100] Failed to set cache I/O: %d\n", ret);
-		return ret;
-	}
-	AC100_DBG("[AC100] AUDIO_I2C_BUS:%s, line:%d\n", __func__, __LINE__);
-#else
-#endif
-	pr_debug("%s,line:%d\n",__func__,__LINE__);
-	/********************initialize the ac100*******************/
-	ac100 = kzalloc(sizeof(struct ac100_priv), GFP_KERNEL);
+	ac100 = dev_get_drvdata(codec->dev);
 	if (ac100 == NULL) {
 		return -ENOMEM;
 	}
 	ac100->codec = codec;
 	snd_soc_codec_set_drvdata(codec, ac100);
 	/*ac100 switch driver*/
-#ifndef CONFIG_ANDROID_SWITCH_GPIO_TS3A225
+#ifndef CONFIG_SUNXI_SWITCH_GPIO
 	ac100->sdev.state 		= 0;
 	ac100->state				= -1;
 	ac100->check_count		= 0;
@@ -2657,7 +2637,6 @@ static int ac100_codec_probe(struct snd_soc_codec *codec)
 	type = script_get_item("audio0", "audio_int_ctrl", &item_eint);
 	if (SCIRPT_ITEM_VALUE_TYPE_PIO != type) {
 		pr_err("[AC100] script_get_item return type err\n");
-		return -EFAULT;
 	}
 #endif
 	INIT_WORK(&ac100->codec_resume, codec_resume_work);
@@ -2674,45 +2653,46 @@ static int ac100_codec_probe(struct snd_soc_codec *codec)
 	type = script_get_item("audio0", "audio_pa_ctrl", &item);
 	if (SCIRPT_ITEM_VALUE_TYPE_PIO != type) {
 		pr_err("script_get_item return type err\n");
-		return -EFAULT;
+		spkgpio.used = false;
+		//return -EFAULT;
+	} else {
+		spkgpio.used = true;
+		spkgpio.gpio = item.gpio.gpio;
+		/*request pa gpio*/
+		ret = gpio_request(spkgpio.gpio, NULL);
+		if (0 != ret) {
+			pr_err("request gpio failed!\n");
+		}
+		/*
+		* config gpio info of audio_pa_ctrl, the default pa config is close(check pa sys_config1.fex)
+		*/
+		gpio_direction_output(spkgpio.gpio, 1);
+		gpio_set_value(spkgpio.gpio, 0);
 	}
 
-	/*request pa gpio*/
-	ret = gpio_request(item.gpio.gpio, NULL);
-	if (0 != ret) {
-		pr_err("request gpio failed!\n");
-	}
-	/*
-	* config gpio info of audio_pa_ctrl, the default pa config is close(check pa sys_config1.fex)
-	*/
-	gpio_direction_output(item.gpio.gpio, 1);
-	gpio_set_value(item.gpio.gpio, 0);
-
-#ifndef CONFIG_ANDROID_SWITCH_GPIO_TS3A225
+#ifndef CONFIG_SUNXI_SWITCH_GPIO
 	/*
 	* map the virq of gpio
-	* headphone gpio irq pin is PL7
-	* item_eint.gpio.gpio = GPIOL(7);
+	* headphone gpio irq pin is ***
+	* item_eint.gpio.gpio = ****;
 	*/
-	//if(!ts3a225_used){
 #ifdef CONFIG_ARCH_SUN8IW6
 	ac100->virq = gpio_to_irq(item_eint.gpio.gpio);
 	if (IS_ERR_VALUE(ac100->virq)) {
-		pr_warn("[AC100] map gpio [%d] to virq failed, errno = %d\n",
-		GPIOL(12), ac100->virq);
+		pr_warn("[AC100] map gpio to virq failed, errno = %d\n",ac100->virq);
 		return -EINVAL;
 	}
 
 	pr_debug("[AC100] gpio [%d] map to virq [%d] ok\n", item_eint.gpio.gpio, ac100->virq);
 	/* request virq, set virq type to high level trigger */
-	ret = devm_request_irq(codec->dev, ac100->virq, audio_hmic_irq, IRQF_TRIGGER_FALLING, "PL12_EINT", ac100);
+	ret = devm_request_irq(codec->dev, ac100->virq, audio_hmic_irq, IRQF_TRIGGER_FALLING, "SWTICH_EINT", ac100);
 	if (IS_ERR_VALUE(ret)) {
 		pr_warn("[AC100] request virq %d failed, errno = %d\n", ac100->virq, ret);
-        	return -EINVAL;
+	        return -EINVAL;
 	}
 
 	/*
-	* item_eint.gpio.gpio = GPIOL(7);
+	* item_eint.gpio.gpio = GPIO*(*);
 	* select HOSC 24Mhz(PIO Interrupt Clock Select)
 	*/
 	req_status = gpio_request(item_eint.gpio.gpio, NULL);
@@ -2721,6 +2701,7 @@ static int ac100_codec_probe(struct snd_soc_codec *codec)
 		return -EINVAL;
 	}
 	gpio_set_debounce(item_eint.gpio.gpio, 1);
+
 #endif
 #endif
 	ac100->num_supplies = ARRAY_SIZE(ac100_supplies);
@@ -2763,7 +2744,7 @@ static int ac100_codec_probe(struct snd_soc_codec *codec)
 	snd_soc_dapm_new_controls(dapm, ac100_dapm_widgets, ARRAY_SIZE(ac100_dapm_widgets));
  	snd_soc_dapm_add_routes(dapm, ac100_dapm_routes, ARRAY_SIZE(ac100_dapm_routes));
 	return 0;
-#ifndef CONFIG_ANDROID_SWITCH_GPIO_TS3A225
+#ifndef CONFIG_SUNXI_SWITCH_GPIO
 err_switch_work_queue:
 	devm_free_irq(codec->dev,ac100->virq,NULL);
 
@@ -2811,7 +2792,8 @@ static int ac100_codec_remove(struct snd_soc_codec *codec)
 static int ac100_codec_suspend(struct snd_soc_codec *codec)
 {
 	int i ,ret =0;
-	int reg_val = 0;
+	char pin_name[SUNXI_PIN_NAME_MAX_LEN];
+	unsigned long      config;
 	struct ac100_priv *ac100 = snd_soc_codec_get_drvdata(codec);
 	AC100_DBG("[codec]:suspend\n");
 	/* check if called in talking standby */
@@ -2827,22 +2809,17 @@ static int ac100_codec_suspend(struct snd_soc_codec *codec)
 		pr_err("[AC100] %s: some error happen, fail to disable regulator!\n", __func__);
 		}
 	}
-	#ifndef CONFIG_ANDROID_SWITCH_GPIO_TS3A225
+	#ifndef CONFIG_SUNXI_SWITCH_GPIO
 	devm_free_irq(codec->dev,ac100->virq,ac100);
+	sunxi_gpio_to_name(item_eint.gpio.gpio, pin_name);
+	config = SUNXI_PINCFG_PACK(SUNXI_PINCFG_TYPE_FUNC, 7);
+	pin_config_set(SUNXI_PINCTRL, pin_name, config);
 	#endif
-	#ifdef CONFIG_ARCH_SUN8IW6
-	/*config pg13 gpio disable*/
-	reg_val = readl((void __iomem *)0xf1c208dc);
-	reg_val &= ~(0xf<<20);
-	reg_val |= 0x7<<20;
-	writel(reg_val, (void __iomem *)0xf1c208dc);
-
-	/*config pl12 gpio disable*/
-	reg_val = readl((void __iomem *)0xf1f02c04);
-	reg_val &= ~(0xf<<16);
-	reg_val |= 0x7<<16;
-	writel(reg_val, (void __iomem *)0xf1f02c04);
-	#endif
+	if (spkgpio.used) {
+		sunxi_gpio_to_name(spkgpio.gpio, pin_name);
+		config = SUNXI_PINCFG_PACK(SUNXI_PINCFG_TYPE_FUNC, 7);
+		pin_config_set(SUNXI_PINCTRL, pin_name, config);
+	}
 	return 0;
 }
 
@@ -2850,7 +2827,7 @@ static int ac100_codec_resume(struct snd_soc_codec *codec)
 {
 	struct ac100_priv *ac100 = snd_soc_codec_get_drvdata(codec);
 	AC100_DBG("[codec]:resume");
-	#ifndef CONFIG_ANDROID_SWITCH_GPIO_TS3A225
+	#ifndef CONFIG_SUNXI_SWITCH_GPIO
 	ac100->mode = HEADPHONE_IDLE;
 	headphone_state = 0;
 	ac100->state	= -1;
@@ -2869,7 +2846,6 @@ static int ac100_codec_resume(struct snd_soc_codec *codec)
 	return 0;
 }
 
-#ifdef AUDIO_RSB_BUS
 static unsigned int sndvir_audio_read(struct snd_soc_codec *codec,
 					  unsigned int reg)
 {
@@ -2893,7 +2869,6 @@ static int sndvir_audio_write(struct snd_soc_codec *codec,
 
 	return 0;
 }
-#endif
 
 static struct snd_soc_codec_driver soc_codec_dev_sndvir_audio = {
 	.probe 		=	ac100_codec_probe,
@@ -2901,10 +2876,8 @@ static struct snd_soc_codec_driver soc_codec_dev_sndvir_audio = {
 	.suspend 	= 	ac100_codec_suspend,
 	.resume 	=	ac100_codec_resume,
 	.set_bias_level = ac100_set_bias_level,
-#ifdef AUDIO_RSB_BUS
 	.read 		= 	sndvir_audio_read,
 	.write 		= 	sndvir_audio_write,
-#endif
 	.ignore_pmdown_time = 1,
 };
 
@@ -2957,7 +2930,8 @@ static void ac100_shutdown(struct platform_device *pdev)
 	snd_soc_write(codec, HPOUT_CTRL, reg_val);
 
 	/*disable pa_ctrl*/
-	gpio_set_value(item.gpio.gpio, 0);
+	if (spkgpio.used)
+		gpio_set_value(spkgpio.gpio, 0);
 
 }
 static int __devexit ac100_remove(struct platform_device *pdev)

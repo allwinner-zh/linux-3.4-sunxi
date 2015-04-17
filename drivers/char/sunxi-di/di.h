@@ -49,7 +49,7 @@ typedef struct
 
 int di_set_reg_base(unsigned int base);
 unsigned int di_get_reg_base(void);
-int di_set_init(void);
+int di_set_init(__s32 mode);
 int di_reset(void);
 int di_start(void);
 int di_irq_enable(unsigned int enable);

@@ -10,15 +10,8 @@
  * warranty of any kind, whether express or implied.
  */
 
-#include <linux/init.h>
-#include <linux/module.h>
 #include <linux/spinlock.h>
-#include <linux/errno.h>
-#include <linux/clk.h>
-#include <linux/slab.h>
 #include <linux/platform_device.h>
-#include <crypto/md5.h>
-#include <crypto/des.h>
 #include <crypto/internal/hash.h>
 #include <crypto/internal/rng.h>
 
@@ -30,25 +23,6 @@
 #include "../sunxi_ss.h"
 #include "../sunxi_ss_proc.h"
 #include "sunxi_ss_reg.h"
-
-static int ss_sg_cnt(struct scatterlist *sg, int total)
-{
-	int cnt = 0;
-	int nbyte = 0;
-	struct scatterlist *cur = sg;
-
-	while (cur != NULL) {
-		cnt++;
-		SS_DBG("cnt = %d, cur = %p, len = %d \n", cnt, cur, sg_dma_len(cur));
-		nbyte += sg_dma_len(cur);
-		if (nbyte >= total)
-			return cnt;
-
-		cur = sg_next(cur);
-	}
-
-	return cnt;
-}
 
 /* Callback of DMA completion. */
 static void ss_dma_cb(void *data)
@@ -240,31 +214,6 @@ int ss_aes_key_valid(struct crypto_ablkcipher *tfm, int len)
 	return 0;
 }
 
-int ss_aes_crypt(struct ablkcipher_request *req, int dir, int method, int mode)
-{
-	int err = 0;
-	unsigned long flags = 0;
-	ss_aes_req_ctx_t *req_ctx = ablkcipher_request_ctx(req);
-
-	SS_DBG("nbytes: %d, dec: %d, method: %d, mode: %d\n", req->nbytes, dir, method, mode);
-	if (ss_dev->suspend) {
-		SS_ERR("SS has already suspend. \n");
-		return -EAGAIN;
-	}
-
-	req_ctx->dir  = dir;
-	req_ctx->type = method;
-	req_ctx->mode = mode;
-	req->base.flags |= SS_FLAG_AES;
-
-	spin_lock_irqsave(&ss_dev->lock, flags);
-	err = ablkcipher_enqueue_request(&ss_dev->queue, req);
-	spin_unlock_irqrestore(&ss_dev->lock, flags);
-
-	queue_work(ss_dev->workqueue, &ss_dev->work);
-	return err;
-}
-
 static int ss_rng_start(ss_aes_ctx_t *ctx, u8 *rdata, unsigned int dlen)
 {
 	int ret = 0;
@@ -308,7 +257,7 @@ int ss_rng_get_random(struct crypto_rng *tfm, u8 *rdata, unsigned int dlen)
 	return ret;
 }
 
-static int ss_hash_start(ss_hash_ctx_t *ctx, ss_aes_req_ctx_t *req_ctx, int len)
+int ss_hash_start(ss_hash_ctx_t *ctx, ss_aes_req_ctx_t *req_ctx, int len)
 {
 	int ret = 0;
 	int flow = ctx->comm.flow;
@@ -343,7 +292,7 @@ static int ss_hash_start(ss_hash_ctx_t *ctx, ss_aes_req_ctx_t *req_ctx, int len)
 			return -ETIMEDOUT;
 		}
 
-		ss_md_get(ctx->md, ctx->md_size);
+		ss_md_get(ctx->md, NULL, ctx->md_size);
 	}
 
 	ss_dma_disable(flow);
@@ -353,85 +302,7 @@ static int ss_hash_start(ss_hash_ctx_t *ctx, ss_aes_req_ctx_t *req_ctx, int len)
 	return 0;
 }
 
-int ss_hash_update(struct ahash_request *req)
-{
-	int err = 0;
-	unsigned long flags = 0;
-
-	if (!req->nbytes) {
-		SS_ERR("Invalid length: %d. \n", req->nbytes);
-		return 0;
-	}
-
-	SS_DBG("Flags: %#x, len = %d \n", req->base.flags, req->nbytes);
-	if (ss_dev->suspend) {
-		SS_ERR("SS has already suspend. \n");
-		return -EAGAIN;
-	}
-
-	req->base.flags |= SS_FLAG_HASH;
-
-	spin_lock_irqsave(&ss_dev->lock, flags);
-	err = ahash_enqueue_request(&ss_dev->queue, req);
-	spin_unlock_irqrestore(&ss_dev->lock, flags);
-
-	queue_work(ss_dev->workqueue, &ss_dev->work);
-	return err;
-}
-
-int ss_hash_final(struct ahash_request *req)
-{
-	int pad_len = 0;
-	ss_aes_req_ctx_t *req_ctx = ahash_request_ctx(req);
-	ss_hash_ctx_t *ctx = crypto_ahash_ctx(crypto_ahash_reqtfm(req));
-	struct scatterlist last = {0}; /* make a sg struct for padding data. */
-
-	if (req->result == NULL) {
-		SS_ERR("Invalid result porinter. \n");
-		return -EINVAL;
-	}
-	SS_DBG("Method: %d, cnt: %d\n", req_ctx->type, ctx->cnt);
-	if (ss_dev->suspend) {
-		SS_ERR("SS has already suspend. \n");
-		return -EAGAIN;
-	}
-
-	/* Process the padding data. */
-	pad_len = ss_hash_padding(ctx, req_ctx->type);
-	SS_DBG("Pad len: %d \n", pad_len);
-	req_ctx->dma_src.sg = &last;
-	sg_init_table(&last, 1);
-	sg_set_buf(&last, ctx->pad, pad_len);
-	SS_DBG("Padding data: \n");
-	print_hex(ctx->pad, 128, (int)ctx->pad);
-
-	ss_dev_lock();
-	ss_hash_start(ctx, req_ctx, pad_len);
-
-	ss_sha_final();
-
-	SS_DBG("Method: %d, cnt: %d\n", req_ctx->type, ctx->cnt);
-
-	ss_check_sha_end();
-	ss_md_get(req->result, ctx->md_size);
-	ss_ctrl_stop();
-	ss_dev_unlock();
-
-#ifdef SS_SHA_SWAP_FINAL_ENABLE
-	if (req_ctx->type != SS_METHOD_MD5)
-		ss_hash_swap(req->result, ctx->md_size);
-#endif
-
-	return 0;
-}
-
-int ss_hash_finup(struct ahash_request *req)
-{
-	ss_hash_update(req);
-	return ss_hash_final(req);
-}
-
-static int ss_aes_one_req(sunxi_ss_t *sss, struct ablkcipher_request *req)
+int ss_aes_one_req(sunxi_ss_t *sss, struct ablkcipher_request *req)
 {
 	int ret = 0;
 	struct crypto_ablkcipher *tfm = NULL;
@@ -501,68 +372,6 @@ static int ss_aes_one_req(sunxi_ss_t *sss, struct ablkcipher_request *req)
 		req->base.complete(&req->base, ret);
 
 	return ret;
-}
-
-static int ss_hash_one_req(sunxi_ss_t *sss, struct ahash_request *req)
-{
-	int ret = 0;
-	ss_aes_req_ctx_t *req_ctx = NULL;
-	ss_hash_ctx_t *ctx = crypto_ahash_ctx(crypto_ahash_reqtfm(req));
-
-	SS_ENTER();
-	if (!req->src) {
-		SS_ERR("Invalid sg: src = %p\n", req->src);
-		return -EINVAL;
-	}
-
-	ss_dev_lock();
-
-	req_ctx = ahash_request_ctx(req);
-	req_ctx->dma_src.sg = req->src;
-
-	ss_hash_padding_data_prepare(ctx, req->result, req->nbytes%ss_hash_blk_size(req_ctx->type));
-
-	ret = ss_hash_start(ctx, req_ctx, req->nbytes);
-	if (ret < 0)
-		SS_ERR("ss_hash_start fail(%d)\n", ret);
-
-	ss_dev_unlock();
-
-	if (req->base.complete)
-		req->base.complete(&req->base, ret);
-
-	return ret;
-}
-
-void sunxi_ss_work(struct work_struct *work)
-{
-	int ret = 0;
-    unsigned long flags = 0;
-	sunxi_ss_t *sss = container_of(work, sunxi_ss_t, work);
-	struct crypto_async_request *async_req = NULL;
-	struct crypto_async_request *backlog = NULL;
-
-	/* empty the crypto queue and then return */
-	do {
-		spin_lock_irqsave(&sss->lock, flags);
-		backlog = crypto_get_backlog(&sss->queue);
-		async_req = crypto_dequeue_request(&sss->queue);
-		spin_unlock_irqrestore(&sss->lock, flags);
-
-		if (!async_req) {
-			SS_DBG("async_req is NULL! \n");
-			break;
-		}
-
-		if (backlog)
-			backlog->complete(backlog, -EINPROGRESS);
-
-		SS_DBG("async_req->flags = %#x \n", async_req->flags);
-		if (async_req->flags & SS_FLAG_AES)
-			ret = ss_aes_one_req(sss, ablkcipher_request_cast(async_req));
-		else if (async_req->flags & SS_FLAG_HASH)
-			ret = ss_hash_one_req(sss, ahash_request_cast(async_req));
-	} while (!ret);
 }
 
 irqreturn_t sunxi_ss_irq_handler(int irq, void *dev_id)

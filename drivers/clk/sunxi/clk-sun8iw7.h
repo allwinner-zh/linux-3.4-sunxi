@@ -39,7 +39,7 @@
 #define BUS_GATE3           0x006c
 #define BUS_GATE4           0x0070
 
-#define THS_CFG             0x007C
+#define THS_CFG             0x0074
 #define NAND_CFG            0x0080
 #define SD0_CFG             0x0088
 #define SD1_CFG             0x008c
@@ -66,7 +66,7 @@
 #define CSI_MISC            0x0130
 #define CSI_CFG             0x0134
 #define VE_CFG              0x013C
-#define ADDA_CFG            0x0140
+#define ADDA_CFG            0x0140//AC_DIG_CLK
 #define AVS_CFG             0x0144
 #define HDMI_CFG            0x0150
 #define HDMI_SLOW           0x0154
@@ -78,7 +78,14 @@
 
 #define PLL_LOCK            0x0200
 #define CPU_LOCK            0x0204
+#define PLL_CPUPAT			0x0280
+#define PLL_AUDIOPAT		0x0284
 #define PLL_VIDEOPAT        0x0288
+#define PLL_VEPAT			0x028C
+#define PLL_DDRPAT			0x0290
+#define PLL_GPUPAT			0x029C
+#define PLL_PERIPH1PAT		0x02A4
+#define PLL_DEPAT			0x02A8
 
 #define BUS_RST0           0x02C0
 #define BUS_RST1           0x02C4

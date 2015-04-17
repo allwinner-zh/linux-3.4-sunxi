@@ -97,6 +97,7 @@ struct sunxi_clk_factors_config {
     u32 sdmval;
 
 	u32 updshift;
+	u32 delay;
 };
 struct sunxi_clk_factor_freq{
 		u32		factor;	
@@ -221,6 +222,32 @@ struct clk *sunxi_clk_register_factors(struct device *dev,void __iomem *base,spi
 	.updshift = _updshift\
 	}
 
+#define SUNXI_CLK_FACTORS_DELAY(name, _nshift, _nwidth, _kshift, _kwidth, _mshift, _mwidth,   \
+                  _pshift, _pwidth, _d1shift, _d1width, _d2shift, _d2width,     \
+                  _frac, _outshift, _modeshift, _enshift, _sdmshift, _sdmwidth, _sdmpat, _sdmval , _delay)     \
+    static struct sunxi_clk_factors_config sunxi_clk_factor_##name ={            \
+        .nshift = _nshift,  \
+        .nwidth = _nwidth,  \
+        .kshift = _kshift,  \
+        .kwidth = _kwidth,  \
+        .mshift = _mshift,  \
+        .mwidth = _mwidth,  \
+        .pshift = _pshift,  \
+        .pwidth = _pwidth,  \
+        .d1shift = _d1shift,    \
+        .d1width = _d1width,    \
+        .d2shift = _d2shift,    \
+        .d2width = _d2width,    \
+        .frac = _frac,  \
+        .outshift = _outshift,  \
+        .modeshift =_modeshift,     \
+        .enshift =_enshift,    \
+	.sdmshift=_sdmshift,	\
+	.sdmwidth=_sdmwidth,	\
+	.sdmpat  =_sdmpat,	\
+	.sdmval  =_sdmval,	\
+	.delay = _delay\
+	}
 
 int sunxi_clk_get_common_factors(struct sunxi_clk_factors_config* f_config,struct clk_factors_value *factor, struct sunxi_clk_factor_freq table[],unsigned long index,unsigned long tbl_size);
 int sunxi_clk_get_common_factors_search(struct sunxi_clk_factors_config* f_config,struct clk_factors_value *factor, struct sunxi_clk_factor_freq table[],unsigned long index,unsigned long tbl_count);

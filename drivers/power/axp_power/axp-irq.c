@@ -11,6 +11,9 @@
 #include <linux/input.h>
 #include <linux/wakelock.h>
 #include "axp-cfg.h"
+#ifdef CONFIG_SUNXI_ARISC
+#include <linux/arisc/arisc.h>
+#endif
 #ifdef CONFIG_AW_AXP81X
 #include "axp81x/axp81x-sply.h"
 #include "axp81x/axp81x-common.h"
@@ -201,7 +204,9 @@ static int axp_battery_event(struct notifier_block *nb, unsigned long event,
 
 int axp_disable_irq(struct axp_charger *charger)
 {
+	struct axp_dev *chip = dev_get_drvdata(charger->master);
 	uint8_t irq_w[11];
+	s32 ret = 0;
 
 #ifdef CONFIG_HAS_WAKELOCK
 	if (wake_lock_active(&axp_wakeup_lock)) {
@@ -223,8 +228,16 @@ int axp_disable_irq(struct axp_charger *charger)
 	irq_w[9] = AXP_INTSTS6;
 	irq_w[10] = 0xff;
 	axp_writes(charger->master,  AXP_INTSTS1,  11,  irq_w);
+
+#ifdef CONFIG_SUNXI_ARISC
+	arisc_disable_nmi_irq();
+#else
+#endif
+
 	/* close all irqs*/
-	axp_unregister_notifier(charger->master, &charger->nb, AXP_NOTIFIER_ON);
+	ret = chip->ops->disable_irqs(chip, AXP_NOTIFIER_ON);
+	if(0 != ret)
+		printk("%s: axp irq disable failed.\n", __func__);
 
 	return 0;
 }
@@ -306,11 +319,18 @@ int axp_disable_irq(struct axp_charger *charger)
 
 int axp_enable_irq(struct axp_charger *charger)
 {
-	int ret = 0;
-	/*wakeup IQR notifier work sequence*/
-	ret = axp_register_notifier(charger->master, &charger->nb, AXP_NOTIFIER_ON);
+	struct axp_dev *chip = dev_get_drvdata(charger->master);
+	s32 ret = 0;
+
+	ret = chip->ops->enable_irqs(chip, AXP_NOTIFIER_ON);
 	if(0 != ret)
-		printk("%s: axp irq register notifier failed.\n", __func__);
+		printk("%s: axp irq enable failed.\n", __func__);
+
+#ifdef CONFIG_SUNXI_ARISC
+	arisc_enable_nmi_irq();
+#else
+#endif
+
 	return ret;
 }
 

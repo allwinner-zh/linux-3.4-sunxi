@@ -667,10 +667,6 @@ static inline u32 sunxi_modify_eint_pin_bais(u16 pin)
 	bank = pin / PINS_PER_BANK;
 	if( 6 == bank)
 		bank = 2;
-#elif defined(CONFIG_ARCH_SUN8IW7)
-	bank = pin / PINS_PER_BANK;
-	if( 6 == bank)
-		bank = 2;
 #elif defined(CONFIG_ARCH_SUN8IW6)
 	bank = pin/PINS_PER_BANK;
 	if(1 == bank )
@@ -679,12 +675,16 @@ static inline u32 sunxi_modify_eint_pin_bais(u16 pin)
 		bank = 1;
 	else if(7 == bank)
 		bank = 2;
-#elif defined(CONFIG_ARCH_SUN8IW8) || defined(CONFIG_ARCH_SUN8IW7)
+#elif defined(CONFIG_ARCH_SUN8IW7)
+	bank = pin / PINS_PER_BANK;
+	if( 6 == bank)
+		bank = 1;
+#elif defined(CONFIG_ARCH_SUN8IW8)
 	bank = pin/PINS_PER_BANK;
 	if(1 == bank )
-		bank = 0;
-	else if(7 == bank)
 		bank = 1;
+	else if(6 == bank)
+		bank = 2;
 #elif defined(CONFIG_ARCH_SUN8IW9)
 	bank = pin/PINS_PER_BANK;
 	if(6 == bank)

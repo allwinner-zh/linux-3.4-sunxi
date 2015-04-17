@@ -67,6 +67,7 @@
 /* sunxi specific input/output/eint functions */
 #define SUNXI_PIN_INPUT_FUNC	(0)
 #define SUNXI_PIN_OUTPUT_FUNC	(1)
+#define SUNXI_PIN_EINT_FUNC     (6)
 #define SUNXI_PIN_IO_DISABLE	(7)
 
 /* axp group base number name space,

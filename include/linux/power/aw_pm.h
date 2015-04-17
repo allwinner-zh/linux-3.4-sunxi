@@ -40,26 +40,34 @@
 */
 #define CPU0_WAKEUP_MSGBOX      (1<<0)  /* external interrupt, pmu event for ex.    */
 #define CPU0_WAKEUP_KEY         (1<<1)  /* key event    */
+#define CPU0_WAKEUP_EXINT	(1<<2)
+#define CPU0_WAKEUP_IR		(1<<3)
+#define CPU0_WAKEUP_ALARM	(1<<4)
+#define CPU0_WAKEUP_USB		(1<<5)
+#define CPU0_WAKEUP_TIMEOUT	(1<<6)
+#define CPU0_WAKEUP_PIO		(1<<7)
+
 
 //the wakeup source of assistant cpu: cpus
-#define CPUS_WAKEUP_LOWBATT     (1<<2 )
-#define CPUS_WAKEUP_USB         (1<<3 )
-#define CPUS_WAKEUP_AC          (1<<4 )
-#define CPUS_WAKEUP_ASCEND      (1<<5 )
-#define CPUS_WAKEUP_DESCEND     (1<<6 )
-#define CPUS_WAKEUP_SHORT_KEY   (1<<7 )
-#define CPUS_WAKEUP_LONG_KEY    (1<<8 )
-#define CPUS_WAKEUP_IR          (1<<9 )
-#define CPUS_WAKEUP_ALM0        (1<<10)
-#define CPUS_WAKEUP_ALM1        (1<<11)
-#define CPUS_WAKEUP_TIMEOUT     (1<<12)
-#define CPUS_WAKEUP_GPIO        (1<<13)
-#define CPUS_WAKEUP_USBMOUSE    (1<<14)
-#define CPUS_WAKEUP_LRADC       (1<<15)
-#define CPUS_WAKEUP_CODEC       (1<<16)
-#define CPUS_WAKEUP_BAT_TEMP    (1<<17)
-#define CPUS_WAKEUP_FULLBATT    (1<<18)
-#define CPUS_WAKEUP_HMIC        (1<<19)
+#define CPUS_WAKEUP_LOWBATT     (1<<12 )
+#define CPUS_WAKEUP_USB         (1<<13 )
+#define CPUS_WAKEUP_AC          (1<<14 )
+#define CPUS_WAKEUP_ASCEND      (1<<15 )
+#define CPUS_WAKEUP_DESCEND     (1<<16 )
+#define CPUS_WAKEUP_SHORT_KEY   (1<<17 )
+#define CPUS_WAKEUP_LONG_KEY    (1<<18 )
+#define CPUS_WAKEUP_IR          (1<<19 )
+#define CPUS_WAKEUP_ALM0        (1<<20)
+#define CPUS_WAKEUP_ALM1        (1<<21)
+#define CPUS_WAKEUP_TIMEOUT     (1<<22)
+#define CPUS_WAKEUP_GPIO        (1<<23)
+#define CPUS_WAKEUP_USBMOUSE    (1<<24)
+#define CPUS_WAKEUP_LRADC       (1<<25)
+//null for 1<<26
+#define CPUS_WAKEUP_CODEC       (1<<27)
+#define CPUS_WAKEUP_BAT_TEMP    (1<<28)
+#define CPUS_WAKEUP_FULLBATT    (1<<29)
+#define CPUS_WAKEUP_HMIC        (1<<30)
 #define CPUS_WAKEUP_POWER_EXP   (1<<31)
 #define CPUS_WAKEUP_KEY         (CPUS_WAKEUP_SHORT_KEY | CPUS_WAKEUP_LONG_KEY)
 
@@ -73,7 +81,7 @@
 #define WAKEUP_GPIO_AXP(num)        (1 << (num + 24))
 #define WAKEUP_GPIO_GROUP(group)    (1 << (group - 'A'))
 
-#ifdef CONFIG_ARCH_SUN8IW6P1
+#if defined(CONFIG_ARCH_SUN8IW6P1) || defined(CONFIG_ARCH_SUN8IW8P1)
 #define IO_NUM (2)
 #elif defined(CONFIG_ARCH_SUN9IW1P1)
 #define PLL_NUM (12)
@@ -92,7 +100,7 @@ typedef struct pll_para{
 	int divi; /* input_div */
 	int divo; /* output_div */
 }pll_para_t;
-#elif defined(CONFIG_ARCH_SUN8IW6P1)
+#elif defined(CONFIG_ARCH_SUN8IW6P1) || defined(CONFIG_ARCH_SUN8IW8P1)
 typedef struct pll_para{
 	unsigned int factor1;
 	unsigned int factor2;
@@ -116,7 +124,7 @@ typedef struct bus_para{
 	unsigned int m;
 }bus_para_t;
 
-#ifdef CONFIG_ARCH_SUN8IW6P1
+#if defined(CONFIG_ARCH_SUN8IW6P1) || defined(CONFIG_ARCH_SUN8IW8P1)
 //for bitmap macro definition
 #define PM_PLL_C0      (0)
 #define PM_PLL_C1      (1)
@@ -200,11 +208,13 @@ typedef struct pwr_dm_state{
     //		we actually do not care how to do it.
     //		it can be sure that cpus can do it with the pmu's help.
     unsigned short volt[VCC_MAX_INDEX]; //unsigned short is 16bit width.  
-
 }pwr_dm_state_t;
 
 typedef struct dram_para{
     unsigned int selfresh_flag; //selfresh_flag must be compatible with vdd_sys pwr state.
+    unsigned int crc_en;
+    unsigned int crc_start;
+    unsigned int crc_len;
 }dram_para_t;
 
 typedef struct cpus_clk_para{
@@ -348,7 +358,13 @@ typedef struct extended_standby{
      * id of extended standby
      */
     unsigned long id;
-    unsigned int pmu_id; //for: 808 || 809+806 || 803 || 813
+    unsigned int pmu_id;	//for: 808 || 809+806 || 803 || 813
+				//support 4 pmu: each pmu_id range is: 0-255;
+				//pmu_id <--> pmu_name have directly mapping, u can get the pmu_name from sys_config.fex files.;
+				//bitmap as follow:
+				//pmu1: 0-7 bit; pmu2: 8-15 bit; pmu3: 16-23 bit; pmu4: 24-31 bit
+				//
+
     unsigned int soc_id;        // a33, a80, a83,...,
                                 // for compatible reason, different soc, each bit have different meaning.
 
@@ -493,7 +509,7 @@ typedef	struct normal_standby_para
 #define CPUS_BOOTFAST_WAKEUP         (CPUS_WAKEUP_LOWBATT | CPUS_WAKEUP_LONG_KEY |CPUS_WAKEUP_ALM0|CPUS_WAKEUP_USB|CPUS_WAKEUP_AC )
 
 /*used in normal standby*/
-#define CPU0_MEM_WAKEUP              (CPU0_WAKEUP_MSGBOX)
+#define CPU0_MEM_WAKEUP              (CPU0_WAKEUP_MSGBOX | CPU0_WAKEUP_EXINT)
 #define CPU0_BOOTFAST_WAKEUP         (CPU0_WAKEUP_MSGBOX)
 
 
@@ -503,6 +519,7 @@ typedef	struct normal_standby_para
 struct aw_pmu_arg{
     unsigned int  twi_port;		/**<twi port for pmu chip   */
     unsigned char dev_addr;		/**<address of pmu device   */
+    unsigned int  soc_power_tree[VCC_MAX_INDEX];     /* power tree struct point */
 };
 
 
@@ -515,6 +532,8 @@ struct aw_standby_para{
 	unsigned int debug_mask;	/* debug mask */
 	signed int   timeout;		/**<time to power off system from now, based on second */
 	unsigned long gpio_enable_bitmap;
+	unsigned long cpux_gpiog_bitmap;
+	extended_standby_t *pextended_standby;
 };
 
 
@@ -542,9 +561,18 @@ typedef struct standby_info_para
 	sst_dram_info_t dram_state; /*size 6W=24B */
 } standby_info_para_t;
 
+typedef enum event_cpu_id
+{
+    CPUS_ID,
+    CPU0_ID,
+} event_cpu_id_e;
+
 extern unsigned int parse_wakeup_gpio_group_map(char *s, unsigned int size, unsigned int gpio_map);
-extern unsigned int parse_wakeup_event(char *s, unsigned int size, unsigned int event);
+
+extern unsigned int parse_wakeup_event(char *s, unsigned int size, unsigned int event, event_cpu_id_e cpu_id);
+
 extern unsigned int parse_wakeup_gpio_map(char *s, unsigned int size, unsigned int gpio_map);
+
 extern unsigned int show_gpio_config(char *s, unsigned int size);
 
 #endif /* __AW_PM_H__ */

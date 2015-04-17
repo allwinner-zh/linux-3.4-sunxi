@@ -32,7 +32,55 @@ struct ion_carveout_heap {
 	struct gen_pool *pool;
 	ion_phys_addr_t base;
 };
+#ifdef CONFIG_ARCH_SUNXI
+#include <linux/seq_file.h>
+static unsigned int dump_unit = SZ_64K;
+extern struct ion_heap *carveout_heap;
+void __dump_carveout_area(struct seq_file *s)
+{
+	struct ion_carveout_heap *heap = NULL;
+	struct gen_pool *pool = NULL;
+	struct gen_pool_chunk *chunk;
+	int size, total_bits, bits_per_unit;
+	int i, index, offset, tmp, busy;
+	int busy_cnt = 0, free_cnt = 0;
 
+	if (!carveout_heap) {
+		seq_printf(s, "%s(%d) err: carveout_heap is NULL\n", __func__, __LINE__);
+		return;
+	}
+
+	heap = container_of(carveout_heap, struct ion_carveout_heap, heap);
+	pool = heap->pool;
+
+	rcu_read_lock();
+	list_for_each_entry_rcu(chunk, &pool->chunks, next_chunk) {
+		size = chunk->end_addr - chunk->start_addr;
+		total_bits = size >> pool->min_alloc_order;
+		bits_per_unit = dump_unit >> pool->min_alloc_order;
+		seq_printf(s, "%s(%d): memory 0x%08x~0x%08x, layout(+: free, -: busy, unit: 0x%08xbytes):\n",
+			__func__, __LINE__, (u32)chunk->start_addr, (u32)chunk->end_addr, dump_unit);
+		busy_cnt = 0;
+		free_cnt = 0;
+		for (i = 0, tmp = 0, busy = 0; i < total_bits; i++) {
+			index = i >> 5;
+			offset = i & 31;
+			if (!busy && (chunk->bits[index] & (1<<offset)))
+				busy = 1;
+			if (++tmp == bits_per_unit) {
+				busy ? (seq_printf(s, "-"), busy_cnt++) : (seq_printf(s, "+"), free_cnt);
+				busy = 0;
+				tmp = 0;
+			}
+		}
+		seq_printf(s, "\n");
+		seq_printf(s, "free: 0x%08x bytes, busy: 0x%08x bytes\n", free_cnt*dump_unit, busy_cnt*dump_unit);
+	}
+	rcu_read_unlock();
+
+	return;
+}
+#endif
 ion_phys_addr_t ion_carveout_allocate(struct ion_heap *heap,
 				      unsigned long size,
 				      unsigned long align)
@@ -171,7 +219,6 @@ void ion_carveout_heap_destroy(struct ion_heap *heap)
 #include <linux/debugfs.h>
 extern struct ion_heap *carveout_heap;
 
-static unsigned int dump_unit = SZ_64K;
 module_param(dump_unit, uint, 0644);
 MODULE_PARM_DESC(dump_unit, "Sunxi ion dump unit(in bytes)");
 

@@ -19,12 +19,12 @@
 
 inline u32 ss_readl(u32 offset)
 {
-	return readl((void __iomem *)SUNXI_SS_REG_BASE + offset);
+	return readl(ss_membase() + offset);
 }
 
 inline void ss_writel(u32 offset, u32 val)
 {
-	writel(val, (void __iomem *)SUNXI_SS_REG_BASE + offset);
+	writel(val, ss_membase() + offset);
 }
 
 u32 ss_reg_rd(u32 offset)
@@ -163,10 +163,10 @@ void ss_cnt_get(int flow, char *cnt, int size)
 		*val = ss_readl(base + i*4);
 }
 
-void ss_md_get(char *md, int size)
+void ss_md_get(char *dst, char *src, int size)
 {
 	int i;
-	int *val = (int *)md;
+	int *val = (int *)dst;
 
 	for (i=0; i<size/4; i++, val++) {
 		*val = ss_readl(SS_REG_MD(i));

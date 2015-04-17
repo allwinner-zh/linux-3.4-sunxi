@@ -7,7 +7,7 @@
 extern volatile __di_dev_t *di_dev;
 
 //should initial some registers for memory-to-memory de-interlace used
-__s32 DI_Init(void)
+__s32 DI_Init(__s32 mode)
 {
 #if defined CONFIG_ARCH_SUN9IW1
 	di_dev->trd_ctrl.dwval = 0;
@@ -29,7 +29,11 @@ __s32 DI_Init(void)
 	di_dev->bypass.bits.sram_map_sel = 0; //normal mode
 	di_dev->agth_sel.bits.linebuf_agth = 1;
 
-	DI_Set_Di_Ctrl(1, 3, 1, 1);
+	if (1 == mode) {
+		DI_Set_Di_Ctrl(1, 0, 1, 1);
+	} else {
+		DI_Set_Di_Ctrl(1, 3, 1, 1);
+	}
 
 	return 0;
 }
@@ -142,6 +146,9 @@ __s32 DI_Set_Scaling_Coef(__di_src_size_t *in_size, __di_out_size_t *out_size,
 #elif defined CONFIG_ARCH_SUN9IW1
     __u32 ch3h_fir_coef_addr, ch3v_fir_coef_addr;
 #endif
+#if defined SCALE_NO_SUPPORT
+    __s32 i;
+#endif
     in_w0 = in_size->scal_width;
     in_h0 = in_size->scal_height;
     out_w0 = out_size->width;
@@ -167,6 +174,7 @@ __s32 DI_Set_Scaling_Coef(__di_src_size_t *in_size, __di_out_size_t *out_size,
     //comput the fir coefficient offset in coefficient table
     int_part = ch0h_sc>>1;
     float_part = ch0h_sc & 0x1;
+
     ch0h_fir_coef_ofst = (int_part==0)  ? zoom0_size :
                            (int_part==1)  ? zoom0_size + float_part :
                            (int_part==2)  ? zoom0_size + zoom1_size + float_part :
@@ -191,23 +199,39 @@ __s32 DI_Set_Scaling_Coef(__di_src_size_t *in_size, __di_out_size_t *out_size,
 	ch1v_fir_coef_addr = (ch0v_fir_coef_ofst<<5);
 
 	di_dev->frm_ctrl.bits.coef_access_ctrl= 1;
-	while((di_dev->status.bits.coef_access_status == 0) && (loop_count < 20)) {
+	while((di_dev->status.bits.coef_access_status == 0) && (loop_count < 40)) {
 	    loop_count ++;
 	}
 
-	memcpy(&di_dev->ch0_horzcoef0, lan2coefftab32			+ch0h_fir_coef_addr, 256);
-	memcpy(&di_dev->ch0_vertcoef, lan2coefftab32			+ch0v_fir_coef_addr, 256);
+#if defined SCALE_NO_SUPPORT
+	for(i=0;i<32;i++)
+	{
+		di_dev->ch0_horzcoef0[i].dwval = 0x00004000;
+		di_dev->ch0_vertcoef[i].dwval  = 0x00004000;
+		di_dev->ch1_horzcoef0[i].dwval = 0x00004000;
+		di_dev->ch1_vertcoef[i].dwval  = 0x00004000;
+	}
+#else
+	memcpy(&di_dev->ch0_horzcoef0, lan2coefftab32			+ch0h_fir_coef_addr, 128);
+	memcpy(&di_dev->ch0_vertcoef, lan2coefftab32			+ch0v_fir_coef_addr, 128);
+
 	if((out_type->fmt == DI_OUTUVCYUV420) || (in_type->fmt == DI_INYUV420))
 	{
-		memcpy(&di_dev->ch1_horzcoef0, bicubic4coefftab32	+ch1h_fir_coef_addr, 256);
-		memcpy(&di_dev->ch1_vertcoef, bicubic4coefftab32	+ch1v_fir_coef_addr, 256);
+		memcpy(&di_dev->ch1_horzcoef0, bicubic4coefftab32	+ch1h_fir_coef_addr, 128);
+		memcpy(&di_dev->ch1_vertcoef, bicubic4coefftab32	+ch1v_fir_coef_addr, 128);
+
+		if(di_dev->ch1_horzcoef0[0].dwval != 0xfd0d290d)
+		{
+			pr_warn("DIDIDIDIDIDI wrong! di_dev->ch1_horzcoef0[0] = 0x%x.\n  bicubic4coefftab32[64] = 0x%x, ch1h_fir_coef_addr = %d.\n", di_dev->ch1_horzcoef0[0].dwval, bicubic4coefftab32[64], ch1h_fir_coef_addr);
+		}
 	}
 	else
 	{
-		memcpy(&di_dev->ch1_horzcoef0, lan2coefftab32		+ch1h_fir_coef_addr, 256);
-		memcpy(&di_dev->ch1_vertcoef, lan2coefftab32		+ch1v_fir_coef_addr, 256);
+		memcpy(&di_dev->ch1_horzcoef0, lan2coefftab32		+ch1h_fir_coef_addr, 128);
+		memcpy(&di_dev->ch1_vertcoef, lan2coefftab32		+ch1v_fir_coef_addr, 128);
 	}
 
+#endif
 	di_dev->frm_ctrl.bits.coef_access_ctrl = 0x0;
 #elif defined CONFIG_ARCH_SUN9IW1
 	//compute the fir coeficient address for each channel in horizontal and vertical direction
@@ -322,6 +346,15 @@ __s32 DI_Set_Di_Ctrl(__u8 en, __u8 mode, __u8 diagintp_en, __u8 tempdiff_en)
 	di_dev->di_lumath.bits.avglumashifter = 8;
 #endif
 
+#if defined CONFIG_ARCH_SUN8IW7
+	di_dev->di_lumath.bits.minlumath = 4;
+	di_dev->di_spatcomp.bits.th2 = 5;
+	di_dev->di_tempdiff.bits.ambiguity_th = 5;
+	di_dev->di_diagintp.bits.th0 = 60;
+	di_dev->di_diagintp.bits.th1 = 0;
+	di_dev->di_diagintp.bits.th3 = 30;
+#endif
+
 	return 0;
 }
 
@@ -359,8 +392,15 @@ __s32 DI_Set_Reg_Rdy(void)
 
 __s32 DI_Enable(void)
 {
-	di_dev->modl_en.bits.en = 0x1;
+	//di_dev->modl_en.bits.en = 0x1;
 	di_dev->frm_ctrl.bits.frm_start = 0x1;
+
+    return 0;
+}
+
+__s32 DI_Module_Enable(void)
+{
+	di_dev->modl_en.bits.en = 0x1;
 
     return 0;
 }

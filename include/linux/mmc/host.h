@@ -246,6 +246,16 @@ struct mmc_host {
 #define MMC_HOST_PW_NOTIFY_SHORT	1
 #define MMC_HOST_PW_NOTIFY_LONG		2
 
+	unsigned int       platform_cap; /* use this variable to update 'card->ext_csd.sec_feature_support'  */
+#define MMC_HOST_PLATFORM_CAP_DIS_SECURE_PURGE  (1U<<0) /* disable secure purge operation */
+#define MMC_HOST_PLATFORM_CAP_DIS_TRIM          (1U<<1) /* disable insecure or secure operation */
+#define MMC_HOST_PLATFORM_CAP_DIS_SANITIZE      (1U<<2) /* disable sanitize operation */
+#define MMC_HOST_PLATFORM_CAP_DIS_SECURE_WIPE_OP (1U<<3) /* disable secure wipe operation */
+
+#define MMC_HOST_PLATFORM_CAP_ENA_CACHE          (1u<<4)/*use to enable eMMC cache funciton in host->caps2*/
+
+
+
 #ifdef CONFIG_MMC_CLKGATE
 	int			clk_requests;	/* internal reference counter */
 	unsigned int		clk_delay;	/* number of MCI clk hold cycles */

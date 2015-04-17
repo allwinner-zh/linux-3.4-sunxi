@@ -441,6 +441,22 @@ config USB_OHCI_LITTLE_ENDIAN
 	default n if STB03xxx || PPC_MPC52xx
 	default y
 
+config USB_HCD_ENHANCE
+    bool "Enhance for the host controller"
+           depends on USB_EHCI_HCD && USB_OHCI_HCD && ARCH_SUN9IW1
+                   ---help---
+                       Say 'Y' to turn on enhance for the host controller driver.
+                       This should only be used for enhance host driver.
+
+                       If unsure, say N.
+
+config USB_SYNC_SUSPEND
+bool "support usb sync suspend"
+           depends on ARCH_SUN9IW1
+                   ---help---
+                       Say 'Y' to support usb sync suspend.
+                       This should only be used for usb sync suspend.
+
 config USB_UHCI_HCD
 	tristate "UHCI HCD (most Intel and VIA) support"
 	depends on USB && (PCI || SPARC_LEON)

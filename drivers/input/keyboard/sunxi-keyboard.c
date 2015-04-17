@@ -30,6 +30,7 @@
 #include <asm/io.h>
 #include <linux/timer.h> 
 #include <linux/clk.h>
+#include <mach/sys_config.h>
 #undef CONFIG_HAS_EARLYSUSPEND
 #ifdef CONFIG_ARCH_SUN9IW1P1
 #include <linux/clk/clk-sun9iw1.h>
@@ -57,14 +58,14 @@ static unsigned char keypad_mapindex[64] = {
 };
 #else
 static unsigned char keypad_mapindex[64] = {
-	0,0,0,0,0,0,0,               	/* key 1, 7���� 0-7 */
-	1,1,1,1,1,1,                 	/* key 2, 6���� 8-14 */
-	2,2,2,2,2,2,                 	/* key 3, 6���� 15-21 */
-	3,3,3,3,3,                   	/* key 4, 5���� 22-27 */
-	4,4,4,4,4,                   	/* key 5, 5���� 28-33 */
-	5,5,5,5,5,                   	/* key 6, 5���� 34-39 */
-	6,6,6,6,6,6,6,6,6,           	/* key 7, 9����40-49 */
-	7,7,7,7,7,7,7,7,7,7,7,7,7    	/* key 8, 16����50-63 */
+	0,0,0,0,0,0,0,0,0,            	/* key 1, 0-8 */
+	1,1,1,1,1,                 	/* key 2, 9-13 */
+	2,2,2,2,2,2,                 	/* key 3, 14-19 */
+	3,3,3,3,3,3,                   	/* key 4, 20-25 */
+	4,4,4,4,4,4,4,4,4,4,4,          /* key 5, 26-36 */
+	5,5,5,5,5,5,5,5,5,5,5,          /* key 6, 37-39 */
+	6,6,6,6,6,6,6,6,6,           	/* key 7, 40-49 */
+	7,7,7,7,7,7,7  			/* key 8, 50-63 */
 };
 #endif
 #endif
@@ -98,6 +99,17 @@ static struct dev_pm_domain keyboard_pm_domain;
 #endif
 #endif
 
+#if defined(CONFIG_ARCH_SUN8IW6P1)||defined(CONFIG_ARCH_SUN9IW1P1)
+#define ADC_MEASURE	(1350)
+#define ADC_RESOL 	(21)
+#else
+#define ADC_MEASURE	(2000)
+#define ADC_RESOL 	(31)
+#endif
+#define VOL_NUM 16
+
+static int key_vol[VOL_NUM];
+static int key_num = 0;
 static volatile u32 key_val;
 static struct input_dev *sunxikbd_dev;
 static unsigned char scancode;
@@ -117,7 +129,7 @@ enum {
 };
 static u32 debug_mask = 0;
 #define dprintk(level_mask, fmt, arg...)	if (unlikely(debug_mask & level_mask)) \
-	pr_debug(fmt , ## arg)
+	printk(fmt , ## arg)
 
 module_param_named(debug_mask, debug_mask, int, 0644);
 
@@ -491,6 +503,66 @@ static irqreturn_t sunxi_isr_key(int irq, void *dummy)
 	return IRQ_HANDLED;
 }
 
+static void sunxikbd_map_init(void)
+{
+	int i = 0;
+	unsigned char j = 0;
+	for(i = 0; i < 64; i++){
+		if(i * ADC_RESOL > key_vol[j])
+			j++;
+		keypad_mapindex[i] = j;
+	}
+}
+
+static int sunxikbd_script_init(void)
+{
+	int i;
+	char key_name[16];
+	script_item_u	val;
+	script_item_value_type_e  type;
+
+	type = script_get_item("key_para", "key_used", &val);
+
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+		pr_err("%s: key para not found, used default para. \n", __func__);
+		return 0;
+	}
+
+	if(1 == val.val){
+		type = script_get_item("key_para", "key_cnt", &val);
+		if(SCIRPT_ITEM_VALUE_TYPE_INT != type){
+			pr_err("%s: get key cnt err! \n", __func__);
+			return -1;
+		}
+		key_num = val.val;
+		dprintk(DEBUG_INT,"%s key number = %d.\n", __func__, key_num);
+		if(key_num < 1 || key_num > VOL_NUM){
+			pr_err("incorrect key number.\n");
+			return -1;
+		}
+		for(i = 0; i<VOL_NUM; i++)
+			key_vol[i] = ADC_MEASURE;
+		for(i = 1; i <= key_num; i++){
+			sprintf(key_name, "key%d_vol", i);
+			type = script_get_item("key_para", key_name, &val);
+			if(SCIRPT_ITEM_VALUE_TYPE_INT != type){
+				pr_err("%s: get %s err! \n", __func__, key_name);
+				return -1;
+			}
+			key_vol[i-1] = val.val;
+			dprintk(DEBUG_INT,"%s: key%d vol = %d.\n", __func__, i, val.val);
+		}
+
+		sunxikbd_map_init();
+
+	}else{
+		dprintk(DEBUG_INT,"sunxi key board no used.\n");
+		return -1;
+	}
+
+	return 0;
+}
+
 static int __init sunxikbd_init(void)
 {
 	int i;
@@ -499,6 +571,11 @@ static int __init sunxikbd_init(void)
 
  	dprintk(DEBUG_INIT, "sunxikbd_init \n");
 	
+	if(sunxikbd_script_init()){
+		err = -EFAULT;
+		goto fail1;
+	}
+
 	sunxikbd_dev = input_allocate_device();
 	if (!sunxikbd_dev) {
 		pr_err("sunxikbd: not enough memory for input device\n");

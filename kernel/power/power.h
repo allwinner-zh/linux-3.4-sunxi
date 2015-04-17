@@ -329,10 +329,12 @@ ssize_t wakeup_src_store(struct kobject *kobj, struct kobj_attribute *attr,
 	const char *buf, size_t n);
 ssize_t wakeup_src_show(
 	struct kobject *kobj, struct kobj_attribute *attr, char *buf);
+#if (defined CONFIG_AW_AXP)
 ssize_t sys_pwr_dm_mask_store(struct kobject *kobj, struct kobj_attribute *attr,
 	const char *buf, size_t n);
 ssize_t sys_pwr_dm_mask_show(
 	struct kobject *kobj, struct kobj_attribute *attr, char *buf);
+#endif
 #endif
 
 #ifdef CONFIG_EARLYSUSPEND

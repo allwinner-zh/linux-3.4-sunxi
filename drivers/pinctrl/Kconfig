@@ -102,6 +102,11 @@ config PINCTRL_AXP
 	bool "AXP pinctrl driver"
 	depends on AW_AXP
 	default y
+
+config PINCTRL_AXP_TEST
+	tristate "AXP pinctrl test driver"
+	depends on PINCTRL_AXP
+	default n
 endmenu
 
 endif

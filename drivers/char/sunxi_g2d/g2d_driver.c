@@ -174,15 +174,16 @@ void *g2d_malloc(__u32 bytes_num, __u32 *phy_addr)
 
 	if(0!= bytes_num)
 	{
+		void *vptr;
+
 		actual_bytes = G2D_BYTE_ALIGN(bytes_num);
-		address = sunxi_mem_alloc(actual_bytes);
-		if(address)
-		{
-			*phy_addr = address;
-			//return (void *)ioremap((unsigned int)address,actual_bytes);
-            return (void*)sunxi_map_kernel(address, actual_bytes);
+		vptr = sunxi_buf_alloc(actual_bytes, &address);
+		if (!vptr) {
+			INFO("%s %d: alloc fail,size=0x%x\n", __func__, __LINE__, bytes_num);
+			return 0;
 		}
-		INFO("sunxi_mem_alloc fail,size=0x%x\n",bytes_num);
+		*phy_addr = address;
+		return vptr;
 	}
 	return 0;
 #endif
@@ -212,14 +213,10 @@ void g2d_free(void *virt_addr, void *phy_addr, unsigned int size)
 
     return;
 #else
+	__u32 actual_bytes = G2D_BYTE_ALIGN(size);
+
 	if(virt_addr)
-	{
-		iounmap(virt_addr);
-	}
-	if(phy_addr)
-	{
-		sunxi_mem_free((unsigned int)phy_addr,size);
-	}
+		sunxi_buf_free(virt_addr, (unsigned int)phy_addr, actual_bytes);
 	return;
 #endif
 }

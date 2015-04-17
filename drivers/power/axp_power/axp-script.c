@@ -757,6 +757,12 @@ int axp20_fetch_sysconfig_para(char * pmu_type, struct axp20_config_info *axp_co
 			printk("axp driver uning configuration failed(%d)\n", __LINE__);
 			axp_config->pmu_pekon_time = 1000;
 		}
+		ret = axp_script_parser_fetch(pmu_type, "power_start", &axp_config->power_start, sizeof(int));
+		if (ret)
+		{
+			printk("axp driver uning configuration failed(%d)\n", __LINE__);
+			axp_config->power_start = 1;
+		}
 	}
 	return 0;
 }

@@ -42,22 +42,6 @@ int arisc_hwspinlock_init(void);
  */
 int arisc_hwspinlock_exit(void);
 
-/**
- * lock an hwspinlock with timeout limit.
- * @hwid : an hwspinlock id which we want to lock.
- *
- * returns:  OK if lock hwspinlock succeeded, other if failed.
- */
-int arisc_hwspin_lock_timeout(int hwid, unsigned int timeout);
-
-/**
- * unlock a specific hwspinlock.
- * @hwid : an hwspinlock id which we want to unlock.
- *
- * returns:  OK if unlock hwspinlock succeeded, other if failed.
- */
-int arisc_hwspin_unlock(int hwid);
-
 int arisc_hwspinlock_standby_suspend(void);
 int arisc_hwspinlock_standby_resume(void);
 

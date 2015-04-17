@@ -78,7 +78,7 @@ int del_sys_pwr_dm(const char *id)
 
 	ret = get_ldo_name(id, (char *)&ldo_name);
 	if (ret < 0) {
-		printk(KERN_ERR "%s: get ldo name failed\n", __func__);
+		printk(KERN_ERR "%s: get ldo name  for id: %s failed\n", __func__, id);
 		return -1;
 	}
 

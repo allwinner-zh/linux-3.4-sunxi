@@ -87,12 +87,17 @@ static int sunxi_pcm_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-		slave_config.dst_addr_width = DMA_SLAVE_BUSWIDTH_2_BYTES;
-		slave_config.src_addr_width = DMA_SLAVE_BUSWIDTH_2_BYTES;
 		slave_config.dst_addr = dmap->dma_addr;
 		slave_config.src_maxburst = 4;
 		slave_config.dst_maxburst = 4;
 		slave_config.slave_id = sunxi_slave_id(DRQDST_DAUDIO_1_TX, DRQSRC_SDRAM);
+		if (SNDRV_PCM_FORMAT_S16_LE == params_format(params)) {
+			slave_config.dst_addr_width = DMA_SLAVE_BUSWIDTH_2_BYTES;
+			slave_config.src_addr_width = DMA_SLAVE_BUSWIDTH_2_BYTES;
+		} else {
+			slave_config.dst_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
+			slave_config.src_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
+		}
 	} else {
 		slave_config.dst_addr_width = DMA_SLAVE_BUSWIDTH_2_BYTES;
 		slave_config.src_addr_width = DMA_SLAVE_BUSWIDTH_2_BYTES;

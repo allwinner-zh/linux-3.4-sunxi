@@ -291,10 +291,12 @@ IMG_VOID RgxSuspend(IMG_VOID)
 static int rgx_throttle_notifier_call(struct notifier_block *nfb, unsigned long mode, void *cmd)
 {
     int retval = NOTIFY_DONE;
-	if(mode == BUDGET_GPU_THROTTLE && Is_powernow)
+	if(mode == BUDGET_GPU_THROTTLE)
     {
+        if (Is_powernow) {
 		RgxDvfsChange(min_vf_level_val, 0);
         Is_powernow = 0;
+        }
     }
     else
 	{

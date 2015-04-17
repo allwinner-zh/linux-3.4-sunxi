@@ -229,6 +229,8 @@ typedef enum {
 } script_parser_value_type_t;
 
 static script_main_key_t   *g_script;
+static unsigned int cfg_addr __initdata;
+static unsigned int cfg_size  __initdata;
 
 static int hash(char *string)
 {
@@ -514,6 +516,9 @@ int __init script_init(void)
 
     script_item_u               *sub_val, *tmp_val, swap_val, *pval_temp;
 
+    if (cfg_addr > PHYS_OFFSET)
+	    script_hdr = __va(cfg_addr);
+
     printk("%s enter!\n", __func__);
     if(!script_hdr) {
         printk(KERN_ERR "script buffer is NULL!\n");
@@ -658,6 +663,18 @@ err_out:
 
     return -1;
 }
+
+static int __init early_script(char *p)
+{
+	char *endp;
+
+	cfg_size = memparse(p, &endp);
+	if (*endp == '@')
+		cfg_addr = memparse(endp + 1, NULL);
+
+	return 0;
+}
+early_param("config", early_script);
 
 /* string for dump all items */
 #define DUMP_ALL_STR	"all"

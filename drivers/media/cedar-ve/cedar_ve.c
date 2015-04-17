@@ -44,6 +44,7 @@
 #include <asm/siginfo.h>
 #include <asm/signal.h>
 #include <linux/clk/sunxi.h>
+#include <mach/sunxi-smc.h>
 
 //#include <linux/clk/clk-sun8iw3.h>
 #include <mach/irqs.h>
@@ -735,7 +736,7 @@ long cedardev_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
  
 			env_info.phymem_start = 0; // do not use this interface ,ve get phy mem form ion now
             env_info.phymem_total_size = 0;//ve_size = 0x04000000 
-	        env_info.address_macc = (unsigned int)cedar_devp->iomap_addrs.regs_macc;
+	        env_info.address_macc = 0;
             if (copy_to_user((char *)arg, &env_info, sizeof(struct cedarv_env_infomation)))
                 return -EFAULT;
         }
@@ -872,44 +873,25 @@ static struct vm_operations_struct cedardev_remap_vm_ops = {
 static int cedardev_mmap(struct file *filp, struct vm_area_struct *vma)
 {
     unsigned long temp_pfn;
-    unsigned int  VAddr;
-	struct iomap_para addrs;
+    //unsigned int  VAddr;
+	//struct iomap_para addrs;
 
-	unsigned int io_ram = 0;
-    VAddr = vma->vm_pgoff << 12;
-	addrs = cedar_devp->iomap_addrs;
+    //VAddr = vma->vm_pgoff << 12;
+	//addrs = cedar_devp->iomap_addrs;
 
-    if (VAddr == (unsigned int)addrs.regs_macc) {
-        temp_pfn = MACC_REGS_BASE >> 12;
-        io_ram = 1;
-    } else {
-        temp_pfn = (__pa(vma->vm_pgoff << 12))>>12;
-        io_ram = 0;
+    temp_pfn = MACC_REGS_BASE >> 12;
+
+    /* Set reserved and I/O flag for the area. */
+    vma->vm_flags |= VM_RESERVED | VM_IO;
+
+    /* Select uncached access. */
+    vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+
+    if (io_remap_pfn_range(vma, vma->vm_start, temp_pfn,
+                           vma->vm_end - vma->vm_start, vma->vm_page_prot)) {
+        return -EAGAIN;
     }
 
-    if (io_ram == 0) {   
-        /* Set reserved and I/O flag for the area. */
-        vma->vm_flags |= /* VM_RESERVED | */VM_IO;
-
-        /* Select uncached access. */
-        //vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
-
-        if (remap_pfn_range(vma, vma->vm_start, temp_pfn,
-                            vma->vm_end - vma->vm_start, vma->vm_page_prot)) {
-            return -EAGAIN;
-        }
-    } else {
-        /* Set reserved and I/O flag for the area. */
-        vma->vm_flags |= /*VM_RESERVED |*/ VM_IO;
-        /* Select uncached access. */
-        vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
-
-        if (io_remap_pfn_range(vma, vma->vm_start, temp_pfn,
-                               vma->vm_end - vma->vm_start, vma->vm_page_prot)) {
-            return -EAGAIN;
-        }
-    }
-    
     vma->vm_ops = &cedardev_remap_vm_ops;
     cedardev_vma_open(vma);
     
@@ -1071,14 +1053,14 @@ static int cedardev_init(void)
 		}
 #endif
 	//VE_SRAM mapping to AC320
-	val = readl(0xf0800000);
+	val = sunxi_smc_readl((void __iomem *)0xf0800000);
 	val &= 0x80000000;
-	writel(val,0xf0800000);
+	sunxi_smc_writel(val,(void __iomem *)0xf0800000);
 		
 	//remapping SRAM to MACC for codec test
-	val = readl(0xf0800000);
+	val = sunxi_smc_readl((void __iomem *)0xf0800000);
 	val |= 0x7fffffff;
-	writel(val,0xf0800000);
+	sunxi_smc_writel(val, (void __iomem *)0xf0800000);
 
 	ve_parent_pll_clk = clk_get(NULL, "pll5");
 	if ((!ve_parent_pll_clk)||IS_ERR(ve_parent_pll_clk)) {
@@ -1105,21 +1087,21 @@ static int cedardev_init(void)
 	}
 	
 #elif defined CONFIG_ARCH_SUN8IW6P1
-
+	
 	/*VE_SRAM mapping to AC320*/
-	val = readl(0xf1c00000);
+	val = sunxi_smc_readl((void __iomem *)0xf1c00000);
 	val &= 0x80000000;
-	writel(val,0xf1c00000);	
+	sunxi_smc_writel(val, (void __iomem *)0xf1c00000);	
 	
 	/*remapping SRAM to MACC for codec test*/
-	val = readl(0xf1c00000);
+	val = sunxi_smc_readl((void __iomem *)0xf1c00000);
 	val |= 0x7fffffff;
-	writel(val,0xf1c00000);
+	sunxi_smc_writel(val, (void __iomem *)0xf1c00000);
 	
 	//clear bootmode bit for give sram to sram from system on aw1650 only
-	val = readl(0xf1c00004);
+	val = sunxi_smc_readl((void __iomem *)0xf1c00004);
 	val &= 0xfeffffff;
-	writel(val,0xf1c00004);
+	sunxi_smc_writel(val, (void __iomem *)0xf1c00004);
 
 	ve_parent_pll_clk = clk_get(NULL, "pll_ve");
 	if ((!ve_parent_pll_clk)||IS_ERR(ve_parent_pll_clk)) {
@@ -1130,19 +1112,19 @@ static int cedardev_init(void)
 #elif ((defined CONFIG_ARCH_SUN8IW7P1) || (defined CONFIG_ARCH_SUN8IW8P1) || (defined CONFIG_ARCH_SUN8IW9P1))
 
 	/*VE_SRAM mapping to AC320*/
-	val = readl(0xf1c00000);
+	val = sunxi_smc_readl((void __iomem *)0xf1c00000);
 	val &= 0x80000000;
-	writel(val,0xf1c00000); 
+	sunxi_smc_writel(val, (void __iomem *)0xf1c00000); 
 
 	/*remapping SRAM to MACC for codec test*/
-	val = readl(0xf1c00000);
+	val = sunxi_smc_readl((void __iomem *)0xf1c00000);
 	val |= 0x7fffffff;
-	writel(val,0xf1c00000);
+	sunxi_smc_writel(val, (void __iomem *)0xf1c00000);
 
 	//clear bootmode bit for give sram to ve
-	val = readl(0xf1c00004);
+	val = sunxi_smc_readl((void __iomem *)0xf1c00004);
 	val &= 0xfeffffff;
-	writel(val,0xf1c00004);
+	sunxi_smc_writel(val, (void __iomem *)0xf1c00004);
 
 	ve_parent_pll_clk = clk_get(NULL, "pll_ve");
 	if ((!ve_parent_pll_clk)||IS_ERR(ve_parent_pll_clk)) {

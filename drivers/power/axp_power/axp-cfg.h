@@ -248,12 +248,20 @@ struct axp20_config_info{
 	int pmu_pwrok_time;
 	int pmu_pwrnoe_time;
 	int pmu_hot_shutdown;
+	int power_start;
 };
 
 #define AXP20_VOL_MAX			12 // capability buffer length
 #define AXP20_TIME_MAX		20
 #define AXP20_AVER_MAX		10
 #define AXP20_RDC_COUNT		10
+
+enum {
+	AXP20_NOT_SUSPEND = 1U << 0,
+	AXP20_AS_SUSPEND = 1U << 1,
+	AXP20_SUSPEND_WITH_IRQ = 1U << 2,
+};
+
 
 extern int axp_debug;
 #define DBG_PSY_MSG(level_mask, fmt, arg...)	if (unlikely(axp_debug & level_mask)) \

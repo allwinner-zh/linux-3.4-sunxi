@@ -401,6 +401,8 @@ static void sunxi_dma_pause(struct sunxi_chan *ch)
 static int sunxi_terminate_all(struct sunxi_chan *ch)
 {
 	struct sunxi_dmadev *sdev = to_sunxi_dmadev(ch->vc.chan.device);
+	struct virt_dma_desc *vd = NULL;
+	struct virt_dma_chan *vc = NULL;
 	u32 chan_num = ch->vc.chan.chan_id;
 	unsigned long flags;
 	LIST_HEAD(head);
@@ -411,13 +413,25 @@ static int sunxi_terminate_all(struct sunxi_chan *ch)
 	list_del_init(&ch->node);
 	spin_unlock(&sdev->lock);
 
-	if (ch->desc)
-		ch->desc = NULL;
-
-	ch->cyclic = false;
-
+	/* We should entry PAUSE state first to avoid missing data
+	 * count which transferring on bus.
+	 */
+	writel(CHAN_PAUSE, sdev->base + DMA_PAUSE(chan_num));
 	writel(CHAN_STOP, sdev->base + DMA_ENABLE(chan_num));
 	writel(CHAN_RESUME, sdev->base + DMA_PAUSE(chan_num));
+
+	/* At cyclic mode, desc is not be managed by virt-dma,
+	 * we need to add it to desc_completed
+	 */
+	if (ch->cyclic) {
+		ch->cyclic = false;
+		if (ch->desc) {
+			vd = &(ch->desc->vd);
+			vc = &(ch->vc);
+			list_add_tail(&vd->node, &vc->desc_completed);
+		}
+	}
+	ch->desc = NULL;
 
 	vchan_get_all_descriptors(&ch->vc, &head);
 	spin_unlock_irqrestore(&ch->vc.lock, flags);
@@ -451,9 +465,6 @@ static void sunxi_start_desc(struct sunxi_chan *ch)
 
 	txd = to_sunxi_desc(&vd->tx);
 	ch->desc = txd;
-
-	while(readl(sdev->base + DMA_STAT) & (1 << chan_num))
-			cpu_relax();
 
 	if (ch->cyclic)
 		ch->irq_type = IRQ_PKG;
@@ -625,13 +636,13 @@ static irqreturn_t sunxi_dma_interrupt(int irq, void *dev_id)
 			? (status_hi >> ((chan_num - HIGH_CHAN) <<2))
 			: (status_lo >> (chan_num << 2));
 
+		spin_lock_irqsave(&ch->vc.lock, flags);
 		if (!(ch->irq_type & status))
-			continue;
+			goto unlock;
 
 		if (!ch->desc)
-			continue;
+			goto unlock;
 
-		spin_lock_irqsave(&ch->vc.lock, flags);
 		desc = ch->desc;
 		if (ch->cyclic) {
 			vchan_cyclic_callback(&desc->vd);
@@ -640,6 +651,7 @@ static irqreturn_t sunxi_dma_interrupt(int irq, void *dev_id)
 			vchan_cookie_complete(&desc->vd);
 			sunxi_start_desc(ch);
 		}
+unlock:
 		spin_unlock_irqrestore(&ch->vc.lock, flags);
 	}
 
@@ -1048,8 +1060,11 @@ static void sunxi_dma_hw_init(struct sunxi_dmadev *dev)
 	struct sunxi_dmadev *sunxi_dev = dev;
 
 	clk_prepare_enable(sunxi_dev->ahb_clk);
-#if defined(CONFIG_ARCH_SUN8IW3) || defined(CONFIG_ARCH_SUN8IW5)
-	writel(0x04, sunxi_dev->base + DMA_GATE);
+#if defined(CONFIG_ARCH_SUN8IW3) || \
+	defined(CONFIG_ARCH_SUN8IW5) || \
+	defined(CONFIG_ARCH_SUN8IW6) || \
+	defined(CONFIG_ARCH_SUN8IW8)
+	writel(0x05, sunxi_dev->base + DMA_GATE);
 #endif
 }
 

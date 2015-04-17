@@ -168,8 +168,10 @@
 #if defined(CONFIG_ARCH_SUN8IW1P1) || defined(CONFIG_ARCH_SUN9IW1P1)
 #define SUNXI_SPI_NUM			4
 #endif
-#if defined(CONFIG_ARCH_SUN8IW3P1) || defined(CONFIG_ARCH_SUN8IW5P1) \
-		|| defined(CONFIG_ARCH_SUN8IW6P1) || defined(CONFIG_ARCH_SUN8IW7P1) \
+#if defined(CONFIG_ARCH_SUN8IW3P1) || defined(CONFIG_ARCH_SUN8IW5P1)
+#define SUNXI_SPI_NUM			1
+#endif
+#if defined(CONFIG_ARCH_SUN8IW6P1) || defined(CONFIG_ARCH_SUN8IW7P1) \
 		|| defined(CONFIG_ARCH_SUN8IW9P1)
 #define SUNXI_SPI_NUM			2
 #endif
@@ -225,6 +227,8 @@
 #define SPI_PLL_CLK		PLL4_CLK
 #elif defined(CONFIG_ARCH_SUN8IW3) || defined(CONFIG_ARCH_SUN8IW1)
 #define SPI_PLL_CLK		PLL6_CLK
+#elif defined(CONFIG_ARCH_SUN8IW7) || defined(CONFIG_ARCH_SUN8IW8)
+#define SPI_PLL_CLK     PLL_PERIPH0_CLK
 #else
 #define SPI_PLL_CLK     PLL_PERIPH_CLK
 #endif

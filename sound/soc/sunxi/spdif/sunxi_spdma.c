@@ -87,8 +87,13 @@ static int sunxi_pcm_hw_params(struct snd_pcm_substream *substream,
 			slave_config.src_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
 		}
 		slave_config.dst_addr = dmap->dma_addr;
+	#ifdef CONFIG_ARCH_SUN8IW6
+		slave_config.src_maxburst = 8;
+		slave_config.dst_maxburst = 8;
+	#else
 		slave_config.src_maxburst = 2;
 		slave_config.dst_maxburst = 2;
+	#endif
 		slave_config.slave_id = sunxi_slave_id(DRQDST_SPDIFRX, DRQSRC_SDRAM);
 	} else {
 		if (SNDRV_PCM_FORMAT_S16_LE == params_format(params)) {
@@ -99,8 +104,13 @@ static int sunxi_pcm_hw_params(struct snd_pcm_substream *substream,
 			slave_config.src_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
 		}
 		slave_config.src_addr = dmap->dma_addr;
+		#ifdef CONFIG_ARCH_SUN8IW6
+		slave_config.src_maxburst = 8;
+		slave_config.dst_maxburst = 8;
+		#else
 		slave_config.src_maxburst = 2;
 		slave_config.dst_maxburst = 2;
+		#endif
 		slave_config.slave_id = sunxi_slave_id(DRQDST_SDRAM, DRQSRC_SPDIFRX);
 	}
 

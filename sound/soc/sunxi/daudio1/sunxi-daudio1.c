@@ -49,7 +49,7 @@ static int frame_width 			= 0;
 static int tx_data_mode 		= 0;
 static int rx_data_mode 		= 0;
 static int slot_width_select 	= 0;
-
+static bool  daudio1_loop_en 	= false;
 #ifdef CONFIG_ARCH_SUN8IW7
 static struct clk *daudio_pll			= NULL;
 #endif
@@ -260,7 +260,9 @@ static int sunxi_daudio_trigger(struct snd_pcm_substream *substream,
 			/*Global Enable Digital Audio Interface*/
 			reg_val = readl(sunxi_daudio1.regs + SUNXI_DAUDIOCTL);
 			reg_val |= SUNXI_DAUDIOCTL_GEN;
-//			reg_val |= SUNXI_DAUDIOCTL_LOOP; /*for test*/
+			if (daudio1_loop_en) {
+				reg_val |= SUNXI_DAUDIOCTL_LOOP; /*for test*/
+			}
 			writel(reg_val, sunxi_daudio1.regs + SUNXI_DAUDIOCTL);
 			break;
 		case SNDRV_PCM_TRIGGER_STOP:
@@ -271,10 +273,6 @@ static int sunxi_daudio_trigger(struct snd_pcm_substream *substream,
 			} else {
 			  	sunxi_snd_txctrl_daudio(substream, 0);
 			}
-			/*Global disable Digital Audio Interface*/
-//			reg_val = readl(sunxi_daudio1.regs + SUNXI_DAUDIOCTL);
-//			reg_val &= ~SUNXI_DAUDIOCTL_GEN;
-//			writel(reg_val, sunxi_daudio1.regs + SUNXI_DAUDIOCTL);
 			break;
 		default:
 			ret = -EINVAL;
@@ -882,6 +880,7 @@ static int __init sunxi_daudio_init(void)
 	return 0;
 }
 module_init(sunxi_daudio_init);
+module_param_named(daudio1_loop_en, daudio1_loop_en, bool, S_IRUGO | S_IWUSR);
 
 static void __exit sunxi_daudio_exit(void)
 {

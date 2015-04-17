@@ -115,6 +115,10 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 		if (tsk->flags & PF_KTHREAD)
 			continue;
 
+		/* if task no longer has any memory ignore it */
+		if (test_tsk_thread_flag(tsk, TIF_MM_RELEASED))
+			continue;
+
 		p = find_lock_task_mm(tsk);
 		if (!p)
 			continue;

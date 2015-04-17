@@ -503,7 +503,6 @@ static const char *apb1mod_parents[] = {"apb1"};
 static const char *apb2mod_parents[] = {"apb2"};
 static const char *losc_parents[] = {"losc"};
 static const char *sdmmc2_parents[] = {"sdmmc2mod"};
-static const char *hoscd2_parents[] = {"hoscd2"};
 static const char* hsic_parents[] =  {"pll_hsic"};
 static const char *pll_periphcpus_parents[] = {"pll_periph"};
 static const char *cpurcpus_parents[] = {"losc" , "hosc" , "pll_periphcpus" , "cpuosc" };
@@ -535,8 +534,7 @@ SUNXI_CLK_PERIPH(spi1,    SPI1_CFG,   24,        2,         SPI1_CFG,   0,      
 SUNXI_CLK_PERIPH(i2s0,    I2S0_CFG,   16,        2,         0,          0,          0,          0,          0,          0,          I2S0_CFG,   APB1_RST,  APB1_GATE,    0,           31,           12,          12,              0,               &clk_lock,NULL,             0);
 SUNXI_CLK_PERIPH(i2s1,    I2S1_CFG,   16,        2,         0,          0,          0,          0,          0,          0,          I2S1_CFG,   APB1_RST,  APB1_GATE,    0,           31,           13,          13,              0,               &clk_lock,NULL,             0);
 SUNXI_CLK_PERIPH(usbohci, 0,           0,        0,         0,          0,          0,          0,          0,          0,          USB_CFG,    AHB1_RST0, AHB1_GATE0,   0,           16,           29,          29,              0,               &clk_lock,NULL,             0);
-SUNXI_CLK_PERIPH(usbhsic, 0,           0,        0,         0,          0,          0,          0,          0,          0,          USB_CFG,    USB_CFG,   0,            0,           10,            2,           0,              0,               &clk_lock,NULL,             0);
-SUNXI_CLK_PERIPH(usbhsic12m,0,         0,        0,         0,          0,          0,          0,          0,          0,          USB_CFG,    0,         0,            0,           11,            0,           0,              0,               &clk_lock,NULL,             0);
+SUNXI_CLK_PERIPH(usbhsic, 0,           0,        0,         0,          0,          0,          0,          0,          0,          USB_CFG,    USB_CFG,   USB_CFG,      0,           10,            2,          11,              0,               &clk_lock,NULL,             0);
 SUNXI_CLK_PERIPH(usbehci, 0,           0,        0,         0,          0,          0,          0,          0,          0,          0,          AHB1_RST0, AHB1_GATE0,   0,            0,           26,          26,              0,               &clk_lock,NULL,             0);
 SUNXI_CLK_PERIPH(usbotg,  0,           0,        0,         0,          0,          0,          0,          0,          0,          0,          AHB1_RST0, AHB1_GATE0,   0,            0,           24,          24,              0,               &clk_lock,NULL,             0);
 SUNXI_CLK_PERIPH(usbphy0, 0,           0,        0,         0,          0,          0,          0,          0,          0,          USB_CFG,    USB_CFG,   0,            0,            8,            0,           0,              0,               &clk_lock,NULL,             0);
@@ -595,7 +593,6 @@ struct periph_init_data sunxi_periphs_init[] = {
     {"i2s1",     0,       				i2s_parents,      ARRAY_SIZE(i2s_parents),      &sunxi_clk_periph_i2s1},
     {"usbohci",  0,       				ahb1mod_parents,  ARRAY_SIZE(ahb1mod_parents),  &sunxi_clk_periph_usbohci},
     {"usbhsic",  0,       				hsic_parents,     ARRAY_SIZE(hsic_parents),     &sunxi_clk_periph_usbhsic},
-    {"usbhsic12m",0,       				hoscd2_parents,   ARRAY_SIZE(hoscd2_parents),   &sunxi_clk_periph_usbhsic12m},      
     {"usbehci",  0,       				ahb1mod_parents,  ARRAY_SIZE(ahb1mod_parents),  &sunxi_clk_periph_usbehci},
     {"usbotg",   0,       				ahb1mod_parents,  ARRAY_SIZE(ahb1mod_parents),  &sunxi_clk_periph_usbotg},
     {"usbphy0",  0,       				hosc_parents,     ARRAY_SIZE(hosc_parents),     &sunxi_clk_periph_usbphy0},

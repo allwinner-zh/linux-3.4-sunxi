@@ -46,7 +46,7 @@ static void __init init_irq_default_affinity(void)
 #endif
 #ifdef CONFIG_SCHED_HMP
 	if (!cpumask_empty(&hmp_slow_cpu_mask)) {
-#ifdef CONFIG_ARCH_SUN9I
+#if defined(CONFIG_ARCH_SUN9I) || defined(CONFIG_ARCH_SUN8IW6)
 	if(cpumask_test_cpu(0,&hmp_fast_cpu_mask))
 		cpumask_copy(irq_default_affinity, &hmp_fast_cpu_mask);
 #else

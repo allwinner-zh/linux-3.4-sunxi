@@ -15,6 +15,10 @@ if PHYLIB
 
 comment "MII PHY device drivers"
 
+config SUNXI_EPHY
+	tristate "Drivers for Allwinnertech EPHY"
+	depends on MFD_AC200
+
 config AMD_PHY
 	tristate "Drivers for the AMD PHYs"
 	---help---

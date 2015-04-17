@@ -45,11 +45,20 @@ SUNXI_CLK_PERIPH(ac10032k1, CK32K_OUT_CTRL1, 4,         1,         CK32K_OUT_CTR
 SUNXI_CLK_PERIPH(ac10032k2, CK32K_OUT_CTRL2, 4,         1,         CK32K_OUT_CTRL2,5,          3,          1,          3,          0,          CK32K_OUT_CTRL2,0,         0,            0,            0,            0,           0,              0,              NULL,NULL,             0);
 SUNXI_CLK_PERIPH(ac10032k3, CK32K_OUT_CTRL3, 4,         1,         CK32K_OUT_CTRL3,5,          3,          1,          3,          0,          CK32K_OUT_CTRL3,0,         0,            0,            0,            0,           0,              0,              NULL,NULL,             0);
 static const char *ac10032k_parents[]  = {"32k_rtc", "4m_adda"};
+#ifndef CONFIG_ARCH_SUN8IW6
 static struct periph_init_data sunxi_ac100_init[] = {
     {"ac10032k1", CLK_GET_RATE_NOCACHE,ac10032k_parents,     ARRAY_SIZE(ac10032k_parents),     &sunxi_clk_periph_ac10032k1},
     {"ac10032k2", CLK_GET_RATE_NOCACHE,ac10032k_parents,     ARRAY_SIZE(ac10032k_parents),     &sunxi_clk_periph_ac10032k2},
     {"ac10032k3", CLK_GET_RATE_NOCACHE,ac10032k_parents,     ARRAY_SIZE(ac10032k_parents),     &sunxi_clk_periph_ac10032k3},
 };
+#else 
+/*add flag CLK_IGNORE_SYNCBOOT for SUN8IW6 platform*/
+static struct periph_init_data sunxi_ac100_init[] = {
+    {"ac10032k1", CLK_GET_RATE_NOCACHE|CLK_IGNORE_SYNCBOOT,ac10032k_parents,     ARRAY_SIZE(ac10032k_parents),     &sunxi_clk_periph_ac10032k1},
+    {"ac10032k2", CLK_GET_RATE_NOCACHE|CLK_IGNORE_SYNCBOOT,ac10032k_parents,     ARRAY_SIZE(ac10032k_parents),     &sunxi_clk_periph_ac10032k2},
+    {"ac10032k3", CLK_GET_RATE_NOCACHE|CLK_IGNORE_SYNCBOOT,ac10032k_parents,     ARRAY_SIZE(ac10032k_parents),     &sunxi_clk_periph_ac10032k3},
+};
+#endif
 
 static unsigned int ac100_m_factor[]={1,2,4,8,16,32,64,122};
 static unsigned int ac100_n_factor[]={1,2,4,8,16,32,64,122};
@@ -188,7 +197,6 @@ extern void sunxi_clk_get_periph_ops(struct clk_ops* ops);
 static int __init sunxi_init_ac100_clocks(void)
 {
 	struct clk *clk;
-	struct clk *parent;
     int i;
     struct periph_init_data *periph;
 
@@ -223,10 +231,11 @@ static int __init sunxi_init_ac100_clocks(void)
                         periph->num_parents,periph->flags, NULL, periph->periph);
         clk_register_clkdev(clk, periph->name, NULL);
     }
-
+#ifndef CONFIG_ARCH_SUN8IW6
     //Sync enable count for Ac100
     for(i=0; i<ARRAY_SIZE(sunxi_ac100_init); i++)
     {
+		struct clk *parent;
         periph = &sunxi_ac100_init[i];
         clk = clk_get(NULL,periph->name);
 		if(!clk || IS_ERR(clk))
@@ -245,6 +254,7 @@ static int __init sunxi_init_ac100_clocks(void)
         }
         clk_put(clk);
     }
+#endif
     return 0;
 }
 subsys_initcall_sync(sunxi_init_ac100_clocks);

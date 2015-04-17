@@ -19,10 +19,8 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-
+#include <linux/spinlock.h>
 #include "hwspinlock_i.h"
-
-static struct arisc_hwspinlock arisc_hwspinlocks[ARISC_HW_SPINLOCK_NUM];
 
 /**
  * initialize hwspinlock.
@@ -32,11 +30,6 @@ static struct arisc_hwspinlock arisc_hwspinlocks[ARISC_HW_SPINLOCK_NUM];
  */
 int arisc_hwspinlock_init(void)
 {
-	int index;
-
-	for (index = 0; index < ARISC_HW_SPINLOCK_NUM; index++)
-		spin_lock_init(&(arisc_hwspinlocks[index].lock));
-
 	return 0;
 }
 
@@ -58,10 +51,10 @@ int arisc_hwspinlock_exit(void)
  *
  * returns:  0 if lock hwspinlock succeeded, other if failed.
  */
-int arisc_hwspin_lock_timeout(int hwid, unsigned int timeout)
+int arisc_hwspin_lock_timeout(int hwid, unsigned int timeout, \
+                              spinlock_t *lock, unsigned long *flags)
 {
-	arisc_hwspinlock_t *spinlock;
-	unsigned long       expire;
+	unsigned long expire;
 
 	expire = msecs_to_jiffies(timeout) + jiffies;
 
@@ -69,10 +62,9 @@ int arisc_hwspin_lock_timeout(int hwid, unsigned int timeout)
 		ARISC_ERR("invalid hwspinlock id [%d] for trylock\n", hwid);
 		return -EINVAL;
 	}
-	spinlock = &(arisc_hwspinlocks[hwid]);
 
 	/* is lock already taken by another context on the local cpu ? */
-	while (!(spin_trylock_irqsave(&(spinlock->lock), spinlock->flags))) {
+	while (!(spin_trylock_irqsave(lock, *flags))) {
 		if (time_is_before_eq_jiffies(expire)) {
 			ARISC_ERR("try to take spinlock fail\n");
 			return -EBUSY;
@@ -87,6 +79,7 @@ int arisc_hwspin_lock_timeout(int hwid, unsigned int timeout)
 		 */
 		if (time_is_before_eq_jiffies(expire)) {
 			ARISC_ERR("try to take hwspinlock timeout\n");
+			spin_unlock_irqrestore(lock, *flags);
 			return -ETIMEDOUT;
 		}
 	}
@@ -101,20 +94,17 @@ EXPORT_SYMBOL(arisc_hwspin_lock_timeout);
  *
  * returns:  0 if unlock hwspinlock succeeded, other if failed.
  */
-int arisc_hwspin_unlock(int hwid)
+int arisc_hwspin_unlock(int hwid, spinlock_t *lock, unsigned long *flags)
 {
-	arisc_hwspinlock_t *spinlock;
-
 	if (hwid >= ARISC_HW_SPINLOCK_NUM) {
 		ARISC_ERR("invalid hwspinlock id [%d] for unlock\n", hwid);
 		return -EINVAL;
 	}
-	spinlock = &(arisc_hwspinlocks[hwid]);
 
 	/* untaken the spinlock */
 	writel(0x0, IO_ADDRESS(AW_SPINLOCK_LOCK_REG(hwid)));
 
-	spin_unlock_irqrestore(&(spinlock->lock), spinlock->flags);
+	spin_unlock_irqrestore(lock, *flags);
 
 	return 0;
 }

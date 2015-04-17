@@ -71,340 +71,16 @@ extern int __ahb_set_rate(unsigned long ahb_freq);
 int table_length_syscfg = 0;
 struct cpufreq_dvfs dvfs_table_syscfg[16];
 
-#if defined(CONFIG_ARCH_SUN8IW7P1) || defined(CONFIG_ARCH_SUN8IW8P1)
-struct pll_cpu_factor_t {
-	u8 factor_n;
-	u8 factor_k;
-	u8 factor_m;
-	u8 factor_p;
-};
-
-struct ccu_pll_cpu_ctrl_reg
-{
-	u32 factor_m:2;   //bit0,  factor M
-	u32 reserved0:2;  //bit2,  reserved
-	u32 factor_k:2;   //bit4,  factor K
-	u32 reserved1:2;  //bit6,  reserved
-	u32 factor_n:5;   //bit8,  factor N
-	u32 reserved2:3;  //bit13, reserved
-	u32 factor_p:2;   //bit16, factor P
-	u32 reserved3:6;  //bit18, reserved
-	u32 cpu_sdm_en:1; //bit24, cpu sdm en
-	u32 reserved4:3;  //bit25, reserved
-	u32 lock:1;       //bit28, lock
-	u32 reserved5:2;  //bit29, reserved
-	u32 pll_en:1;     //bit31, pll enable
-} ;
-
-struct ccu_cpu_axi_cfg_reg
-{
-	u32 axi_div:2;    //bit0,  axi clock div
-	u32 reserved0:6;  //bit2,  reserved
-	u32 apb_div:2;    //bit8,  apb clock div
-	u32 reserved1:6;  //bit10, reserved
-	u32 cpu_src:2;    //bit16, cpu clock source select
-	u32 reserved2:14; //bit18, reserved
-};
-
-static struct ccu_pll_cpu_ctrl_reg *pll_cpu_reg;
-static struct ccu_cpu_axi_cfg_reg  *cpu_axi_reg;
-
-static struct pll_cpu_factor_t pll_cpu_table[] =
-{   //N  K  M  P
-	{ 9, 0, 0, 2},    //Theory Freq1 = 0   , Actual Freq2 = 60  , Index = 0
-	{ 9, 0, 0, 2},    //Theory Freq1 = 6   , Actual Freq2 = 60  , Index = 1
-	{ 9, 0, 0, 2},    //Theory Freq1 = 12  , Actual Freq2 = 60  , Index = 2
-	{ 9, 0, 0, 2},    //Theory Freq1 = 18  , Actual Freq2 = 60  , Index = 3
-	{ 9, 0, 0, 2},    //Theory Freq1 = 24  , Actual Freq2 = 60  , Index = 4
-	{ 9, 0, 0, 2},    //Theory Freq1 = 30  , Actual Freq2 = 60  , Index = 5
-	{ 9, 0, 0, 2},    //Theory Freq1 = 36  , Actual Freq2 = 60  , Index = 6
-	{ 9, 0, 0, 2},    //Theory Freq1 = 42  , Actual Freq2 = 60  , Index = 7
-	{ 9, 0, 0, 2},    //Theory Freq1 = 48  , Actual Freq2 = 60  , Index = 8
-	{ 9, 0, 0, 2},    //Theory Freq1 = 54  , Actual Freq2 = 60  , Index = 9
-	{ 9, 0, 0, 2},    //Theory Freq1 = 60  , Actual Freq2 = 60  , Index = 10
-	{10, 0, 0, 2},    //Theory Freq1 = 66  , Actual Freq2 = 66  , Index = 11
-	{11, 0, 0, 2},    //Theory Freq1 = 72  , Actual Freq2 = 72  , Index = 12
-	{12, 0, 0, 2},    //Theory Freq1 = 78  , Actual Freq2 = 78  , Index = 13
-	{13, 0, 0, 2},    //Theory Freq1 = 84  , Actual Freq2 = 84  , Index = 14
-	{14, 0, 0, 2},    //Theory Freq1 = 90  , Actual Freq2 = 90  , Index = 15
-	{15, 0, 0, 2},    //Theory Freq1 = 96  , Actual Freq2 = 96  , Index = 16
-	{16, 0, 0, 2},    //Theory Freq1 = 102 , Actual Freq2 = 102 , Index = 17
-	{17, 0, 0, 2},    //Theory Freq1 = 108 , Actual Freq2 = 108 , Index = 18
-	{18, 0, 0, 2},    //Theory Freq1 = 114 , Actual Freq2 = 114 , Index = 19
-	{9 , 0, 0, 1},    //Theory Freq1 = 120 , Actual Freq2 = 120 , Index = 20
-	{10, 0, 0, 1},    //Theory Freq1 = 126 , Actual Freq2 = 132 , Index = 21
-	{10, 0, 0, 1},    //Theory Freq1 = 132 , Actual Freq2 = 132 , Index = 22
-	{11, 0, 0, 1},    //Theory Freq1 = 138 , Actual Freq2 = 144 , Index = 23
-	{11, 0, 0, 1},    //Theory Freq1 = 144 , Actual Freq2 = 144 , Index = 24
-	{12, 0, 0, 1},    //Theory Freq1 = 150 , Actual Freq2 = 156 , Index = 25
-	{12, 0, 0, 1},    //Theory Freq1 = 156 , Actual Freq2 = 156 , Index = 26
-	{13, 0, 0, 1},    //Theory Freq1 = 162 , Actual Freq2 = 168 , Index = 27
-	{13, 0, 0, 1},    //Theory Freq1 = 168 , Actual Freq2 = 168 , Index = 28
-	{14, 0, 0, 1},    //Theory Freq1 = 174 , Actual Freq2 = 180 , Index = 29
-	{14, 0, 0, 1},    //Theory Freq1 = 180 , Actual Freq2 = 180 , Index = 30
-	{15, 0, 0, 1},    //Theory Freq1 = 186 , Actual Freq2 = 192 , Index = 31
-	{15, 0, 0, 1},    //Theory Freq1 = 192 , Actual Freq2 = 192 , Index = 32
-	{16, 0, 0, 1},    //Theory Freq1 = 198 , Actual Freq2 = 204 , Index = 33
-	{16, 0, 0, 1},    //Theory Freq1 = 204 , Actual Freq2 = 204 , Index = 34
-	{17, 0, 0, 1},    //Theory Freq1 = 210 , Actual Freq2 = 216 , Index = 35
-	{17, 0, 0, 1},    //Theory Freq1 = 216 , Actual Freq2 = 216 , Index = 36
-	{18, 0, 0, 1},    //Theory Freq1 = 222 , Actual Freq2 = 228 , Index = 37
-	{18, 0, 0, 1},    //Theory Freq1 = 228 , Actual Freq2 = 228 , Index = 38
-	{9 , 0, 0, 0},    //Theory Freq1 = 234 , Actual Freq2 = 240 , Index = 39
-	{9 , 0, 0, 0},    //Theory Freq1 = 240 , Actual Freq2 = 240 , Index = 40
-	{10, 0, 0, 0},    //Theory Freq1 = 246 , Actual Freq2 = 264 , Index = 41
-	{10, 0, 0, 0},    //Theory Freq1 = 252 , Actual Freq2 = 264 , Index = 42
-	{10, 0, 0, 0},    //Theory Freq1 = 258 , Actual Freq2 = 264 , Index = 43
-	{10, 0, 0, 0},    //Theory Freq1 = 264 , Actual Freq2 = 264 , Index = 44
-	{11, 0, 0, 0},    //Theory Freq1 = 270 , Actual Freq2 = 288 , Index = 45
-	{11, 0, 0, 0},    //Theory Freq1 = 276 , Actual Freq2 = 288 , Index = 46
-	{11, 0, 0, 0},    //Theory Freq1 = 282 , Actual Freq2 = 288 , Index = 47
-	{11, 0, 0, 0},    //Theory Freq1 = 288 , Actual Freq2 = 288 , Index = 48
-	{12, 0, 0, 0},    //Theory Freq1 = 294 , Actual Freq2 = 312 , Index = 49
-	{12, 0, 0, 0},    //Theory Freq1 = 300 , Actual Freq2 = 312 , Index = 50
-	{12, 0, 0, 0},    //Theory Freq1 = 306 , Actual Freq2 = 312 , Index = 51
-	{12, 0, 0, 0},    //Theory Freq1 = 312 , Actual Freq2 = 312 , Index = 52
-	{13, 0, 0, 0},    //Theory Freq1 = 318 , Actual Freq2 = 336 , Index = 53
-	{13, 0, 0, 0},    //Theory Freq1 = 324 , Actual Freq2 = 336 , Index = 54
-	{13, 0, 0, 0},    //Theory Freq1 = 330 , Actual Freq2 = 336 , Index = 55
-	{13, 0, 0, 0},    //Theory Freq1 = 336 , Actual Freq2 = 336 , Index = 56
-	{14, 0, 0, 0},    //Theory Freq1 = 342 , Actual Freq2 = 360 , Index = 57
-	{14, 0, 0, 0},    //Theory Freq1 = 348 , Actual Freq2 = 360 , Index = 58
-	{14, 0, 0, 0},    //Theory Freq1 = 354 , Actual Freq2 = 360 , Index = 59
-	{14, 0, 0, 0},    //Theory Freq1 = 360 , Actual Freq2 = 360 , Index = 60
-	{15, 0, 0, 0},    //Theory Freq1 = 366 , Actual Freq2 = 384 , Index = 61
-	{15, 0, 0, 0},    //Theory Freq1 = 372 , Actual Freq2 = 384 , Index = 62
-	{15, 0, 0, 0},    //Theory Freq1 = 378 , Actual Freq2 = 384 , Index = 63
-	{15, 0, 0, 0},    //Theory Freq1 = 384 , Actual Freq2 = 384 , Index = 64
-	{16, 0, 0, 0},    //Theory Freq1 = 390 , Actual Freq2 = 408 , Index = 65
-	{16, 0, 0, 0},    //Theory Freq1 = 396 , Actual Freq2 = 408 , Index = 66
-	{16, 0, 0, 0},    //Theory Freq1 = 402 , Actual Freq2 = 408 , Index = 67
-	{16, 0, 0, 0},    //Theory Freq1 = 408 , Actual Freq2 = 408 , Index = 68
-	{17, 0, 0, 0},    //Theory Freq1 = 414 , Actual Freq2 = 432 , Index = 69
-	{17, 0, 0, 0},    //Theory Freq1 = 420 , Actual Freq2 = 432 , Index = 70
-	{17, 0, 0, 0},    //Theory Freq1 = 426 , Actual Freq2 = 432 , Index = 71
-	{17, 0, 0, 0},    //Theory Freq1 = 432 , Actual Freq2 = 432 , Index = 72
-	{18, 0, 0, 0},    //Theory Freq1 = 438 , Actual Freq2 = 456 , Index = 73
-	{18, 0, 0, 0},    //Theory Freq1 = 444 , Actual Freq2 = 456 , Index = 74
-	{18, 0, 0, 0},    //Theory Freq1 = 450 , Actual Freq2 = 456 , Index = 75
-	{18, 0, 0, 0},    //Theory Freq1 = 456 , Actual Freq2 = 456 , Index = 76
-	{19, 0, 0, 0},    //Theory Freq1 = 462 , Actual Freq2 = 480 , Index = 77
-	{19, 0, 0, 0},    //Theory Freq1 = 468 , Actual Freq2 = 480 , Index = 78
-	{19, 0, 0, 0},    //Theory Freq1 = 474 , Actual Freq2 = 480 , Index = 79
-	{19, 0, 0, 0},    //Theory Freq1 = 480 , Actual Freq2 = 480 , Index = 80
-	{20, 0, 0, 0},    //Theory Freq1 = 486 , Actual Freq2 = 504 , Index = 81
-	{20, 0, 0, 0},    //Theory Freq1 = 492 , Actual Freq2 = 504 , Index = 82
-	{20, 0, 0, 0},    //Theory Freq1 = 498 , Actual Freq2 = 504 , Index = 83
-	{20, 0, 0, 0},    //Theory Freq1 = 504 , Actual Freq2 = 504 , Index = 84
-	{21, 0, 0, 0},    //Theory Freq1 = 510 , Actual Freq2 = 528 , Index = 85
-	{21, 0, 0, 0},    //Theory Freq1 = 516 , Actual Freq2 = 528 , Index = 86
-	{21, 0, 0, 0},    //Theory Freq1 = 522 , Actual Freq2 = 528 , Index = 87
-	{21, 0, 0, 0},    //Theory Freq1 = 528 , Actual Freq2 = 528 , Index = 88
-	{22, 0, 0, 0},    //Theory Freq1 = 534 , Actual Freq2 = 552 , Index = 89
-	{22, 0, 0, 0},    //Theory Freq1 = 540 , Actual Freq2 = 552 , Index = 90
-	{22, 0, 0, 0},    //Theory Freq1 = 546 , Actual Freq2 = 552 , Index = 91
-	{22, 0, 0, 0},    //Theory Freq1 = 552 , Actual Freq2 = 552 , Index = 92
-	{23, 0, 0, 0},    //Theory Freq1 = 558 , Actual Freq2 = 576 , Index = 93
-	{23, 0, 0, 0},    //Theory Freq1 = 564 , Actual Freq2 = 576 , Index = 94
-	{23, 0, 0, 0},    //Theory Freq1 = 570 , Actual Freq2 = 576 , Index = 95
-	{23, 0, 0, 0},    //Theory Freq1 = 576 , Actual Freq2 = 576 , Index = 96
-	{24, 0, 0, 0},    //Theory Freq1 = 582 , Actual Freq2 = 600 , Index = 97
-	{24, 0, 0, 0},    //Theory Freq1 = 588 , Actual Freq2 = 600 , Index = 98
-	{24, 0, 0, 0},    //Theory Freq1 = 594 , Actual Freq2 = 600 , Index = 99
-	{24, 0, 0, 0},    //Theory Freq1 = 600 , Actual Freq2 = 600 , Index = 100
-	{25, 0, 0, 0},    //Theory Freq1 = 606 , Actual Freq2 = 624 , Index = 101
-	{25, 0, 0, 0},    //Theory Freq1 = 612 , Actual Freq2 = 624 , Index = 102
-	{25, 0, 0, 0},    //Theory Freq1 = 618 , Actual Freq2 = 624 , Index = 103
-	{25, 0, 0, 0},    //Theory Freq1 = 624 , Actual Freq2 = 624 , Index = 104
-	{26, 0, 0, 0},    //Theory Freq1 = 630 , Actual Freq2 = 648 , Index = 105
-	{26, 0, 0, 0},    //Theory Freq1 = 636 , Actual Freq2 = 648 , Index = 106
-	{26, 0, 0, 0},    //Theory Freq1 = 642 , Actual Freq2 = 648 , Index = 107
-	{26, 0, 0, 0},    //Theory Freq1 = 648 , Actual Freq2 = 648 , Index = 108
-	{27, 0, 0, 0},    //Theory Freq1 = 654 , Actual Freq2 = 672 , Index = 109
-	{27, 0, 0, 0},    //Theory Freq1 = 660 , Actual Freq2 = 672 , Index = 110
-	{27, 0, 0, 0},    //Theory Freq1 = 666 , Actual Freq2 = 672 , Index = 111
-	{27, 0, 0, 0},    //Theory Freq1 = 672 , Actual Freq2 = 672 , Index = 112
-	{28, 0, 0, 0},    //Theory Freq1 = 678 , Actual Freq2 = 696 , Index = 113
-	{28, 0, 0, 0},    //Theory Freq1 = 684 , Actual Freq2 = 696 , Index = 114
-	{28, 0, 0, 0},    //Theory Freq1 = 690 , Actual Freq2 = 696 , Index = 115
-	{28, 0, 0, 0},    //Theory Freq1 = 696 , Actual Freq2 = 696 , Index = 116
-	{29, 0, 0, 0},    //Theory Freq1 = 702 , Actual Freq2 = 720 , Index = 117
-	{29, 0, 0, 0},    //Theory Freq1 = 708 , Actual Freq2 = 720 , Index = 118
-	{29, 0, 0, 0},    //Theory Freq1 = 714 , Actual Freq2 = 720 , Index = 119
-	{29, 0, 0, 0},    //Theory Freq1 = 720 , Actual Freq2 = 720 , Index = 120
-	{15, 1, 0, 0},    //Theory Freq1 = 726 , Actual Freq2 = 768 , Index = 121
-	{15, 1, 0, 0},    //Theory Freq1 = 732 , Actual Freq2 = 768 , Index = 122
-	{15, 1, 0, 0},    //Theory Freq1 = 738 , Actual Freq2 = 768 , Index = 123
-	{15, 1, 0, 0},    //Theory Freq1 = 744 , Actual Freq2 = 768 , Index = 124
-	{15, 1, 0, 0},    //Theory Freq1 = 750 , Actual Freq2 = 768 , Index = 125
-	{15, 1, 0, 0},    //Theory Freq1 = 756 , Actual Freq2 = 768 , Index = 126
-	{15, 1, 0, 0},    //Theory Freq1 = 762 , Actual Freq2 = 768 , Index = 127
-	{15, 1, 0, 0},    //Theory Freq1 = 768 , Actual Freq2 = 768 , Index = 128
-	{10, 2, 0, 0},    //Theory Freq1 = 774 , Actual Freq2 = 792 , Index = 129
-	{10, 2, 0, 0},    //Theory Freq1 = 780 , Actual Freq2 = 792 , Index = 130
-	{10, 2, 0, 0},    //Theory Freq1 = 786 , Actual Freq2 = 792 , Index = 131
-	{10, 2, 0, 0},    //Theory Freq1 = 792 , Actual Freq2 = 792 , Index = 132
-	{16, 1, 0, 0},    //Theory Freq1 = 798 , Actual Freq2 = 816 , Index = 133
-	{16, 1, 0, 0},    //Theory Freq1 = 804 , Actual Freq2 = 816 , Index = 134
-	{16, 1, 0, 0},    //Theory Freq1 = 810 , Actual Freq2 = 816 , Index = 135
-	{16, 1, 0, 0},    //Theory Freq1 = 816 , Actual Freq2 = 816 , Index = 136
-	{17, 1, 0, 0},    //Theory Freq1 = 822 , Actual Freq2 = 864 , Index = 137
-	{17, 1, 0, 0},    //Theory Freq1 = 828 , Actual Freq2 = 864 , Index = 138
-	{17, 1, 0, 0},    //Theory Freq1 = 834 , Actual Freq2 = 864 , Index = 139
-	{17, 1, 0, 0},    //Theory Freq1 = 840 , Actual Freq2 = 864 , Index = 140
-	{17, 1, 0, 0},    //Theory Freq1 = 846 , Actual Freq2 = 864 , Index = 141
-	{17, 1, 0, 0},    //Theory Freq1 = 852 , Actual Freq2 = 864 , Index = 142
-	{17, 1, 0, 0},    //Theory Freq1 = 858 , Actual Freq2 = 864 , Index = 143
-	{17, 1, 0, 0},    //Theory Freq1 = 864 , Actual Freq2 = 864 , Index = 144
-	{18, 1, 0, 0},    //Theory Freq1 = 870 , Actual Freq2 = 912 , Index = 145
-	{18, 1, 0, 0},    //Theory Freq1 = 876 , Actual Freq2 = 912 , Index = 146
-	{18, 1, 0, 0},    //Theory Freq1 = 882 , Actual Freq2 = 912 , Index = 147
-	{18, 1, 0, 0},    //Theory Freq1 = 888 , Actual Freq2 = 912 , Index = 148
-	{18, 1, 0, 0},    //Theory Freq1 = 894 , Actual Freq2 = 912 , Index = 149
-	{18, 1, 0, 0},    //Theory Freq1 = 900 , Actual Freq2 = 912 , Index = 150
-	{18, 1, 0, 0},    //Theory Freq1 = 906 , Actual Freq2 = 912 , Index = 151
-	{18, 1, 0, 0},    //Theory Freq1 = 912 , Actual Freq2 = 912 , Index = 152
-	{12, 2, 0, 0},    //Theory Freq1 = 918 , Actual Freq2 = 936 , Index = 153
-	{12, 2, 0, 0},    //Theory Freq1 = 924 , Actual Freq2 = 936 , Index = 154
-	{12, 2, 0, 0},    //Theory Freq1 = 930 , Actual Freq2 = 936 , Index = 155
-	{12, 2, 0, 0},    //Theory Freq1 = 936 , Actual Freq2 = 936 , Index = 156
-	{19, 1, 0, 0},    //Theory Freq1 = 942 , Actual Freq2 = 960 , Index = 157
-	{19, 1, 0, 0},    //Theory Freq1 = 948 , Actual Freq2 = 960 , Index = 158
-	{19, 1, 0, 0},    //Theory Freq1 = 954 , Actual Freq2 = 960 , Index = 159
-	{19, 1, 0, 0},    //Theory Freq1 = 960 , Actual Freq2 = 960 , Index = 160
-	{20, 1, 0, 0},    //Theory Freq1 = 966 , Actual Freq2 = 1008, Index = 161
-	{20, 1, 0, 0},    //Theory Freq1 = 972 , Actual Freq2 = 1008, Index = 162
-	{20, 1, 0, 0},    //Theory Freq1 = 978 , Actual Freq2 = 1008, Index = 163
-	{20, 1, 0, 0},    //Theory Freq1 = 984 , Actual Freq2 = 1008, Index = 164
-	{20, 1, 0, 0},    //Theory Freq1 = 990 , Actual Freq2 = 1008, Index = 165
-	{20, 1, 0, 0},    //Theory Freq1 = 996 , Actual Freq2 = 1008, Index = 166
-	{20, 1, 0, 0},    //Theory Freq1 = 1002, Actual Freq2 = 1008, Index = 167
-	{20, 1, 0, 0},    //Theory Freq1 = 1008, Actual Freq2 = 1008, Index = 168
-	{21, 1, 0, 0},    //Theory Freq1 = 1014, Actual Freq2 = 1056, Index = 169
-	{21, 1, 0, 0},    //Theory Freq1 = 1020, Actual Freq2 = 1056, Index = 170
-	{21, 1, 0, 0},    //Theory Freq1 = 1026, Actual Freq2 = 1056, Index = 171
-	{21, 1, 0, 0},    //Theory Freq1 = 1032, Actual Freq2 = 1056, Index = 172
-	{21, 1, 0, 0},    //Theory Freq1 = 1038, Actual Freq2 = 1056, Index = 173
-	{21, 1, 0, 0},    //Theory Freq1 = 1044, Actual Freq2 = 1056, Index = 174
-	{21, 1, 0, 0},    //Theory Freq1 = 1050, Actual Freq2 = 1056, Index = 175
-	{21, 1, 0, 0},    //Theory Freq1 = 1056, Actual Freq2 = 1056, Index = 176
-	{14, 2, 0, 0},    //Theory Freq1 = 1062, Actual Freq2 = 1080, Index = 177
-	{14, 2, 0, 0},    //Theory Freq1 = 1068, Actual Freq2 = 1080, Index = 178
-	{14, 2, 0, 0},    //Theory Freq1 = 1074, Actual Freq2 = 1080, Index = 179
-	{14, 2, 0, 0},    //Theory Freq1 = 1080, Actual Freq2 = 1080, Index = 180
-	{22, 1, 0, 0},    //Theory Freq1 = 1086, Actual Freq2 = 1104, Index = 181
-	{22, 1, 0, 0},    //Theory Freq1 = 1092, Actual Freq2 = 1104, Index = 182
-	{22, 1, 0, 0},    //Theory Freq1 = 1098, Actual Freq2 = 1104, Index = 183
-	{22, 1, 0, 0},    //Theory Freq1 = 1104, Actual Freq2 = 1104, Index = 184
-	{23, 1, 0, 0},    //Theory Freq1 = 1110, Actual Freq2 = 1152, Index = 185
-	{23, 1, 0, 0},    //Theory Freq1 = 1116, Actual Freq2 = 1152, Index = 186
-	{23, 1, 0, 0},    //Theory Freq1 = 1122, Actual Freq2 = 1152, Index = 187
-	{23, 1, 0, 0},    //Theory Freq1 = 1128, Actual Freq2 = 1152, Index = 188
-	{23, 1, 0, 0},    //Theory Freq1 = 1134, Actual Freq2 = 1152, Index = 189
-	{23, 1, 0, 0},    //Theory Freq1 = 1140, Actual Freq2 = 1152, Index = 190
-	{23, 1, 0, 0},    //Theory Freq1 = 1146, Actual Freq2 = 1152, Index = 191
-	{23, 1, 0, 0},    //Theory Freq1 = 1152, Actual Freq2 = 1152, Index = 192
-	{24, 1, 0, 0},    //Theory Freq1 = 1158, Actual Freq2 = 1200, Index = 193
-	{24, 1, 0, 0},    //Theory Freq1 = 1164, Actual Freq2 = 1200, Index = 194
-	{24, 1, 0, 0},    //Theory Freq1 = 1170, Actual Freq2 = 1200, Index = 195
-	{24, 1, 0, 0},    //Theory Freq1 = 1176, Actual Freq2 = 1200, Index = 196
-	{24, 1, 0, 0},    //Theory Freq1 = 1182, Actual Freq2 = 1200, Index = 197
-	{24, 1, 0, 0},    //Theory Freq1 = 1188, Actual Freq2 = 1200, Index = 198
-	{24, 1, 0, 0},    //Theory Freq1 = 1194, Actual Freq2 = 1200, Index = 199
-	{24, 1, 0, 0},    //Theory Freq1 = 1200, Actual Freq2 = 1200, Index = 200
-	{16, 2, 0, 0},    //Theory Freq1 = 1206, Actual Freq2 = 1224, Index = 201
-	{16, 2, 0, 0},    //Theory Freq1 = 1212, Actual Freq2 = 1224, Index = 202
-	{16, 2, 0, 0},    //Theory Freq1 = 1218, Actual Freq2 = 1224, Index = 203
-	{16, 2, 0, 0},    //Theory Freq1 = 1224, Actual Freq2 = 1224, Index = 204
-	{25, 1, 0, 0},    //Theory Freq1 = 1230, Actual Freq2 = 1248, Index = 205
-	{25, 1, 0, 0},    //Theory Freq1 = 1236, Actual Freq2 = 1248, Index = 206
-	{25, 1, 0, 0},    //Theory Freq1 = 1242, Actual Freq2 = 1248, Index = 207
-	{25, 1, 0, 0},    //Theory Freq1 = 1248, Actual Freq2 = 1248, Index = 208
-	{26, 1, 0, 0},    //Theory Freq1 = 1254, Actual Freq2 = 1296, Index = 209
-	{26, 1, 0, 0},    //Theory Freq1 = 1260, Actual Freq2 = 1296, Index = 210
-	{26, 1, 0, 0},    //Theory Freq1 = 1266, Actual Freq2 = 1296, Index = 211
-	{26, 1, 0, 0},    //Theory Freq1 = 1272, Actual Freq2 = 1296, Index = 212
-	{26, 1, 0, 0},    //Theory Freq1 = 1278, Actual Freq2 = 1296, Index = 213
-	{26, 1, 0, 0},    //Theory Freq1 = 1284, Actual Freq2 = 1296, Index = 214
-	{26, 1, 0, 0},    //Theory Freq1 = 1290, Actual Freq2 = 1296, Index = 215
-	{26, 1, 0, 0},    //Theory Freq1 = 1296, Actual Freq2 = 1296, Index = 216
-	{27, 1, 0, 0},    //Theory Freq1 = 1302, Actual Freq2 = 1344, Index = 217
-	{27, 1, 0, 0},    //Theory Freq1 = 1308, Actual Freq2 = 1344, Index = 218
-	{27, 1, 0, 0},    //Theory Freq1 = 1314, Actual Freq2 = 1344, Index = 219
-	{27, 1, 0, 0},    //Theory Freq1 = 1320, Actual Freq2 = 1344, Index = 220
-	{27, 1, 0, 0},    //Theory Freq1 = 1326, Actual Freq2 = 1344, Index = 221
-	{27, 1, 0, 0},    //Theory Freq1 = 1332, Actual Freq2 = 1344, Index = 222
-	{27, 1, 0, 0},    //Theory Freq1 = 1338, Actual Freq2 = 1344, Index = 223
-	{27, 1, 0, 0},    //Theory Freq1 = 1344, Actual Freq2 = 1344, Index = 224
-	{18, 2, 0, 0},    //Theory Freq1 = 1350, Actual Freq2 = 1368, Index = 225
-	{18, 2, 0, 0},    //Theory Freq1 = 1356, Actual Freq2 = 1368, Index = 226
-	{18, 2, 0, 0},    //Theory Freq1 = 1362, Actual Freq2 = 1368, Index = 227
-	{18, 2, 0, 0},    //Theory Freq1 = 1368, Actual Freq2 = 1368, Index = 228
-	{19, 2, 0, 0},    //Theory Freq1 = 1374, Actual Freq2 = 1440, Index = 229
-	{19, 2, 0, 0},    //Theory Freq1 = 1380, Actual Freq2 = 1440, Index = 230
-	{19, 2, 0, 0},    //Theory Freq1 = 1386, Actual Freq2 = 1440, Index = 231
-	{19, 2, 0, 0},    //Theory Freq1 = 1392, Actual Freq2 = 1440, Index = 232
-	{19, 2, 0, 0},    //Theory Freq1 = 1398, Actual Freq2 = 1440, Index = 233
-	{19, 2, 0, 0},    //Theory Freq1 = 1404, Actual Freq2 = 1440, Index = 234
-	{19, 2, 0, 0},    //Theory Freq1 = 1410, Actual Freq2 = 1440, Index = 235
-	{19, 2, 0, 0},    //Theory Freq1 = 1416, Actual Freq2 = 1440, Index = 236
-	{19, 2, 0, 0},    //Theory Freq1 = 1422, Actual Freq2 = 1440, Index = 237
-	{19, 2, 0, 0},    //Theory Freq1 = 1428, Actual Freq2 = 1440, Index = 238
-	{19, 2, 0, 0},    //Theory Freq1 = 1434, Actual Freq2 = 1440, Index = 239
-	{19, 2, 0, 0},    //Theory Freq1 = 1440, Actual Freq2 = 1440, Index = 240
-	{20, 2, 0, 0},    //Theory Freq1 = 1446, Actual Freq2 = 1512, Index = 241
-	{20, 2, 0, 0},    //Theory Freq1 = 1452, Actual Freq2 = 1512, Index = 242
-	{20, 2, 0, 0},    //Theory Freq1 = 1458, Actual Freq2 = 1512, Index = 243
-	{20, 2, 0, 0},    //Theory Freq1 = 1464, Actual Freq2 = 1512, Index = 244
-	{20, 2, 0, 0},    //Theory Freq1 = 1470, Actual Freq2 = 1512, Index = 245
-	{20, 2, 0, 0},    //Theory Freq1 = 1476, Actual Freq2 = 1512, Index = 246
-	{20, 2, 0, 0},    //Theory Freq1 = 1482, Actual Freq2 = 1512, Index = 247
-	{20, 2, 0, 0},    //Theory Freq1 = 1488, Actual Freq2 = 1512, Index = 248
-	{20, 2, 0, 0},    //Theory Freq1 = 1494, Actual Freq2 = 1512, Index = 249
-	{20, 2, 0, 0},    //Theory Freq1 = 1500, Actual Freq2 = 1512, Index = 250
-	{20, 2, 0, 0},    //Theory Freq1 = 1506, Actual Freq2 = 1512, Index = 251
-	{20, 2, 0, 0},    //Theory Freq1 = 1512, Actual Freq2 = 1512, Index = 252
-	{15, 3, 0, 0},    //Theory Freq1 = 1518, Actual Freq2 = 1536, Index = 253
-	{15, 3, 0, 0},    //Theory Freq1 = 1524, Actual Freq2 = 1536, Index = 254
-	{15, 3, 0, 0},    //Theory Freq1 = 1530, Actual Freq2 = 1536, Index = 255
-	{15, 3, 0, 0},    //Theory Freq1 = 1536, Actual Freq2 = 1536, Index = 256
-};
-
-struct cpufreq_frequency_table sunxi_freq_tbl[] = {
-	{ .frequency = 60000  , .index = SUNXI_CLK_DIV(1, 3, 0, 0), },
-	{ .frequency = 120000 , .index = SUNXI_CLK_DIV(1, 3, 0, 0), },
-	{ .frequency = 240000 , .index = SUNXI_CLK_DIV(1, 3, 0, 0), },
-	{ .frequency = 312000 , .index = SUNXI_CLK_DIV(1, 3, 0, 0), },
-	{ .frequency = 408000 , .index = SUNXI_CLK_DIV(1, 3, 0, 0), },
-	{ .frequency = 504000 , .index = SUNXI_CLK_DIV(1, 3, 0, 0), },
-	{ .frequency = 600000 , .index = SUNXI_CLK_DIV(1, 3, 0, 0), },
-	{ .frequency = 648000 , .index = SUNXI_CLK_DIV(1, 3, 0, 0), },
-	{ .frequency = 720000 , .index = SUNXI_CLK_DIV(1, 3, 0, 0), },
-	{ .frequency = 816000 , .index = SUNXI_CLK_DIV(1, 3, 0, 0), },
-	{ .frequency = 912000 , .index = SUNXI_CLK_DIV(1, 3, 0, 0), },
-	{ .frequency = 1008000, .index = SUNXI_CLK_DIV(1, 3, 0, 0), },
-	{ .frequency = 1104000, .index = SUNXI_CLK_DIV(1, 3, 0, 0), },
-	{ .frequency = 1200000, .index = SUNXI_CLK_DIV(1, 3, 0, 0), },
-	{ .frequency = 1344000, .index = SUNXI_CLK_DIV(1, 3, 0, 0), },
-	{ .frequency = 1440000, .index = SUNXI_CLK_DIV(1, 3, 0, 0), },
-	{ .frequency = 1536000, .index = SUNXI_CLK_DIV(1, 3, 0, 0), },
-
-	/* table end */
-	{ .frequency = CPUFREQ_TABLE_END,  .index = 0,              },
-};
-
-#else
 struct cpufreq_frequency_table sunxi_freq_tbl[] = {
 	{ .frequency = 60000  , .index = SUNXI_CLK_DIV(0, 0, 0, 0), },
 	{ .frequency = 120000 , .index = SUNXI_CLK_DIV(0, 0, 0, 0), },
 	{ .frequency = 240000 , .index = SUNXI_CLK_DIV(0, 0, 0, 0), },
 	{ .frequency = 312000 , .index = SUNXI_CLK_DIV(0, 0, 0, 0), },
 	{ .frequency = 408000 , .index = SUNXI_CLK_DIV(0, 0, 0, 0), },
+	{ .frequency = 480000 , .index = SUNXI_CLK_DIV(0, 0, 0, 0), },
 	{ .frequency = 504000 , .index = SUNXI_CLK_DIV(0, 0, 0, 0), },
 	{ .frequency = 600000 , .index = SUNXI_CLK_DIV(0, 0, 0, 0), },
-#if defined(CONFIG_ARCH_SUN8IW5P1)
 	{ .frequency = 648000 , .index = SUNXI_CLK_DIV(0, 0, 0, 0), },
-#endif
 	{ .frequency = 720000 , .index = SUNXI_CLK_DIV(0, 0, 0, 0), },
 	{ .frequency = 816000 , .index = SUNXI_CLK_DIV(0, 0, 0, 0), },
 	{ .frequency = 912000 , .index = SUNXI_CLK_DIV(0, 0, 0, 0), },
@@ -418,7 +94,6 @@ struct cpufreq_frequency_table sunxi_freq_tbl[] = {
 	/* table end */
 	{ .frequency = CPUFREQ_TABLE_END,  .index = 0,              },
 };
-#endif
 
 /*
  *check if the cpu frequency policy is valid;
@@ -476,99 +151,6 @@ static void sunxi_cpufreq_show(const char *pfx, struct sunxi_cpu_freq_t *cfg)
 }
 
 
-#if defined(CONFIG_ARCH_SUN8IW7P1) || defined(CONFIG_ARCH_SUN8IW8P1)
-static int __set_cpufreq_target(struct sunxi_cpu_freq_t *target)
-{
-	struct pll_cpu_factor_t factor;
-	struct ccu_pll_cpu_ctrl_reg tmp_pll_cpu;
-	struct ccu_cpu_axi_cfg_reg tmp_cpu_axi_cfg;
-	unsigned int index;
-
-	if (!target)
-		return -EINVAL;
-
-	tmp_cpu_axi_cfg = *cpu_axi_reg;
-	/* try to increase axi divide ratio
-	 * the axi_div of target freq should be increase first,
-	 * this is to avoid axi bus clock beyond limition.
-	 */
-	if (tmp_cpu_axi_cfg.axi_div < target->div.axi_div) {
-		tmp_cpu_axi_cfg.axi_div = target->div.axi_div;
-		*cpu_axi_reg = tmp_cpu_axi_cfg;
-	}
-
-	if (target->pll > 1536000000)
-		target->pll = 1536000000;
-	index = target->pll / 6000000;
-
-	factor.factor_n = pll_cpu_table[index].factor_n;
-	factor.factor_k = pll_cpu_table[index].factor_k;
-	factor.factor_m = pll_cpu_table[index].factor_m;
-	factor.factor_p = pll_cpu_table[index].factor_p;
-
-	if (unlikely(sunxi_dvfs_debug))
-		printk("[cpufreq] target: N:%u K:%u M:%u P:%u axi_div:%u\n",
-			factor.factor_n, factor.factor_k, factor.factor_m, factor.factor_p,
-			target->div.axi_div);
-
-	tmp_pll_cpu = *pll_cpu_reg;
-	/* try to increase factor p first */
-	if (tmp_pll_cpu.factor_p < factor.factor_p) {
-		tmp_pll_cpu.factor_p = factor.factor_p;
-		*pll_cpu_reg = tmp_pll_cpu;
-		udelay(10);
-	}
-
-	/* try to increase factor m first */
-	if (tmp_pll_cpu.factor_m < factor.factor_m) {
-		tmp_pll_cpu.factor_m = factor.factor_m;
-		*pll_cpu_reg = tmp_pll_cpu;
-		udelay(10);
-	}
-
-	/* write factor n & k */
-	tmp_pll_cpu.factor_n = factor.factor_n;
-	tmp_pll_cpu.factor_k = factor.factor_k;
-	*pll_cpu_reg = tmp_pll_cpu;
-
-	/* wait for lock change first */
-	ndelay(100);
-
-#ifdef CONFIG_EVB_PLATFORM
-	/* wait for PLL CPU stable */
-	while (pll_cpu_reg->lock != 1);
-#endif
-
-	//decease factor m
-	if (tmp_pll_cpu.factor_m > factor.factor_m) {
-		tmp_pll_cpu.factor_m = factor.factor_m;
-		*pll_cpu_reg = tmp_pll_cpu;
-		udelay(10);
-	}
-
-	/* decease factor p */
-	if (tmp_pll_cpu.factor_p > factor.factor_p) {
-		tmp_pll_cpu.factor_p = factor.factor_p;
-		*pll_cpu_reg = tmp_pll_cpu;
-		udelay(10);
-	}
-
-	/* try to decrease axi divide ratio */
-	if (tmp_cpu_axi_cfg.axi_div > target->div.axi_div) {
-		tmp_cpu_axi_cfg.axi_div = target->div.axi_div;
-		*cpu_axi_reg = tmp_cpu_axi_cfg;
-	}
-
-	if (unlikely(sunxi_dvfs_debug))
-		printk("[cpufreq] current: N:%u K:%u M:%u P:%u axi_div:%u\n",
-			pll_cpu_reg->factor_n, pll_cpu_reg->factor_k, pll_cpu_reg->factor_m,
-			pll_cpu_reg->factor_p, cpu_axi_reg->axi_div);
-
-	return 0;
-}
-#endif
-
-
 /*
  * adjust the frequency that cpu is currently running;
  * policy:  cpu frequency policy;
@@ -603,6 +185,11 @@ static int sunxi_cpufreq_target(struct cpufreq_policy *policy, __u32 freq, __u32
 
 	if (unlikely(sunxi_boot_freq_lock))
 		freq = freq > cpu_freq_boot ? cpu_freq_boot : freq;
+
+#ifdef CONFIG_ARCH_SUN8IW7P1
+	if (unlikely(freq > cpu_freq_max))
+		freq = cpu_freq_max;
+#endif
 
 	/* try to look for a valid frequency value from cpu frequency table */
 	if (cpufreq_frequency_table_target(policy, sunxi_freq_tbl, freq, relation, &index)) {
@@ -645,8 +232,8 @@ static int sunxi_cpufreq_target(struct cpufreq_policy *policy, __u32 freq, __u32
 	calltime = ktime_get();
 #endif
 
-#if defined(CONFIG_ARCH_SUN8IW7P1) || defined(CONFIG_ARCH_SUN8IW8P1)
-	if (__set_cpufreq_target(&freq_cfg)) {
+#if defined(CONFIG_ARCH_SUN8IW8P1)
+	if (clk_set_rate(clk_pll, freq_cfg.pll)) {
 #else
 	/* try to set cpu frequency */
 	if (arisc_dvfs_set_cpufreq(freq, ARISC_DVFS_PLL1, ARISC_DVFS_SYN, NULL, NULL)) {
@@ -920,9 +507,13 @@ static int sunxi_cpufreq_init(struct cpufreq_policy *policy)
 {
 	policy->cur = sunxi_cpufreq_get(0);
 	policy->min = cpu_freq_min;
-	policy->max = cpu_freq_ext;
+	policy->max = cpu_freq_max;
 	policy->cpuinfo.min_freq = cpu_freq_min;
+#ifdef CONFIG_ARCH_SUN8IW7P1
+	policy->cpuinfo.max_freq = 1536000;
+#else
 	policy->cpuinfo.max_freq = cpu_freq_ext;
+#endif
 	policy->cpuinfo.boot_freq = cpu_freq_boot;
 	policy->governor = CPUFREQ_DEFAULT_GOVERNOR;
 
@@ -1041,8 +632,6 @@ static int __init sunxi_cpufreq_initcall(void)
 
 #if defined(CONFIG_ARCH_SUN8IW7P1) || defined(CONFIG_ARCH_SUN8IW8P1)
 	__set_pll_cpu_lock_time();
-	pll_cpu_reg = (struct ccu_pll_cpu_ctrl_reg *)SUNXI_CCM_VBASE;
-	cpu_axi_reg = (struct ccu_cpu_axi_cfg_reg *)(SUNXI_CCM_VBASE + 0x50);
 #endif
 
 #if defined(CONFIG_ARCH_SUN8IW1P1) || defined(CONFIG_ARCH_SUN8IW3P1)

@@ -306,8 +306,6 @@ static struct platform_device powervr_device = {
 };
 #endif
 
-extern struct attribute_group gpu_attribute_group;
-
 /*!
 ******************************************************************************
 
@@ -428,7 +426,7 @@ static void __devexit PVRSRVDriverRemove(LDM_DEV *pDevice)
 
 
 #if defined(PVR_LDM_MODULE) || defined(SUPPORT_DRI_DRM)
-PVRSRV_LINUX_MUTEX gsPMMutex;
+static PVRSRV_LINUX_MUTEX gsPMMutex;
 static IMG_BOOL bDriverIsSuspended;
 static IMG_BOOL bDriverIsShutdown;
 #endif
@@ -458,17 +456,19 @@ PVR_MOD_STATIC void PVRSRVDriverShutdown(LDM_DEV *pDevice)
 #endif
 {
 	PVR_TRACE(("PVRSRVDriverShutdown(pDevice=%p)", pDevice));
+
 	LinuxLockMutexNested(&gsPMMutex, PVRSRV_LOCK_CLASS_POWER);
 
 	if (!bDriverIsShutdown && !bDriverIsSuspended)
 	{
+#if defined(ANDROID)
 		/*
 		 * Take the bridge mutex, and never release it, to stop
 		 * processes trying to use the driver after it has been
 		 * shutdown.
 		 */
 		LinuxLockMutexNested(&gPVRSRVLock, PVRSRV_LOCK_CLASS_BRIDGE);
-
+#endif
 		(void) PVRSRVSetPowerStateKM(PVRSRV_SYS_POWER_STATE_D3);
 	}
 
@@ -528,16 +528,30 @@ PVR_MOD_STATIC int PVRSRVDriverSuspend(LDM_DEV *pDevice, pm_message_t state)
 
 	if (!bDriverIsSuspended && !bDriverIsShutdown)
 	{
+#if defined(ANDROID)
+		/*
+		 * The bridge mutex will be held until we resume.
+		 * The lock doesn't need to be taken on (non-Android)
+		 * Linux systems, as all user processes will have been
+		 * suspended at this point. In any case, taking the mutex
+		 * may result in possible lock ordering problems being
+		 * flagged up by the kernel, as the Linux console lock may
+		 * have already been taken at this point. If the 3rd party
+		 * display driver is Linux Framebuffer based, the previous
+		 * locking order may have been bridge mutex first, followed
+		 * by the console lock.
+		 */
 		LinuxLockMutexNested(&gPVRSRVLock, PVRSRV_LOCK_CLASS_BRIDGE);
-
+#endif
 		if (PVRSRVSetPowerStateKM(PVRSRV_SYS_POWER_STATE_D3) == PVRSRV_OK)
 		{
-			/* The bridge mutex will be held until we resume */
 			bDriverIsSuspended = IMG_TRUE;
 		}
 		else
 		{
+#if defined(ANDROID)
 			LinuxUnLockMutex(&gPVRSRVLock);
+#endif
 			res = -EINVAL;
 		}
 	}
@@ -588,11 +602,15 @@ PVR_MOD_STATIC int PVRSRVDriverResume(LDM_DEV *pDevice)
 		if (PVRSRVSetPowerStateKM(PVRSRV_SYS_POWER_STATE_D0) == PVRSRV_OK)
 		{
 			bDriverIsSuspended = IMG_FALSE;
+#if defined(ANDROID)
 			LinuxUnLockMutex(&gPVRSRVLock);
+#endif
 		}
 		else
 		{
+#if defined(ANDROID)
 			/* The bridge mutex is not released on failure */
+#endif
 			res = -EINVAL;
 		}
 	}
@@ -1041,8 +1059,7 @@ static int __init PVRCore_Init(void)
 #if defined(SUPPORT_PVRSRV_ANDROID_SYSTRACE)
 	SystraceCreateFS();
 #endif
-    sysfs_create_group(&gpsPVRLDMDev->dev.kobj,
-                             &gpu_attribute_group);
+
 #if defined(PVR_ANDROID_NATIVE_WINDOW_HAS_SYNC)
 	PVRSyncDeviceInit();
 #endif

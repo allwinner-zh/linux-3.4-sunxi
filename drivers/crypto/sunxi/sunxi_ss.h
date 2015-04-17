@@ -41,6 +41,7 @@
 /* #define SS_SHA224_ENABLE		1 sun9i don't support arbitrary mode of sha224 */
 #define SS_SHA256_ENABLE		1
 #define SS_TRNG_ENABLE			1
+#define SS_TRNG_POSTPROCESS_ENABLE	1
 #define SS_RSA2048_ENABLE		1
 /* #define SS_CRC32_ENABLE		1 The CRC32 don't support arbitrary mode */
 #define SS_IDMA_ENABLE			1
@@ -65,6 +66,7 @@
 #define SS_SHA224_ENABLE		1
 #define SS_SHA256_ENABLE		1
 #define SS_TRNG_ENABLE			1
+#define SS_TRNG_POSTPROCESS_ENABLE	1
 #define SS_RSA512_ENABLE		1
 #define SS_RSA1024_ENABLE		1
 #define SS_RSA2048_ENABLE		1
@@ -122,7 +124,8 @@
 #define SS_ECC_ENABLE			1
 
 #ifdef CONFIG_EVB_PLATFORM
-#define SS_TRNG_ENABLE			1
+#define SS_TRNG_ENABLE				1
+#define SS_TRNG_POSTPROCESS_ENABLE	1
 #endif
 
 #define SS_SHA_SWAP_PRE_ENABLE	1 /* The initial IV need to be converted. */
@@ -133,8 +136,13 @@
 #define SS_SCATTER_ENABLE		1
 
 #define SS_CLK_RATE				300000000 /* 300 MHz */
-#define SS_PLL_CLK				PLL_PERIPH0
+#define SS_RSA_CLK_RATE			200000000 /* 200 MHz, the work clock rate of RSA */
+#define SS_PLL_CLK				PLL_PERIPH0_CLK
 #define SS_FLOW_NUM				4
+#endif
+
+#if defined(CONFIG_ARCH_SUN8IW7)
+#define SS_RSA_PREPROCESS_ENABLE	1
 #endif
 
 #if defined(SS_RSA512_ENABLE) || defined(SS_RSA1024_ENABLE) \
@@ -149,14 +157,21 @@
 #define SS_FLOW_NUM				1
 #endif
 
-#if defined(CONFIG_ARCH_SUN8IW5) || defined(CONFIG_ARCH_SUN8IW8)
+#if defined(CONFIG_ARCH_SUN8IW5)
 #define SS_CLK_RATE				200000000 /* 200 MHz */
 #define SS_PLL_CLK				PLL_PERIPH_CLK
 #define SS_FLOW_NUM				1
 #endif
 
+#if defined(CONFIG_ARCH_SUN8IW8)
+#define SS_CLK_RATE				200000000 /* 200 MHz */
+#define SS_PLL_CLK				PLL_PERIPH0_CLK
+#define SS_FLOW_NUM				1
+#endif
+
 #define SS_PRNG_ENABLE			1
 #define SS_PRNG_SEED_LEN		(192/8) /* 192 bits */
+#define SS_RNG_MAX_LEN			SZ_8K
 
 #define SUNXI_SS_DEV_NAME	"ss"
 
@@ -176,7 +191,7 @@
 #endif
 
 #ifdef CONFIG_EVB_PLATFORM
-#define SS_WAIT_TIME		200	/* 200ms, used in wait_for_completion_timeout() */
+#define SS_WAIT_TIME		2000 /* 2s, used in wait_for_completion_timeout() */
 #else
 #define SS_WAIT_TIME		40000 /* 40s, used in wait_for_completion_timeout() */
 #endif
@@ -197,7 +212,7 @@
 
 typedef struct {
 	dma_addr_t addr;
-	int len; /* in word (4 bytes). Exception: in byte for AES_CTS */
+	u32 len; /* in word (4 bytes). Exception: in byte for AES_CTS */
 } ce_scatter_t;
 
 /* The descriptor of a CE task. */
@@ -222,26 +237,26 @@ typedef struct ce_task_desc {
 #endif
 
 typedef struct {
-	int dir;
+	u32 dir;
+	u32 nents;
 	struct dma_chan *chan;
-	int nents;
 	struct scatterlist *sg;
 #ifdef SS_IDMA_ENABLE
 	struct sg_table sgt_for_cp; /* Used to copy data from/to user space. */
 #endif
 #ifdef SS_SCATTER_ENABLE
-	int  has_padding;
-	char *padding;
-	dma_addr_t original;
+	u32 has_padding;
+	u8 *padding;
+	struct scatterlist *last_sg;
 #endif
 } ss_dma_info_t;
 
 typedef struct {
-	int dir;
-	int type;
-	int mode;
+	u32 dir;
+	u32 type;
+	u32 mode;
 #ifdef SS_CFB_MODE_ENABLE
-	int bitwidth;	/* the bitwidth of CFB mode */
+	u32 bitwidth;	/* the bitwidth of CFB mode */
 #endif
 	struct completion done;
 	ss_dma_info_t dma_src;
@@ -267,9 +282,9 @@ typedef struct {
 #ifdef SS_SCATTER_ENABLE
 	u8  next_iv[AES_MAX_KEY_SIZE];	/* saved the next IV/Counter in continue mode */
 #endif
-	int key_size;
-	int iv_size;
-	int cnt;	/* in Byte */
+	u32 key_size;
+	u32 iv_size;
+	u32 cnt;	/* in Byte */
 } ss_aes_ctx_t;
 
 typedef struct {
@@ -277,8 +292,8 @@ typedef struct {
 
 	u8  md[SS_DIGEST_SIZE];
 	u8  pad[SS_HASH_PAD_SIZE];
-	int md_size;
-	int cnt;	/* in Byte */
+	u32 md_size;
+	u32 cnt;	/* in Byte */
 } ss_hash_ctx_t;
 
 typedef struct {
@@ -292,27 +307,26 @@ typedef struct {
 	ce_task_desc_t task;
 #endif
 	struct completion done;
-	int available;
+	u32 available;
 } ss_flow_t;
 
 typedef struct {
     struct platform_device *pdev;
 	void __iomem *base_addr; /* for register */
-	u32 base_addr_phy;
-
-	struct clk *pclk;  /* PLL clock */
-	struct clk *mclk;  /* module clock */
-	unsigned int irq; /* irq NO. */
-	char dev_name[8];
 
 	ss_flow_t flows[SS_FLOW_NUM];
+
+	u32 base_addr_phy;
+	struct clk *mclk;  /* module clock */
+	u32 irq;
+	s8  dev_name[8];
 
 	struct workqueue_struct *workqueue;
 	struct work_struct work;
 	struct crypto_queue queue;
 	spinlock_t lock;
 
-	int suspend;
+	s32 suspend;
 } sunxi_ss_t;
 
 /* Global variable */
@@ -321,16 +335,11 @@ extern sunxi_ss_t *ss_dev;
 
 /* Inner functions declaration */
 
-void ss_hash_swap(char *data, int len);
 void ss_dev_lock(void);
 void ss_dev_unlock(void);
+void __iomem *ss_membase(void);
 void ss_reset(void);
-
-void print_hex(char *_data, int _len, int _addr);
-void ss_hash_padding_data_prepare(ss_hash_ctx_t *ctx, char *tail, int len);
-void ss_hash_padding_sg_prepare(struct scatterlist *last, int total);
-int ss_hash_padding(ss_hash_ctx_t *ctx, int type);
-int ss_hash_blk_size(int type);
+void ss_clk_set(u32 rate);
 
 #endif /* end of _SUNXI_SECURITY_SYSTEM_H_ */
 

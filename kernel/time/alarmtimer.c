@@ -270,10 +270,87 @@ static int alarmtimer_suspend(struct device *dev)
 		__pm_wakeup_event(ws, 1 * MSEC_PER_SEC);
 	return ret;
 }
+
+static int alarmtimer_resume(struct device *dev)
+{
+        struct rtc_device *rtc;
+        int ret;
+
+        rtc = alarmtimer_get_rtcdev();
+        /* If we have no rtcdev, just return */
+        if (!rtc)
+            return 0;
+        /* Clear the timer in rtc*/
+        ret = rtc_timer_cancel(rtc, &rtctimer);
+        return ret;
+}
+
+static void alarmtimer_shutdown(struct platform_device *dev)
+{
+        struct rtc_time tm;
+        ktime_t min, now;
+        unsigned long flags;
+        struct rtc_device *rtc;
+        int ret;
+        struct alarm_base *base = &alarm_bases[ALARM_REALTIME_SHUTDOWN];
+        // struct alarm_base *base = &alarm_bases[ALARM_BOOTTIME];
+        struct timerqueue_node *next;
+        ktime_t delta;
+
+        spin_lock_irqsave(&freezer_delta_lock, flags);
+        min = freezer_delta;
+        freezer_delta = ktime_set(0, 0);
+        spin_unlock_irqrestore(&freezer_delta_lock, flags);
+
+        rtc = alarmtimer_get_rtcdev();
+        /* If we have no rtcdev, just return */
+        if (!rtc)
+                return;
+
+        /* Find the soonest timer to expire*/
+        spin_lock_irqsave(&base->lock, flags);
+        next = timerqueue_getnext(&base->timerqueue);
+        spin_unlock_irqrestore(&base->lock, flags);
+        if (!next) {
+            printk("[alarmtimer] have no shutdown alarm! %s %d\n", __FUNCTION__, __LINE__);
+            return;
+        }
+        delta = ktime_sub(next->expires, base->gettime());
+        if (!min.tv64 || (delta.tv64 < min.tv64))
+            min = delta;
+
+        /*if the current time is less 50 seconds than the alarm time, the alarm should turn off*/
+        if (ktime_to_ms(min) < 50 * MSEC_PER_SEC) {
+            printk("[alarmtimer] shutdown alarm interval is too short, less than 50s! %s %d\n", __FUNCTION__, __LINE__);
+            return;
+        }
+        /* Setup an rtc timer to fire that far in the future */
+        rtc_timer_cancel(rtc, &rtctimer);
+        rtc_read_time(rtc, &tm);
+        now = rtc_tm_to_ktime(tm);
+        /* make the alarm trigger ahead of the alarm time, because the power on spend about 50s */
+        min = ktime_sub(min, ktime_set(50, 0));
+        printk("[alarmtimer] add shutdown alarm interval=%lldms, %s %d\n", ktime_to_ms(min), __FUNCTION__, __LINE__);
+        now = ktime_add(now, min);
+
+        /* Set alarm, if in the past reject suspend briefly to handle */
+        ret = rtc_timer_start(rtc, &rtctimer, now, ktime_set(0, 0));
+        return;
+}
 #else
 static int alarmtimer_suspend(struct device *dev)
 {
 	return 0;
+}
+
+static int alarmtimer_resume(struct device *dev)
+{
+        return 0;
+}
+
+static void alarmtimer_shutdown(struct platform_device *dev)
+{
+        return 0;
 }
 #endif
 
@@ -767,13 +844,17 @@ out:
 /* Suspend hook structures */
 static const struct dev_pm_ops alarmtimer_pm_ops = {
 	.suspend = alarmtimer_suspend,
+	.resume = alarmtimer_resume,
 };
 
 static struct platform_driver alarmtimer_driver = {
 	.driver = {
 		.name = "alarmtimer",
 		.pm = &alarmtimer_pm_ops,
-	}
+	},
+#ifdef CONFIG_RTC_CLASS
+	.shutdown = alarmtimer_shutdown,
+#endif
 };
 
 /**
@@ -807,6 +888,8 @@ static int __init alarmtimer_init(void)
 	alarm_bases[ALARM_REALTIME].gettime = &ktime_get_real;
 	alarm_bases[ALARM_BOOTTIME].base_clockid = CLOCK_BOOTTIME;
 	alarm_bases[ALARM_BOOTTIME].gettime = &ktime_get_boottime;
+	alarm_bases[ALARM_REALTIME_SHUTDOWN].base_clockid = CLOCK_REALTIME;
+	alarm_bases[ALARM_REALTIME_SHUTDOWN].gettime = &ktime_get_real;
 	for (i = 0; i < ALARM_NUMTYPE; i++) {
 		timerqueue_init_head(&alarm_bases[i].timerqueue);
 		spin_lock_init(&alarm_bases[i].lock);

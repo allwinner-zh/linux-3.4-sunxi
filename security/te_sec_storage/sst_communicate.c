@@ -87,6 +87,7 @@ static int package_cmd(
 	sst_memset(&param[i],0, sizeof(*param));
 	param[i].index = i ;
 	if( cmd->cmd_buf != NULL ){
+		memset(align_cmd_buf,0,SZ_4K);
 		sst_memcpy(align_cmd_buf, cmd->cmd_buf,cmd->cmd_buf_len );
 		param[i].type = TE_PARAM_TYPE_MEM_RO;
 		param[i].u.Mem.base = align_cmd_buf;
@@ -99,6 +100,8 @@ static int package_cmd(
 	sst_memset(&param[i],0, sizeof(*param));
 	param[i].index = i ;
 	if( cmd->resp_buf != NULL ){
+		memset(align_resp_buf,0,SZ_4K);
+		sst_memcpy(align_resp_buf,cmd->resp_buf,cmd->resp_buf_len);
 		param[i].type = (uint32_t)TE_PARAM_TYPE_MEM_RW;
 		param[i].u.Mem.base = align_resp_buf;
 		param[i].u.Mem.phys =(void *)virt_to_phys(align_resp_buf);
@@ -426,7 +429,7 @@ int sst_cmd_update_object(
 		cmd->resp_ret[0]	= -1 ;
 		cmd->status			= SST_STAS_CMD_RDY;
 		
-		if(name != NULL && id == OEM_DATA ){
+		if(name != NULL && type == OEM_DATA ){
 			cmd->resp_buf		= name ;
 			cmd->resp_buf_len	= strnlen(name,64) ;
 		}

@@ -85,6 +85,10 @@
 # define SET_TSC_CTL(a)		(-EINVAL)
 #endif
 
+#ifdef CONFIG_SUNXI_BOOTUP_EXTEND
+extern void sunxi_bootup_extend_fix(unsigned int *cmd);
+#endif
+
 /*
  * this is where the system-wide overflow UID and GID are defined, for
  * architectures that now have 32-bit UID/GID but didn't in the past
@@ -461,6 +465,9 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 		cmd = LINUX_REBOOT_CMD_HALT;
 
 	mutex_lock(&reboot_mutex);
+#ifdef CONFIG_SUNXI_BOOTUP_EXTEND
+    sunxi_bootup_extend_fix(&cmd);
+#endif
 	switch (cmd) {
 	case LINUX_REBOOT_CMD_RESTART:
 		kernel_restart(NULL);
@@ -2041,7 +2048,9 @@ int orderly_poweroff(bool force)
 
 	call_usermodehelper_setfns(info, NULL, argv_cleanup, NULL);
 
-	ret = call_usermodehelper_exec(info, UMH_NO_WAIT);
+	/* the parameters wait UMH_NO_WAIT change to UMH_WAIT_EXEC */
+	/* 20141008 by Ming Li to solve the problem android cannot shutdown*/
+	ret = call_usermodehelper_exec(info, UMH_WAIT_EXEC);
 
   out:
 	if (ret && force) {

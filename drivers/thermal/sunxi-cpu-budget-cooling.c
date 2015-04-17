@@ -69,6 +69,16 @@ static struct cpu_budget_table m_default_budgets_table[]=
     {1,816000,4,816000,1},
 };
 #endif
+#ifdef CONFIG_ARCH_SUN8IW7
+static struct cpu_budget_table m_default_budgets_table[]=
+{
+    {1,1200000 ,4,INVALID_FREQ,0},
+    {1,1008000 ,4,INVALID_FREQ,0},
+    {1,1008000 ,2,INVALID_FREQ,0},
+    {1,1008000 ,1,INVALID_FREQ,0},
+    {1,504000  ,1,INVALID_FREQ,0},
+};
+#endif
 #ifdef CONFIG_ARCH_SUN9IW1
 static struct cpu_budget_table m_default_budgets_table[]=
 {
@@ -470,7 +480,7 @@ static int sunxi_cpu_budget_syscfg_init(void)
                                         &m_syscfg_budgets_table[i].cluster1_freq,
                                         &m_syscfg_budgets_table[i].cluster1_cpunr,
                                         &m_syscfg_budgets_table[i].gpu_throttle);
-#elif defined(CONFIG_ARCH_SUN8IW5) || defined(CONFIG_ARCH_SUN8IW6)
+#elif defined(CONFIG_ARCH_SUN8IW5) || defined(CONFIG_ARCH_SUN8IW6) || defined(CONFIG_ARCH_SUN8IW7)
         num=sscanf(val.str, "%u %u %u %u %u",
                                         &m_syscfg_budgets_table[i].cluster0_freq,
                                         &m_syscfg_budgets_table[i].cluster0_cpunr,

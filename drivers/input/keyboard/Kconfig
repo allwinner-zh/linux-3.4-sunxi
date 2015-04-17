@@ -602,4 +602,11 @@ config KEYPAD_SUNXI
 	help
 		Say Y here to enable the keyboard, support 8x8 keys.
 		based on verify board.
+
+config SUNXI_GPIO_KEY
+	tristate "gpio key for H3 prototype"
+	depends on ARCH_SUN8IW7
+	help
+		Say Y here to enable the gpio key.
+		based on verify board.
 endif

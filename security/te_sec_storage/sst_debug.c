@@ -33,24 +33,19 @@
 #include "sst.h"
 #include "sst_debug.h"
 
-
 void *sst_memcpy(void *dest, const void *src, size_t count) 
 {
-//	printk("[SST memcpy] Src:0x%x, dest:0x%x, count :0x%x \n",
-//			(unsigned int)src, (unsigned int)dest, count);
 	return memcpy(dest,src,count);
 }
 
 void *sst_memset(void *dest,int val,  size_t count) 
 {
-//	printk("[SST memset] dest:0x%x, count :0x%x \n",
-//			 (unsigned int)dest, count);
 	return memset(dest,val,count);
 }
 
 int __data_dump( char * name ,void *data, unsigned int len)
 {
-	if( debug_mask !=0 ){
+	if( sst_debug_mask !=0 ){
 		print_hex_dump_bytes( name, DUMP_PREFIX_OFFSET,
 				data, len);
 	}
@@ -58,7 +53,7 @@ int __data_dump( char * name ,void *data, unsigned int len)
 }
 int __desc_dump(store_desc_t  *desc)
 {
-	if(debug_mask !=0){
+	if(sst_debug_mask !=0){
 
 		fprintk("	->store_desc:\n ");	
 		fprintk("		: type	= 0x%x\n", desc->type);
@@ -71,7 +66,7 @@ int __desc_dump(store_desc_t  *desc)
 
 int __object_dump(store_object_t	*object)
 {	
-	if(debug_mask != 0){
+	if(sst_debug_mask != 0){
 
 		fprintk("	->store_object:\n ");	
 		fprintk("		: magic = 0x%x\n", object->magic);
@@ -85,6 +80,7 @@ int __object_dump(store_object_t	*object)
 		fprintk("		: act_len	= 0x%x\n", object->actual_len );
 		fprintk("		: crc		= 0x%x\n", object->crc );
 		fprintk("		: data 		= 0x%x\n", (u32)object->data );
+		fprintk("		: name 		= %s\n", (u32)object->name );
 
 	}
 	return (0);
@@ -93,7 +89,7 @@ int __object_dump(store_object_t	*object)
 int __oem_map_dump(struct secure_storage_t *sst)
 {
 	
-	if(debug_mask !=0){
+	if(sst_debug_mask !=0){
 		store_map_t		*map ;
 		dprintk("[Dump sst oem map data]:\n ");	
 		list_for_each_entry(map, &sst->oem_list, list){
@@ -110,7 +106,7 @@ int __oem_map_dump(struct secure_storage_t *sst)
 int __sst_map_dump(struct secure_storage_t  *sst)
 {
 	return 0 ;
-	if(debug_mask !=0){
+	if(sst_debug_mask !=0){
 
 		store_map_t		*map ;
 
@@ -133,7 +129,7 @@ int __sst_map_dump(struct secure_storage_t  *sst)
 int __cmd_work_dump( cmd_work_t *cmd )
 {
 
-	if(debug_mask !=0){
+	if(sst_debug_mask !=0){
 
 		dprintk("Dump cmd_work:\n");
 		printk("   ->resp: 0x%x\n",cmd->resp );
@@ -152,7 +148,7 @@ int __cmd_work_dump( cmd_work_t *cmd )
 
 int __command_dump(cmd_t *cmd)
 {
-	if(debug_mask != 0){
+	if(sst_debug_mask != 0){
 
 		fprintk("	->command\n ");	
 
@@ -282,11 +278,12 @@ int sst_test_daemon_kthread(void *data)
 	while(1){
 		msleep(2000);
 		/*OEM type operation*/
-		ret = sst_cmd_func_test("unwrap", "permanet", 0 , NULL);
+		ret = sst_cmd_func_test("oem", "Widevine", 0 , NULL);
 		if(ret != 0 ){
 			derr("-[OEM unwrap] function fail\n");
 			goto fail ;
 		}
+		dprintk("oem Widevine test pass");
 
 		/*USER type operation*/
 		for( i =0 ;i<2 ;i++){

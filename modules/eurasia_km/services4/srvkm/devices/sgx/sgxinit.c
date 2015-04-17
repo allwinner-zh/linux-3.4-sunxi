@@ -2707,7 +2707,7 @@ PVRSRV_ERROR SGXDevInitCompatCheck(PVRSRV_DEVICE_NODE *psDeviceNode)
 
 	/* Clear state (not strictly necessary since this is the first call) */
 	psSGXMiscInfoInt = psMemInfo->pvLinAddrKM;
-	psSGXMiscInfoInt->ui32MiscInfoFlags = 0;
+	psSGXMiscInfoInt->ui32MiscInfoFlags &= ~PVRSRV_USSE_MISCINFO_GET_STRUCT_SIZES;
 	psSGXMiscInfoInt->ui32MiscInfoFlags |= PVRSRV_USSE_MISCINFO_GET_STRUCT_SIZES;
 	eError = SGXGetMiscInfoUkernel(psDevInfo, psDeviceNode, IMG_NULL);
 
@@ -2948,10 +2948,8 @@ PVRSRV_ERROR SGXGetMiscInfoKM(PVRSRV_SGXDEV_INFO	*psDevInfo,
 {
 	PVRSRV_ERROR eError;
 	PPVRSRV_KERNEL_MEM_INFO	psMemInfo = psDevInfo->psKernelSGXMiscMemInfo;
-	IMG_UINT32	*pui32MiscInfoFlags = &((PVRSRV_SGX_MISCINFO_INFO*)(psMemInfo->pvLinAddrKM))->ui32MiscInfoFlags;
-
-	/* Reset the misc info state flags */
-	*pui32MiscInfoFlags = 0;
+	IMG_UINT32	*pui32MiscInfoFlags;
+	pui32MiscInfoFlags = &((PVRSRV_SGX_MISCINFO_INFO*)(psMemInfo->pvLinAddrKM))->ui32MiscInfoFlags;
 
 #if !defined(SUPPORT_SGX_EDM_MEMORY_DEBUG)
 	PVR_UNREFERENCED_PARAMETER(hDevMemContext);
@@ -3360,6 +3358,7 @@ PVRSRV_ERROR SGXGetMiscInfoKM(PVRSRV_SGXDEV_INFO	*psDevInfo,
 			PVRSRV_SGX_MISCINFO_MEMACCESS		*psSGXMemDest;	/* user-defined mem write */
 
 			{				
+				*pui32MiscInfoFlags &= ~PVRSRV_USSE_MISCINFO_MEMREAD;
 				/* Set the mem read flag; src is user-defined */
 				*pui32MiscInfoFlags |= PVRSRV_USSE_MISCINFO_MEMREAD;
 				psSGXMemSrc = &((PVRSRV_SGX_MISCINFO_INFO*)(psMemInfo->pvLinAddrKM))->sSGXMemAccessSrc;
@@ -3376,6 +3375,7 @@ PVRSRV_ERROR SGXGetMiscInfoKM(PVRSRV_SGXDEV_INFO	*psDevInfo,
 
 			if( psMiscInfo->eRequest == SGX_MISC_INFO_REQUEST_MEMCOPY)
 			{				
+				*pui32MiscInfoFlags &= ~PVRSRV_USSE_MISCINFO_MEMWRITE;
 				/* Set the mem write flag; dest is user-defined */
 				*pui32MiscInfoFlags |= PVRSRV_USSE_MISCINFO_MEMWRITE;
 				psSGXMemDest = &((PVRSRV_SGX_MISCINFO_INFO*)(psMemInfo->pvLinAddrKM))->sSGXMemAccessDest;

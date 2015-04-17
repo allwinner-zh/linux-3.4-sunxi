@@ -40,6 +40,8 @@ char *op_name_from_perf_id(void)
 		return "arm/armv7";
 	case ARM_PERF_PMU_ID_CA9:
 		return "arm/armv7-ca9";
+	case ARM_PERF_PMU_ID_CA7:
+		return "arm/armv7-ca7";
 	default:
 		return NULL;
 	}

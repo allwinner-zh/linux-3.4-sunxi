@@ -13,6 +13,7 @@
 #include "../axp-cfg.h"
 #include "axp20-sply.h"
 #include <linux/mfd/axp-mfd.h>
+int use_cou = 0;
 
 void axp20_power_off(int power_start)
 {
@@ -51,23 +52,21 @@ void axp20_power_off(int power_start)
 		axp_update(axp->dev, POWER20_VOFF_SET, val, 0x7);
 	}
 	val = 0xff;
-	#if 0
 	if (!use_cou){
-		axp_read(&axp->dev, POWER20_COULOMB_CTL, &val);
+		axp_read(axp->dev, POWER20_COULOMB_CTL, &val);
 		val &= 0x3f;
-		axp_write(&axp->dev, POWER20_COULOMB_CTL, val);
+		axp_write(axp->dev, POWER20_COULOMB_CTL, val);
 		val |= 0x80;
 		val &= 0xbf;
-		axp_write(&axp->dev, POWER20_COULOMB_CTL, val);
+		axp_write(axp->dev, POWER20_COULOMB_CTL, val);
 	}
-	#endif
 	//led auto
 	axp_clr_bits(axp->dev,0x32,0x38);
 	axp_clr_bits(axp->dev,0xb9,0x80);
 
 	printk("[axp] send power-off command!\n");
 	mdelay(20);
-	if(power_start != 1){
+	if(axp20_config.power_start != 1){
 		axp_write(axp->dev, POWER20_INTSTS3, 0x03);
 		axp_read(axp->dev, POWER20_STATUS, &val);
 		if(val & 0xF0){

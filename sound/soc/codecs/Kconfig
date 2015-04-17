@@ -442,16 +442,22 @@ config SND_SOC_MAX9877
 config SND_SOC_TPA6130A2
 	tristate
 
-
 config SND_SOC_AC100_CODEC
 	tristate "SUNXI AudioCodec AC100"
-	depends on ARCH_SUN8IW6 || ARCH_SUN9IW1
+	depends on ARCH_SUN9IW1 && MFD_AC100
 	default n
 	help
 	  Say Y or M if you want to add support for AC100 audiocodec.
+
 config SND_SOC_AC100DAPM_CODEC
 	tristate "SUNXI AudioCodec AC100 DAPM"
-	depends on ARCH_SUN8IW6
+	depends on MFD_AC100 && ARCH_SUN8IW6
 	default n
 	help
 	  Say Y or M if you want to add support for AC100 audiocodec.
+
+config SND_SOC_AC200DAPM_CODEC
+	tristate "SUNXI AudioCodec AC200 DAPM"
+	depends on MFD_AC200
+	help
+	 support for AC200 codec.

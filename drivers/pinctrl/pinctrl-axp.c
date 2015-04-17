@@ -42,7 +42,6 @@
 
 #define MODULE_NAME "axp-pinctrl"
 
-
 static const struct axp_desc_pin axp_pins[] = {
 	AXP_PIN_DESC(AXP_PINCTRL_GPIO0,
 		     AXP_FUNCTION(0x0, "gpio_in"),
@@ -420,6 +419,60 @@ static int axp_pmx_set(int gpio, int mux)
 	}
 	return -ENXIO;
 }
+
+static int axp_pmx_get(int gpio)
+{
+	struct axp_dev *axp = NULL;
+	uint8_t data;
+
+#ifdef CONFIG_AW_AXP22
+	axp = axp_dev_lookup(AXP22);
+#elif defined(CONFIG_AW_AXP81X)
+	axp = axp_dev_lookup(AXP81X);
+#endif
+
+	if (NULL == axp) {
+		printk("%s: %d axp data is null\n", __func__, __LINE__);
+		return -ENXIO;
+	}
+
+	switch(gpio){
+	case 0:
+		axp_read(axp->dev, AXP_GPIO0_CFG, &data);
+		if (0 == (data & 0x06))
+			return 1;
+		else if (0x02 == (data & 0x07))
+			return 0;
+		else
+			return -ENXIO;
+	case 1:
+		axp_read(axp->dev, AXP_GPIO1_CFG, &data);
+		if (0 == (data & 0x06))
+			return 1;
+		else if (0x02 == (data & 0x07))
+			return 0;
+		else
+			return -ENXIO;
+	case 2:
+		return 1;
+	case 3:
+		axp_read(axp->dev, AXP_GPIO3_CFG, &data);
+		if (0 == (data & 0x08))
+			return 1;
+		else
+			return 0;
+	case 4:
+		axp_read(axp->dev, AXP_GPIO4_CFG, &data);
+		if (0 == (data & 0x10))
+			return 1;
+		else
+			return 0;
+	case 5:
+		return 1;
+	default:return -ENXIO;
+	}
+	return -ENXIO;
+}
 #endif
 
 static int axp_gpio_request(struct gpio_chip *chip, unsigned offset)
@@ -642,6 +695,12 @@ static int axp_pinconf_get(struct pinctrl_dev *pctldev,
                pr_debug("axp pconf get pin [%s] data [%d]\n",
 		         pin_get_name(pctl->pctl_dev, pin), data); 
 		break;
+	case SUNXI_PINCFG_TYPE_FUNC:
+		data = axp_pmx_get(pin);
+		*config = SUNXI_PINCFG_PACK(SUNXI_PINCFG_TYPE_FUNC, data);
+               pr_debug("axp pconf get pin [%s] funcs [%d]\n",
+		         pin_get_name(pctl->pctl_dev, pin), data);
+		break;
 	default:
                pr_debug("invalid axp pconf type for get\n");
 		return -EINVAL;      
@@ -654,7 +713,8 @@ static int axp_pinconf_set(struct pinctrl_dev *pctldev,
 			   unsigned long config)
 {
 	struct axp_pinctrl *pctl = pinctrl_dev_get_drvdata(pctldev);
-	int                 data;
+	int                  data;
+	int                  func;
 	
 	switch (SUNXI_PINCFG_UNPACK_TYPE(config)) {
 	case SUNXI_PINCFG_TYPE_DAT:
@@ -663,6 +723,12 @@ static int axp_pinconf_set(struct pinctrl_dev *pctldev,
                pr_debug("axp pconf set pin [%s] data to [%d]\n",
 		         pin_get_name(pctl->pctl_dev, pin), data);
 		break;
+	case SUNXI_PINCFG_TYPE_FUNC:
+		func = SUNXI_PINCFG_UNPACK_VALUE(config);
+		axp_pmx_set(pin, func);
+               pr_debug("axp pconf set pin [%s] func to [%d]\n",
+		         pin_get_name(pctl->pctl_dev, pin), func);
+	       break;
 	default:
                pr_debug("invalid axp pconf type for set\n");
 		return -EINVAL;      
@@ -942,8 +1008,8 @@ static int axp_pinctrl_parse_pin_cfg(struct platform_device *pdev)
 		for (pin_index = 0; pin_index < pin_count; pin_index++) {
 			/* convert struct sunxi_pin_cfg to struct pinctrl_map */
 			map_index += axp_pin_cfg_to_pin_map(pdev,
-			             	&(pin_list[pin_index].gpio), 
-			             	&(maps[map_index]), 
+					&(pin_list[pin_index].gpio),
+					&(maps[map_index]),
 			             	mainkey_name);
 		}
 		if (map_index) {

@@ -28,8 +28,12 @@ typedef struct {
 	atomic_t di_complete;
 	atomic_t enable;
 	wait_queue_head_t wait;
-	char * in_flag;
-	char * out_flag;
+	void * in_flag;
+	void * out_flag;
+	u32 mode;
+	unsigned int in_flag_phy;
+	unsigned int out_flag_phy;
+	unsigned int flag_size;
 #ifdef CONFIG_PM
 	struct dev_pm_domain di_pm_domain;
 #endif

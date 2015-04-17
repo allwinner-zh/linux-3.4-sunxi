@@ -3817,11 +3817,11 @@ static PVRSRV_ERROR DoModifyCompleteSyncOps(MODIFY_SYNC_OP_INFO *psModSyncOpInfo
 		psKernelSyncInfo->psSyncData->ui32ReadOpsComplete++;
 	}
 
-       /* update the ROp2Complete */
-       if(psModSyncOpInfo->ui32ModifyFlags & PVRSRV_MODIFYSYNCOPS_FLAGS_RO2_INC)
-       {
-               psKernelSyncInfo->psSyncData->ui32ReadOps2Complete++;
-       }
+	/* update the ROp2Complete */
+	if(psModSyncOpInfo->ui32ModifyFlags & PVRSRV_MODIFYSYNCOPS_FLAGS_RO2_INC)
+	{
+		psKernelSyncInfo->psSyncData->ui32ReadOps2Complete++;
+	}
 
 	PVR_TTRACE(PVRSRV_TRACE_GROUP_MODOBJ, PVRSRV_TRACE_CLASS_CMD_COMP_START, MODOBJ_TOKEN_COMPLETE_PENDING);
 	PVR_TTRACE_SYNC_OBJECT(PVRSRV_TRACE_GROUP_MODOBJ, MODOBJ_TOKEN_SYNC_UPDATE,
@@ -4052,17 +4052,17 @@ PVRSRVModifyPendingSyncOpsBW(IMG_UINT32									ui32BridgeID,
 	}
 	else if (psModifySyncOpsIN->ui32ModifyFlags & PVRSRV_MODIFYSYNCOPS_FLAGS_RO_INC)
 	{
-               PVR_TTRACE_SYNC_OBJECT(PVRSRV_TRACE_GROUP_MODOBJ, MODOBJ_TOKEN_READ_SYNC,
-                                               psKernelSyncInfo, PVRSRV_SYNCOP_SAMPLE);
-       }
-       else if (psModifySyncOpsIN->ui32ModifyFlags & PVRSRV_MODIFYSYNCOPS_FLAGS_RO2_INC)
-       {
-               PVR_TTRACE_SYNC_OBJECT(PVRSRV_TRACE_GROUP_MODOBJ, MODOBJ_TOKEN_READ2_SYNC,
+		PVR_TTRACE_SYNC_OBJECT(PVRSRV_TRACE_GROUP_MODOBJ, MODOBJ_TOKEN_READ_SYNC,
+						psKernelSyncInfo, PVRSRV_SYNCOP_SAMPLE);
+	}
+	else if (psModifySyncOpsIN->ui32ModifyFlags & PVRSRV_MODIFYSYNCOPS_FLAGS_RO2_INC)
+	{
+		PVR_TTRACE_SYNC_OBJECT(PVRSRV_TRACE_GROUP_MODOBJ, MODOBJ_TOKEN_READ2_SYNC,
 						psKernelSyncInfo, PVRSRV_SYNCOP_SAMPLE);
 	}
 	else
 	{
-               PVR_TTRACE_SYNC_OBJECT(PVRSRV_TRACE_GROUP_MODOBJ, MODOBJ_TOKEN_READ_WRITE_SYNC,
+		PVR_TTRACE_SYNC_OBJECT(PVRSRV_TRACE_GROUP_MODOBJ, MODOBJ_TOKEN_READ_WRITE_SYNC,
 						psKernelSyncInfo, PVRSRV_SYNCOP_SAMPLE);
 	}
 	PVR_TTRACE(PVRSRV_TRACE_GROUP_MODOBJ, PVRSRV_TRACE_CLASS_CMD_END, MODOBJ_TOKEN_MODIFY_PENDING);
@@ -4077,10 +4077,10 @@ PVRSRVModifyPendingSyncOpsBW(IMG_UINT32									ui32BridgeID,
 		SyncTakeReadOp(psKernelSyncInfo, SYNC_OP_CLASS_MODOBJ);
 	}
 
-       if(psModifySyncOpsIN->ui32ModifyFlags & PVRSRV_MODIFYSYNCOPS_FLAGS_RO2_INC)
-       {
-               SyncTakeReadOp2(psKernelSyncInfo, SYNC_OP_CLASS_MODOBJ);
-       }
+	if(psModifySyncOpsIN->ui32ModifyFlags & PVRSRV_MODIFYSYNCOPS_FLAGS_RO2_INC)
+	{
+		SyncTakeReadOp2(psKernelSyncInfo, SYNC_OP_CLASS_MODOBJ);
+	}
 
 	/* pull the resman item to the front of the list */
 	psModifySyncOpsOUT->eError = ResManDissociateRes(psModSyncOpInfo->hResItem,

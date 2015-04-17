@@ -1,7 +1,12 @@
 #ifndef __DI_EBIOS_DATA_H__
 #define __DI_EBIOS_DATA_H__
 
-unsigned int lan3coefftab32_left[256] = {
+#ifdef CONFIG_ARCH_SUN8IW7
+#define SCALE_NO_SUPPORT
+#endif
+#if (defined CONFIG_ARCH_SUN9IW1)
+
+static unsigned int lan3coefftab32_left[256] = {
 	0x40000000,0x40fe0000,0x3ffd0100,0x3efc0100,
 	0x3efb0100,0x3dfa0200,0x3cf90200,0x3bf80200,
 	0x39f70200,0x37f70200,0x35f70200,0x33f70200,
@@ -76,7 +81,7 @@ unsigned int lan3coefftab32_left[256] = {
 
 };
 
-unsigned int lan3coefftab32_right[256] = {
+static unsigned int lan3coefftab32_right[256] = {
 
 	0x00000000,0x00000002,0x0000ff04,0x0000ff06,
 	0x0000fe08,0x0000fd0a,0x0000fd0c,0x0000fc0f,
@@ -150,10 +155,10 @@ unsigned int lan3coefftab32_right[256] = {
 	0x00050d13,0x00050d14,0x00050e13,0x01050e13,
 	0x01060e13,0x01060e13,0x01060e14,0x01060f13
 };
+#endif /*if defined CONFIG_ARCH_SUN9IW1 */
 
-
-
-unsigned int lan2coefftab32[256] = {
+#ifndef SCALE_NO_SUPPORT
+static unsigned int lan2coefftab32[256] = {
 	0x00004000,0x000140ff,0x00033ffe,0x00043ffd,0x00063efc,0xff083dfc,0x000a3bfb,0xff0d39fb,
 	0xff0f37fb,0xff1136fa,0xfe1433fb,0xfe1631fb,0xfd192ffb,0xfd1c2cfb,0xfd1f29fb,0xfc2127fc,
 	0xfc2424fc,0xfc2721fc,0xfb291ffd,0xfb2c1cfd,0xfb2f19fd,0xfb3116fe,0xfb3314fe,0xfa3611ff,
@@ -195,8 +200,10 @@ unsigned int lan2coefftab32[256] = {
 	0x0b1c1603,0x0c1c1503,0x0d1c1502,0x0d1d1402,0x0e1d1401,0x0f1d1301,0x0f1d1301,0x101e1200,
 
 };
+#endif
 
-unsigned int bicubic8coefftab32_left[256] = {
+#if (defined CONFIG_ARCH_SUN9IW1)
+static unsigned int bicubic8coefftab32_left[256] = {
 
 	0x40000000,0x40ff0000,0x3ffe0000,0x3efe0000,
 	0x3dfd0000,0x3cfc0000,0x3bfc0000,0x39fc0000,
@@ -271,7 +278,7 @@ unsigned int bicubic8coefftab32_left[256] = {
 	0x0f0903ff,0x0f0902ff,0x0f0902ff,0x0f0802ff
 
 };
-unsigned int bicubic8coefftab32_right[256] = {
+static unsigned int bicubic8coefftab32_right[256] = {
 
 	0x00000000,0x00000001,0x00000003,0x00000004,
 	0x00000006,0x0000ff09,0x0000ff0a,0x0000ff0c,
@@ -346,8 +353,10 @@ unsigned int bicubic8coefftab32_right[256] = {
 	0x00070e11,0x00070e12,0x00080e11,0x00080e12
 
 };
+#endif /* if defined CONFIG_ARCH_SUN9IW1 */
 
-unsigned int bicubic4coefftab32[256] = {
+#ifndef SCALE_NO_SUPPORT
+static unsigned int bicubic4coefftab32[256] = {
     0x00004000,0x000140ff,0x00033ffe,0x00043ffd,0x00063dfd,0xff083dfc,0xff0a3bfc,0xff0c39fc,
     0xff0e37fc,0xfe1136fb,0xfe1433fb,0xfe1631fb,0xfd192ffb,0xfd1c2cfb,0xfd1e29fc,0xfc2127fc,
     0xfc2424fc,0xfc2721fc,0xfc291efd,0xfb2c1cfd,0xfb2f19fd,0xfb3116fe,0xfb3314fe,0xfb3611fe,
@@ -389,4 +398,5 @@ unsigned int bicubic4coefftab32[256] = {
     0x0f12120d,0x0f12110e,0x0f12110e,0x0f12110e,0x1012110d,0x1012110d,0x1013110c,0x1013110c,
 
 };
+#endif
 #endif

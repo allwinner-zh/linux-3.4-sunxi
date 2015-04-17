@@ -515,7 +515,10 @@
 #define  DACA_CHND_ENA		7
 #define HPPA_MXRD_ENA		6
 #define HPVL_CTRL_OUT		0
-
+struct spk_gpio {
+	u32 gpio;
+	bool used;
+};
 //#define AC100_DEBG
 #ifdef AC100_DEBG
     #define AC100_DBG(format,args...)  printk("[AC100] "format,##args)

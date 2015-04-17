@@ -23,16 +23,15 @@
 #endif
 
 #define DRIVER_NAME "sunxi-mmc"
-#define DRIVER_RIVISION "v1.93 2014-09-04 10:10"
+#define DRIVER_RIVISION "v1.110 2015-2-2 13:53"
 #define DRIVER_VERSION "SD/MMC/SDIO Host Controller Driver(" DRIVER_RIVISION ")" \
 			" Compiled in " __DATE__ " at " __TIME__""
 
 /*========== platform define ==========*/
-/*---------- for sun8iw1 and sun8iw3 and sun8iw5 and sun8iw6 ----------*/
+/*---------- for sun8iw1 and sun8iw3 ----------*/
 #if defined CONFIG_ARCH_SUN8IW1 || defined CONFIG_ARCH_SUN8IW3
 #define REG_FIFO_OS	(0x200)
 #define SMC_IRQNO(x)	(SUNXI_IRQ_MMC0 + (x))
-
 
 #define MMC_SRCCLK_HOSC   "hosc"
 #define MMC_SRCCLK_PLL   "pll6"
@@ -100,19 +99,44 @@
 #endif
 #endif
 
-/*---------- for sun8iw5 sun8iw6 sun8iw7----------*/
-#if defined CONFIG_ARCH_SUN8IW5 || defined CONFIG_ARCH_SUN8IW6 \
-	|| defined (CONFIG_ARCH_SUN8IW7)
+/*---------- for sun8iw5 sun8iw6 ----------*/
+#if defined CONFIG_ARCH_SUN8IW5 || defined CONFIG_ARCH_SUN8IW6
+
+#if defined CONFIG_ARCH_SUN8IW6
+//secure storage relate
+#define MAX_SECURE_STORAGE_MAX_ITEM			32
+#define SDMMC_SECURE_STORAGE_START_ADD	(6*1024*1024/512)//6M
+#define SDMMC_ITEM_SIZE									(4*1024/512)//4K
+#endif
+
 #define REG_FIFO_OS	(0x200)
 #define SMC_IRQNO(x)	(SUNXI_IRQ_MMC0 + (x))
 
+#define MMC_SRCCLK_HOSC   "hosc"
+#define MMC_SRCCLK_PLL   "pll_periph"
+#define MMC_2MOD_CLK     "sdmmc2mod"
+
+#define	SUNXI_CCM_BASE	 	0x01c20000
+#define SUNXI_PIO_BASE		0x01c20800
+
+#define MMC_MODCLK_PREFIX "sdmmc"
+#define MMC3_DMA_TL       (0x2007000f)
+
+#ifdef MMC_FPGA
+#undef SMC_IRQNO
+#define SMC_IRQNO(x)	((x) & 2 ? SUNXI_IRQ_MMC2 : SUNXI_IRQ_MMC0)
+#define SMC_FPGA_MMC_PREUSED(x)	((x) == 2 || (x) == 0)
+#endif
+#endif
+
+/*---------- for sun8iw7----------*/
+#if defined (CONFIG_ARCH_SUN8IW7)
+#define REG_FIFO_OS	(0x200)
+#define SMC_IRQNO(x)	(SUNXI_IRQ_MMC0 + (x))
 
 #define MMC_SRCCLK_HOSC   "hosc"
-#if defined (CONFIG_ARCH_SUN8IW7)
-#define MMC_SRCCLK_PLL   "pll_periph0"
-#else
-#define MMC_SRCCLK_PLL   "pll_periph"
-#endif
+#define MMC_SRCCLK_PLL   "pll_periph1" //"pll_periph0"
+#define MMC_1MOD_CLK     "sdmmc1mod"
 #define MMC_2MOD_CLK     "sdmmc2mod"
 
 #define	SUNXI_CCM_BASE	 	0x01c20000
@@ -133,9 +157,8 @@
 #define REG_FIFO_OS	(0x200)
 #define SMC_IRQNO(x)	(SUNXI_IRQ_MMC0 + (x))
 
-
 #define MMC_SRCCLK_HOSC   "hosc"
-#define MMC_SRCCLK_PLL   "pll_periph"
+#define MMC_SRCCLK_PLL   "pll_periph0"
 #define MMC_2MOD_CLK     "sdmmc2mod"
 
 #define	SUNXI_CCM_BASE	 	0x01c20000
@@ -157,7 +180,6 @@
 #define REG_FIFO_OS	(0x200)
 #define SMC_IRQNO(x)	(SUNXI_IRQ_MMC0 + (x))
 
-
 #define MMC_SRCCLK_HOSC   "hosc"
 #define MMC_SRCCLK_PLL   "pll_periph1"  //"pll_periph0"
 #define MMC_2MOD_CLK     "sdmmc2mod"
@@ -173,7 +195,6 @@
 #define SMC_IRQNO(x)	((x) & 2 ? SUNXI_IRQ_MMC2 : SUNXI_IRQ_MMC0)
 #define SMC_FPGA_MMC_PREUSED(x)	((x) == 2 || (x) == 0)
 #endif
-
 #endif
 
 
@@ -381,6 +402,8 @@ struct sunxi_mmc_ctrl_regs {
 	u32 funcsel;
 	u32 debugc;
 	u32 idmacc;
+	u32 ntsr;
+	
 };
 
 /* UHS-I Operation Modes
@@ -441,6 +464,7 @@ struct sunxi_mmc_platform_data {
 	u32 ocr_avail;
 	u32 caps;
 	u32 caps2;
+	u32 platform_cap;
 	u32 f_min;
 	u32 f_max;
 	u32 f_ddr_max;
@@ -449,7 +473,7 @@ struct sunxi_mmc_platform_data {
 	char* power_supply;
 #if defined(CONFIG_ARCH_SUN8IW5P1) || defined(CONFIG_ARCH_SUN8IW6P1) \
 		||defined(CONFIG_ARCH_SUN8IW8P1) || defined(CONFIG_ARCH_SUN8IW7P1) \
-		|| defined(CONFIG_ARCH_SUN8IW9P1) 
+		|| defined(CONFIG_ARCH_SUN8IW9P1)
 	u32  used_2xmod;
 	u32  used_ddrmode;
 #endif
@@ -546,7 +570,7 @@ struct sunxi_mmc_host {
 #define CARD_ALWAYS_PRESENT      (3)	/* mmc always present, without detect pin */
 #define CARD_DETECT_BY_FS        (4)	/* mmc insert/remove by fs, /proc/sunxi-mmc.x/insert node */
 #define CARD_DETECT_BY_D3				 (5)	/* mmc detected by data3*/
-
+#define CARD_DETECT_BY_GPIO_IRQ_UP	(6)	//hp t-card detect
 	u32 power_on:8;
 	u32 read_only:8;
 	u32 io_flag:8;

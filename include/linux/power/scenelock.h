@@ -88,7 +88,7 @@ typedef struct extended_standby_manager{
 	unsigned long wakeup_gpio_group;
 }extended_standby_manager_t;
 
-#ifdef CONFIG_ARCH_SUN8IW6P1
+#if defined(CONFIG_ARCH_SUN8IW6P1) || defined(CONFIG_ARCH_SUN8IW8P1)
 typedef struct scene_extended_standby {
 	/*
 	 * scene type of extended standby
@@ -101,6 +101,7 @@ typedef struct scene_extended_standby {
 
 	struct list_head list; /* list of all extended standby */
 } scene_extended_standby_t;
+int extended_standby_set_pmu_id(unsigned int num, unsigned int pmu_id);
 #else
 typedef struct scene_extended_standby {
 	extended_standby_t extended_standby_data;
@@ -155,7 +156,10 @@ int disable_wakeup_src(cpu_wakeup_src_e src, int para);
 int check_wakeup_state(cpu_wakeup_src_e src, int para);
 
 int standby_show_state(void);
-
+#if (defined(CONFIG_ARCH_SUN8IW8P1) || defined(CONFIG_ARCH_SUN8IW6P1))
+int scene_set_volt(aw_power_scene_e scene_type, unsigned int bitmap,
+        unsigned int volt_value);
+#endif
 #else
 
 static inline void scene_lock_init(struct scene_lock *lock, int type,
@@ -171,7 +175,10 @@ static inline int enable_wakeup_src(cpu_wakeup_src_e src, int para) { return 0; 
 static inline int disable_wakeup_src(cpu_wakeup_src_e src, int para) { return 0; }
 static inline int check_wakeup_state(cpu_wakeup_src_e src, int para) { return 0; }
 static inline int standby_show_state(void) { return 0; }
-
+#if (defined(CONFIG_ARCH_SUN8IW8P1) || defined(CONFIG_ARCH_SUN8IW6P1))
+static inline int scene_set_volt(aw_power_scene_e scene_type, unsigned int bitmap,
+        unsigned int volt_value) { return 0; };
+#endif
 #endif
 
 #endif

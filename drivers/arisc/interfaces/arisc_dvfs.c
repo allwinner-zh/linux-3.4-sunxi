@@ -23,7 +23,6 @@
 #include "../arisc_i.h"
 #include <mach/sys_config.h>
 
-/* sun8iw7 not support arisc dvfs */
 typedef struct arisc_freq_voltage
 {
 	u32 freq;       //cpu frequency
@@ -31,7 +30,6 @@ typedef struct arisc_freq_voltage
 	u32 axi_div;    //the divide ratio of axi bus
 } arisc_freq_voltage_t;
 
-#ifndef CONFIG_ARCH_SUN8IW7P1
 static int arisc_dvfs_get_cfg(char *main, char *sub, u32 *val)
 {
 	script_item_u script_val;
@@ -45,10 +43,10 @@ static int arisc_dvfs_get_cfg(char *main, char *sub, u32 *val)
 	ARISC_INF("arisc dvfs config [%s] [%s] : %d\n", main, sub, *val);
 	return 0;
 }
-#endif
 
 //cpu voltage-freq table
-#if (defined CONFIG_ARCH_SUN8IW1P1) || (defined CONFIG_ARCH_SUN8IW3P1) || (defined CONFIG_ARCH_SUN8IW5P1)
+#if (defined CONFIG_ARCH_SUN8IW1P1) || (defined CONFIG_ARCH_SUN8IW3P1) || (defined CONFIG_ARCH_SUN8IW5P1) || \
+    (defined CONFIG_ARCH_SUN8IW7P1)
 static struct arisc_freq_voltage arisc_vf_table[ARISC_DVFS_VF_TABLE_MAX] =
 {
 	//freq          //voltage   //axi_div
@@ -114,7 +112,8 @@ static struct arisc_freq_voltage arisc_vf_table[2][ARISC_DVFS_VF_TABLE_MAX] =
 };
 #endif
 
-#if (defined CONFIG_ARCH_SUN8IW1P1) || (defined CONFIG_ARCH_SUN8IW3P1) || (defined CONFIG_ARCH_SUN8IW5P1)
+#if (defined CONFIG_ARCH_SUN8IW1P1) || (defined CONFIG_ARCH_SUN8IW3P1) || (defined CONFIG_ARCH_SUN8IW5P1) || \
+    (defined CONFIG_ARCH_SUN8IW7P1)
 int arisc_dvfs_cfg_vf_table(void)
 {
 	u32    value = 0;
@@ -128,6 +127,16 @@ int arisc_dvfs_cfg_vf_table(void)
 	u32    is_def_table = 0;
 	spinlock_t    dvfs_lock;    /* spinlock for dvfs */
 	unsigned long dvfs_flag;
+#if (defined CONFIG_ARCH_SUN8IW7P1)
+	script_item_u script_val;
+	script_item_value_type_e type;
+	script_item_u *pin_list;
+	int pin_count = 0;
+	int pin_index = 0;
+	struct gpio_config *pin_cfg;
+	char pin_name[SUNXI_PIN_NAME_MAX_LEN];
+	unsigned long config;
+#endif
 
 	/* initialize message manager spinlock */
 	spin_lock_init(&(dvfs_lock));
@@ -206,6 +215,84 @@ int arisc_dvfs_cfg_vf_table(void)
 			break;
 		}
 	}
+#if (defined CONFIG_ARCH_SUN8IW7P1)
+/* [pmuic_type]:0~2, 0:none, 1:gpio, 2:i2c
+ * [gpio0_cfg ]:bit0~15:gpio num, bit16:used
+ * [gpio1_cfg ]:bit0~15:gpio num, bit16:used
+ * [pmu_level0]:bit0~15:voltage(mV), bit16~19:gpio0 state, bit20~23:gpio1 state
+ * [pmu_level1]:bit0~15:voltage(mV), bit16~19:gpio0 state, bit20~23:gpio1 state
+ * [pmu_level2]:bit0~15:voltage(mV), bit16~19:gpio0 state, bit20~23:gpio1 state
+ * [pmu_level3]:bit0~15:voltage(mV), bit16~19:gpio0 state, bit20~23:gpio1 state
+ */
+#define GPIO_USED_CFG(x) ((x) | (1<<16))
+#define VOL_LEVEL_CFG(x) ((x)%10000) | ((((x)/10000)%10)<<16) | ((((x)/100000)%10)<<20)
+
+	/* get pmuic type */
+	type = script_get_item("dvfs_table", "pmuic_type", &script_val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+		ARISC_ERR("arisc dvfs config err! type:%d\n", type);
+		return -EINVAL;
+	}
+	pmessage->paras[0] = script_val.val;
+
+	if (pmessage->paras[0] != 1) /* not gpio pmu */
+		goto out;
+
+	/* get gpio config */
+	pmessage->paras[1] = 0;
+	pmessage->paras[2] = 0;
+	pin_count = script_get_pio_list ("dvfs_table", &pin_list);
+	for (pin_index = 0; pin_index < pin_count; pin_index++) {
+		pin_cfg = &(pin_list[pin_index].gpio);
+		sunxi_gpio_to_name(pin_cfg->gpio, pin_name);
+		config = SUNXI_PINCFG_PACK(SUNXI_PINCFG_TYPE_FUNC, pin_cfg->mul_sel);
+		pin_config_set(SUNXI_PINCTRL, pin_name, config);
+		if (pin_cfg->pull != GPIO_PULL_DEFAULT) {
+			config = SUNXI_PINCFG_PACK(SUNXI_PINCFG_TYPE_PUD, pin_cfg->pull);
+			pin_config_set (SUNXI_PINCTRL, pin_name, config);
+		}
+		if (pin_cfg->drv_level != GPIO_DRVLVL_DEFAULT) {
+			config = SUNXI_PINCFG_PACK(SUNXI_PINCFG_TYPE_DRV, pin_cfg->drv_level);
+			pin_config_set (SUNXI_PINCTRL, pin_name, config);
+		}
+		if (pin_cfg->data != GPIO_DATA_DEFAULT) {
+			config = SUNXI_PINCFG_PACK(SUNXI_PINCFG_TYPE_DAT, pin_cfg->data);
+			pin_config_set (SUNXI_PINCTRL, pin_name, config);
+		}
+		/* NOTE: only used PL, the gpio group info. is discard */
+		pmessage->paras[1 + pin_index] = GPIO_USED_CFG((pin_cfg->gpio) % SUNXI_BANK_SIZE);
+		ARISC_INF("%s,%d,id:%d,num:%d,reg:%x\n", __func__, __LINE__, pin_index, \
+		          pin_cfg->gpio, pmessage->paras[1 + pin_index]);
+	}
+
+	if (pin_count < 2) /* only gpio0 used */
+		vf_table_size = 2;
+	else
+		vf_table_size = 4;
+
+	for (index = 0; index < vf_table_size; index++) {
+		sprintf(vf_table_sub_key, "pmu_level%d", index);
+		type = script_get_item(vf_table_main_key, vf_table_sub_key, &script_val);
+		if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+			ARISC_ERR("arisc dvfs config err! type:%d\n", type);
+			return -EINVAL;
+		}
+		pmessage->paras[3 + index] = VOL_LEVEL_CFG(script_val.val);
+	}
+
+out:
+	pmessage->type       = ARISC_CPUX_DVFS_CFG_REQ;
+	pmessage->state      = ARISC_MESSAGE_INITIALIZED;
+	pmessage->cb.handler = NULL;
+	pmessage->cb.arg     = NULL;
+
+	arisc_hwmsgbox_send_message(pmessage, ARISC_SEND_MSG_TIMEOUT);
+
+	if (pmessage->result) {
+		ARISC_WRN("config dvfs cfg fail\n");
+		result = -EINVAL;
+	}
+#endif
 	/* free allocated message */
 	arisc_message_free(pmessage);
 
@@ -292,7 +379,6 @@ int arisc_dvfs_cfg_vf_table(void)
 	arisc_message_free(pmessage);
 
 	return result;
-
 }
 
 #elif (defined CONFIG_ARCH_SUN9IW1P1)
@@ -473,7 +559,6 @@ int arisc_dvfs_cfg_vf_table(void)
 }
 #endif
 
-#ifndef CONFIG_ARCH_SUN8IW7P1
 /*
  * set specific pll target frequency.
  * @freq:    target frequency to be set, based on KHZ;
@@ -526,4 +611,3 @@ int arisc_dvfs_set_cpufreq(unsigned int freq, unsigned int pll, unsigned long mo
 	return result;
 }
 EXPORT_SYMBOL(arisc_dvfs_set_cpufreq);
-#endif

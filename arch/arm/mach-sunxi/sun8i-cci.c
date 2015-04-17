@@ -144,6 +144,8 @@ static int cci_suspend(void)
 	for (i = 0; i < 2; i++) {
 		cci_status[i] = get_cci_snoop_status(i);
 	}
+    if(cci_status[0] && (!cci_status[1]))
+        disable_cci_snoops(0);
 
 	return 0;
 }

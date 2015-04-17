@@ -79,7 +79,8 @@ enum{
     TEE_SMC_CONFIG_SHMEM	        = 0x0FFFFFFB,
     TEE_SMC_RPC_CALL                    = 0x0FFFFFFC,
     TEE_SMC_RPC_RETURN                  = 0x0FFFFFFD,
-	TEE_SMC_SST_COMMAND                 = 0x0FFFFF10,
+    TEE_SMC_SST_COMMAND                 = 0x0FFFFF10,
+    TEE_SMC_PM_SUSPEND			= 0x0FFFFF20,
 };
 
 enum {

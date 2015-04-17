@@ -19,6 +19,8 @@
 #define KEY_BASSADDRESS         (0xf6001800)
 #elif defined(CONFIG_ARCH_SUN8IW6P1)
 #define KEY_BASSADDRESS         (0xf1f03c00)
+#elif defined(CONFIG_ARCH_SUN8IW7P1)
+#define KEY_BASSADDRESS         (0xf1c21800)
 #else
 #define KEY_BASSADDRESS         (0xf1c22800)
 #endif

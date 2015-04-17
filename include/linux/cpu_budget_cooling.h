@@ -75,12 +75,13 @@ int register_budget_cooling_notifier(struct notifier_block *nb);
 int cpu_budget_update_state(struct cpu_budget_cooling_device *cpu_budget_device);
 #else /* !CONFIG_CPUFREQ_HOTPLUG_THERMAL */
 static inline struct thermal_cooling_device *cpu_budget_cooling_register(
-	const struct cpumask *clip_cpus)
+    struct cpu_budget_table* tbl,   unsigned int tbl_num,
+    const struct cpumask *cluster0_cpus,const struct cpumask *cluster1_cpus)
+
 {
 	return NULL;
 }
-static inline void cpu_budget_cooling_register(
-		struct thermal_cooling_device *cdev)
+static inline void cpu_budget_cooling_unregister(struct thermal_cooling_device *cdev)
 {
 	return;
 }

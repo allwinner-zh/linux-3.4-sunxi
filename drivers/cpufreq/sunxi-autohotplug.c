@@ -196,7 +196,7 @@ static int autohotplug_smart_trydown_hmp_simple(struct auto_cpu_hotplug_loadinfo
 	return 0;
 }
 
-#ifndef CONFIG_ARCH_SUN8IW6
+#if !defined(CONFIG_ARCH_SUN8IW6) && !defined(CONFIG_SCHED_SMP_DCMP)
 static void autohotplug_smart_updatelimits_hmp_simple(void)
 {
 	struct cpufreq_policy *policy1=NULL;

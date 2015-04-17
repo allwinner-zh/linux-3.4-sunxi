@@ -1444,6 +1444,8 @@ int fat_fill_super(struct super_block *sb, void *data, int silent, int isvfat,
 	/* check that FAT table does not overflow */
 	fat_clusters = sbi->fat_length * sb->s_blocksize * 8 / sbi->fat_bits;
 	total_clusters = min(total_clusters, fat_clusters - FAT_START_ENT);
+	
+#ifndef CONFIG_PART_FOR_MSDOS
 	if (total_clusters > MAX_FAT(sb)) {
 		if (!silent)
 			fat_msg(sb, KERN_ERR, "count of clusters too big (%u)",
@@ -1451,6 +1453,7 @@ int fat_fill_super(struct super_block *sb, void *data, int silent, int isvfat,
 		brelse(bh);
 		goto out_invalid;
 	}
+#endif
 
 	sbi->max_cluster = total_clusters + FAT_START_ENT;
 	/* check the free_clusters, it's not necessarily correct */

@@ -267,7 +267,7 @@ static irqreturn_t hook_volume_irq(int irq, void *data)
 	reg_val = (reg_val>>HMIC_DATA);
 	reg_val &= 0x1f;
 	pr_debug("%s,line:%d,reg_val:%d\n",__func__,__LINE__,reg_val);
-	if (reg_val > 0x19) {
+	if (reg_val >= 0x19) {
 		pr_debug("%s,line:%d\n",__func__,__LINE__);
 		input_report_key(switch_data->key, KEY_HEADSETHOOK, 1);
 		input_sync(switch_data->key);
@@ -275,7 +275,7 @@ static irqreturn_t hook_volume_irq(int irq, void *data)
 	} else if (reg_val <= 0x16 && reg_val >= 0x15) {
 		pr_debug("%s,line:%d\n",__func__,__LINE__);
 		KEY_VOLUME_DOWN_FLAG = 1;
-	} else if (reg_val == 0x18 || reg_val == 0x19) {
+	} else if (reg_val == 0x18 || reg_val == 0x17) {
 		pr_debug("%s,line:%d\n",__func__,__LINE__);
 		KEY_VOLUME_UP_FLAG = 1;
 	}else if (reg_val < 0xb) {

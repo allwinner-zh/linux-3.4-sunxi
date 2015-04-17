@@ -17,18 +17,14 @@
 #include "../sunxi_ss.h"
 #include "sunxi_ss_reg.h"
 
-#ifdef SS_TRNG_ENABLE
-static int gs_ss_osc_prev_state = 0;
-#endif
-
 inline u32 ss_readl(u32 offset)
 {
-	return readl((void __iomem *)SUNXI_SS_REG_BASE + offset);
+	return readl(ss_membase() + offset);
 }
 
 inline void ss_writel(u32 offset, u32 val)
 {
-	writel(val, (void __iomem *)SUNXI_SS_REG_BASE + offset);
+	writel(val, ss_membase() + offset);
 }
 
 u32 ss_reg_rd(u32 offset)
@@ -100,6 +96,11 @@ void ss_irq_disable(int flow)
 	ss_writel(CE_REG_ICR, val);
 }
 
+void ss_md_get(char *dst, char *src, int size)
+{
+	memcpy(dst, src, size);
+}
+
 /* iv: phsical address. */
 void ss_iv_set(char *iv, int size, ce_task_desc_t *task)
 {
@@ -167,31 +168,15 @@ void ss_cfb_bitwidth_set(int bitwidth, ce_task_desc_t *task)
 	task->sym_ctl |= val << CE_SYM_CTL_CFB_WIDTH_SHIFT;
 }
 
-#ifdef SS_TRNG_ENABLE
-void ss_trng_osc_enable(void)
+void ss_sha_final(void)
 {
-	int val = readl(SS_TRNG_OSC_ADDR);
-
-	gs_ss_osc_prev_state = 1;
-	if (val & 1)
-		return;
-
-	val |= 1;
-	writel(val, SS_TRNG_OSC_ADDR);
+	/* unsupported. */
 }
 
-void ss_trng_osc_disable(void)
+void ss_check_sha_end(void)
 {
-	int val = 0;
-
-	if (gs_ss_osc_prev_state == 1)
-		return;
-
-	val = readl(SS_TRNG_OSC_ADDR);
-	val &= ~1;
-	writel(val, SS_TRNG_OSC_ADDR);
+	/* unsupported. */
 }
-#endif
 
 void ss_rsa_width_set(int size, ce_task_desc_t *task)
 {
@@ -259,6 +244,11 @@ void ss_ctrl_start(ce_task_desc_t *task)
 {
 	ss_writel(CE_REG_TSK, virt_to_phys(task));
 	ss_writel(CE_REG_TLR, 0x1);	
+}
+
+void ss_ctrl_stop(void)
+{
+	/* unsupported */
 }
 
 int ss_flow_err(int flow)

@@ -2618,6 +2618,6 @@ struct v4l2_create_buffers {
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 4, struct isp_exif_attribute)
 //add by yang
 #define VIDIOC_ISP_GAMMA_REQ \
-	_IOWR('V', BASE_VIDIOC_PRIVATE + 5, struct isp_exif_attribute)
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 5, struct isp_stat_buf)
 
 #endif /* __LINUX_VIDEODEV2_H */
