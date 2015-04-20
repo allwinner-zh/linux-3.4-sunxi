@@ -189,11 +189,6 @@ build_kernel()
 
 	tar -jcf output/vmlinux.tar.bz2 vmlinux
 
-        if [ ! -f ./drivers/arisc/binary/arisc ]; then
-                echo "arisc" > ./drivers/arisc/binary/arisc
-        fi
-        cp ./drivers/arisc/binary/arisc output/
-
 	for file in $(find drivers sound crypto block fs security net -name "*.ko"); do
 		cp $file ${LICHEE_MOD_DIR}
 	done
@@ -311,11 +306,6 @@ build_ramfs()
     	cp output/uImage ${LICHEE_PLAT_OUT}
     	cp output/zImage ${LICHEE_PLAT_OUT}
 	cp output/vmlinux.tar.bz2 ${LICHEE_PLAT_OUT}
-
-        if [ ! -f output/arisc ]; then
-        	echo "arisc" > output/arisc
-        fi
-        cp output/arisc    ${LICHEE_PLAT_OUT}
 }
 
 gen_output()

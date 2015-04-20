@@ -42,6 +42,8 @@
 #include <mach/sys_config.h>
 #include <mach/sunxi-chip.h>
 
+#include "arisc_bsp.h"
+
 #define DRV_NAME    "sunxi-arisc"
 #define DEV_NAME    "sunxi-arisc"
 

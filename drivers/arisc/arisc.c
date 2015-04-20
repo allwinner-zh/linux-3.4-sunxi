@@ -33,6 +33,8 @@ static int     arisc_wait_ready(unsigned int timeout);
 /* external vars */
 extern char *arisc_binary_start;
 extern char *arisc_binary_end;
+const char *arisc_bsp_start;
+const char *arisc_bsp_end;
 
 unsigned long arisc_sram_a2_vbase = (unsigned long)IO_ADDRESS(SUNXI_SRAM_A2_PBASE);
 #if defined CONFIG_ARCH_SUN8IW1P1
@@ -878,7 +880,7 @@ static int arisc_wait_ready(unsigned int timeout)
 				(pmessage->attr & ARISC_MESSAGE_ATTR_HARDSYN)) {
 				/* synchronous message, just feedback it */
 				ARISC_INF("arisc startup notify message feedback\n");
-				pmessage->paras[0] = virt_to_phys((void *)&arisc_binary_start);
+				pmessage->paras[0] = virt_to_phys((void *)arisc_bsp_start);
 				arisc_hwmsgbox_feedback_message(pmessage, ARISC_SEND_MSG_TIMEOUT);
 			} else {
 				/* asyn message, free message directly */
@@ -1468,35 +1470,38 @@ static int  sunxi_arisc_probe(struct platform_device *pdev)
 	ARISC_INF("sram_a2 vaddr(%x)\n", (unsigned int)arisc_sram_a2_vbase);
 	ARISC_INF("sram_a2 lengt(%x)\n", (unsigned int)SUNXI_SRAM_A2_SIZE);
 
+	arisc_bsp_start = arisc_bsp_table;
+	arisc_bsp_end = arisc_bsp_table + sizeof(arisc_bsp_table);
+
 #if (defined CONFIG_ARCH_SUN8IW1P1) || (defined CONFIG_ARCH_SUN8IW3P1) || (defined CONFIG_ARCH_SUN8IW5P1) || \
     (defined CONFIG_ARCH_SUN8IW6P1) || (defined CONFIG_ARCH_SUN8IW9P1)
 	binary_len = 0x13000;
 #elif (defined CONFIG_ARCH_SUN8IW7P1)
 	binary_len = SUNXI_SRAM_A2_SIZE;
 #elif defined CONFIG_ARCH_SUN9IW1P1
-	binary_len = (int)(&arisc_binary_end) - (int)(&arisc_binary_start);
+	binary_len = (int)(arisc_bsp_end) - (int)(arisc_bsp_start);
 #endif
 
 #if (defined CONFIG_ARCH_SUN8IW6P1)
-	if ((int)(&arisc_binary_end) - (int)(&arisc_binary_start) - 0x018000 > ARISC_RESERVE_MEMSIZE)
+	if ((int)(arisc_bsp_end) - (int)(arisc_bsp_start) - 0x018000 > ARISC_RESERVE_MEMSIZE)
 		ARISC_ERR("reserve dram space littler than cpus code!");
 	memcpy((void *)phys_to_virt(ARISC_RESERVE_MEMBASE), \
-	       (void *)(((unsigned char *)&arisc_binary_start) + 0x018000), \
-	       (int)(&arisc_binary_end) - (int)(&arisc_binary_start) - 0x018000);
+	       (void *)(((unsigned char *)arisc_bsp_start) + 0x018000), \
+	       (int)(arisc_bsp_end) - (int)(arisc_bsp_start) - 0x018000);
 	ARISC_INF("cp arisc code1 [addr = %p, len = %x] to dram:%p finished\n",
-	          (void *)(((unsigned char *)&arisc_binary_start) + 0x018000), \
-	          (int)(&arisc_binary_end) - (int)(&arisc_binary_start) - 0x018000, \
+	          (void *)(((unsigned char *)arisc_bsp_start) + 0x018000), \
+	          (int)(arisc_bsp_end) - (int)(arisc_bsp_start) - 0x018000, \
 	          (void *)ARISC_RESERVE_MEMBASE);
 #elif (defined CONFIG_ARCH_SUN8IW7P1)
 	memset((void *)phys_to_virt(SUPER_STANDBY_MEM_BASE), 0, SUPER_STANDBY_MEM_SIZE);
-	if ((int)(&arisc_binary_end) - (int)(&arisc_binary_start) - binary_len > SUPER_STANDBY_MEM_SIZE)
+	if ((int)(arisc_bsp_end) - (int)(arisc_bsp_start) - binary_len > SUPER_STANDBY_MEM_SIZE)
 		ARISC_ERR("reserve dram space littler than cpus code!");
 	memcpy((void *)phys_to_virt(SUPER_STANDBY_MEM_BASE), \
-	       (void *)(((unsigned char *)&arisc_binary_start) + binary_len), \
-	       (int)(&arisc_binary_end) - (int)(&arisc_binary_start) - binary_len);
+	       (void *)(((unsigned char *)arisc_bsp_start) + binary_len), \
+	       (int)(arisc_bsp_end) - (int)(arisc_bsp_start) - binary_len);
 	ARISC_INF("cp arisc code1 [addr = %p, len = %x] to dram:%p finished\n",
-	          (void *)(((unsigned char *)&arisc_binary_start) + binary_len), \
-	          (int)(&arisc_binary_end) - (int)(&arisc_binary_start) - binary_len, \
+	          (void *)(((unsigned char *)arisc_bsp_start) + binary_len), \
+	          (int)(arisc_bsp_end) - (int)(arisc_bsp_start) - binary_len, \
 	          (void *)SUPER_STANDBY_MEM_BASE);
 #endif
 	/* initialize hwspinlock */
@@ -1533,9 +1538,8 @@ static int  sunxi_arisc_probe(struct platform_device *pdev)
 	/* initialize message manager */
 	ARISC_INF("message manager initialize start:%x, end:%x\n", message_addr, message_size);
 	arisc_message_manager_init((void *)message_addr, message_size);
-
 	/* load arisc */
-	sunxi_load_arisc((void *)(&arisc_binary_start), binary_len,
+	sunxi_load_arisc((void *)(arisc_bsp_start), binary_len,
 	                 (void *)(&para), sizeof(struct arisc_para));
 
 	/* wait arisc ready */
