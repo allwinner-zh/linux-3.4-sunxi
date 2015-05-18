@@ -1,0 +1,25 @@
+
+config USB_SUNXI_UDC0
+	boolean "SUNXI USB2.0 Peripheral Controller"
+	depends on USB_SUNXI_USB_MANAGER && USB_SUNXI_USB0_OTG && !(ARCH_SUN9IW1)
+	select USB_GADGET_DUALSPEED
+	select USB_GADGET_SELECTED
+	help
+	   USB device only
+
+if USB_SUNXI_UDC0
+
+config USB_SUNXI_USB_DEBUG
+    bool "SUNXI USB driver debug message"
+    depends on USB_SUNXI_USB
+    help
+        SUNXI USB driver debug message.
+
+config UDC_HIGH_BANDWITH_ISO
+	bool "SUNXI UDC HIGH BANDWITH ISO"
+  depends on USB_SUNXI_USB && ARCH_SUN8IW6
+  help
+       udc support high bandwidth iso .
+endif
+
+

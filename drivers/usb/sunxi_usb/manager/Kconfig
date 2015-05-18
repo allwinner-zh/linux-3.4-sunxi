@@ -1,0 +1,33 @@
+
+menuconfig USB_SUNXI_USB
+    tristate "SUNXI USB Dual Role Manager"
+    depends on ARCH_SUNXI
+    help
+        SUNXI USB Dual Role Manager
+
+config USB_SUNXI_USB_MANAGER
+    tristate "SUNXI USB Manager"
+    depends on USB_SUNXI_USB
+    help
+        manager all usb controller.
+
+#---------------------------------------------
+#-
+#- usb0 mode slecet.
+#-
+#---------------------------------------------
+choice
+
+    prompt "USB0 Controller support"
+    depends on (USB_SUNXI_USB && USB_SUNXI_USB_MANAGER)
+    help
+        usb0 Controller mode slecet. choice "device only", then usb0 can only use for device.
+        choice "host only", then usb0 can only use for host. choice "OTG", then usb0 can only
+        use device and host.
+
+config USB_SUNXI_USB0_OTG
+    boolean "otg support"
+    help
+        usb0 can only use for device and host.
+
+endchoice

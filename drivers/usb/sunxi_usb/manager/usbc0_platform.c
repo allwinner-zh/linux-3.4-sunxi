@@ -335,7 +335,7 @@ __s32 usbc0_platform_device_init(struct usb_port_info *port_info)
 
 
 #else
-
+	 bsp_usb300_init();
 	sunxi_otg.resource[0].start =  sunxi_otgc_base();
 	sunxi_otg.resource[0].end =  sunxi_otgc_base() + 0xfffff;
 	platform_device_register(&sunxi_otg);

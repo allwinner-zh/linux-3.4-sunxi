@@ -49,13 +49,17 @@
 #include "composite.c"
 
 #include "f_fs.c"
+#ifdef CONFIG_SND
 #include "f_audio_source.c"
+#include "f_acm.c"
+#endif
 #include "f_mass_storage.c"
 #include "u_serial.c"
-#include "f_acm.c"
 #include "f_adb.c"
 #include "f_mtp.c"
+#ifdef CONFIG_HID
 #include "f_accessory.c"
+#endif
 #define USB_ETH_RNDIS y
 #include "f_rndis.c"
 #include "rndis.c"
@@ -472,6 +476,7 @@ static void adb_closed_callback(void)
 }
 
 
+#ifdef CONFIG_SND
 #define MAX_ACM_INSTANCES 4
 struct acm_function_config {
 	int instances;
@@ -550,7 +555,7 @@ static struct android_usb_function acm_function = {
 	.bind_config	= acm_function_bind_config,
 	.attributes	= acm_function_attributes,
 };
-
+#endif
 
 static int
 mtp_function_init(struct android_usb_function *f,
@@ -931,6 +936,7 @@ static struct android_usb_function mass_storage_function = {
 };
 
 
+#ifdef CONFIG_HID
 static int accessory_function_init(struct android_usb_function *f,
 					struct usb_composite_dev *cdev)
 {
@@ -962,7 +968,9 @@ static struct android_usb_function accessory_function = {
 	.bind_config	= accessory_function_bind_config,
 	.ctrlrequest	= accessory_function_ctrlrequest,
 };
+#endif
 
+#ifdef CONFIG_SND
 static int audio_source_function_init(struct android_usb_function *f,
 			struct usb_composite_dev *cdev)
 {
@@ -1024,17 +1032,22 @@ static struct android_usb_function audio_source_function = {
 	.unbind_config	= audio_source_function_unbind_config,
 	.attributes	= audio_source_function_attributes,
 };
+#endif
 
 static struct android_usb_function *supported_functions[] = {
 	&ffs_function,
 	&adb_function,
-	&acm_function,
 	&mtp_function,
 	&ptp_function,
 	&rndis_function,
 	&mass_storage_function,
+#ifdef CONFIG_HID
 	&accessory_function,
+#endif
+#ifdef CONFIG_SND
+	&acm_function,
 	&audio_source_function,
+#endif
 	NULL
 };
 
@@ -1523,11 +1536,13 @@ android_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *c)
 		}
 	}
 
+#ifdef CONFIG_HID
 	/* Special case the accessory function.
 	 * It needs to handle control requests before it is enabled.
 	 */
 	if (value < 0)
 		value = acc_ctrlrequest(cdev, c);
+#endif
 
 	if (value < 0)
 		value = composite_setup(gadget, c);
@@ -1552,11 +1567,13 @@ static void android_disconnect(struct usb_gadget *gadget)
 	unsigned long flags;
 
 	composite_disconnect(gadget);
+#ifdef CONFIG_HID
 	/* accessory HID support can be active while the
 	   accessory function is not actually enabled,
 	   so we need to inform it when we are disconnected.
 	 */
 	acc_disconnect();
+#endif
 
 	spin_lock_irqsave(&cdev->lock, flags);
 	dev->connected = 0;

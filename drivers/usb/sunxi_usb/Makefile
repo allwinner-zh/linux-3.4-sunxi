@@ -1,6 +1,12 @@
 #
-# Makefile for SUNXI USB2.0 Dual Role Controller Driver.
+# Makefile for SUNXI USB Dual Role Controller Driver.
 #
+
+# Makefile for USB300 Dual Role Controller Driver.
+
+obj-$(CONFIG_SUNXI_USB300)  += usb3/
+
+# Makefile for USB200 Dual Role Controller Driver.
 
 sunxi_usbc-objs := usbc/usbc.o \
                 usbc/usbc_dev.o \
@@ -16,7 +22,7 @@ sunxi_usbc-objs := usbc/usbc.o \
 #endif
 
 #ifeq ($(CONFIG_USB_SUNXI_HCD0),y)
-	sunxi_usbc-objs +=hcd/core/sunxi_hcd_core.o \
+	sunxi_usbc-objs += hcd/core/sunxi_hcd_core.o \
 					hcd/core/sunxi_hcd_host.o \
 					hcd/core/sunxi_hcd_virt_hub.o \
 					hcd/core/sunxi_hcd_debug.o \
