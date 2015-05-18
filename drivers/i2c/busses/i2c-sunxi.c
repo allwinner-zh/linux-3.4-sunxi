@@ -294,7 +294,12 @@ set_clk:
 /* soft reset twi */
 static inline void twi_soft_reset(void __iomem *base_addr)
 {
-	unsigned int reg_val = readl(base_addr + TWI_SRST_REG);
+	unsigned int reg_val;
+
+	reg_val = TWI_LCR_IDLE_STATUS;
+	writel(reg_val, base_addr + TWI_LCR_REG);
+
+	reg_val = readl(base_addr + TWI_SRST_REG);
 	reg_val |= TWI_SRST_SRST;
 	writel(reg_val, base_addr + TWI_SRST_REG);
 }
@@ -997,6 +1002,45 @@ static const struct i2c_algorithm sunxi_i2c_algorithm = {
 
 #ifdef CONFIG_EVB_PLATFORM
 
+#ifdef CONFIG_SUNXI_S_TWI
+/*
+ * Since cpus' init is after clock module, and cpus will change cpus' clock
+ * without notice kernel clock module. So we need to upgrade the cpus part
+ * of the kernel clock tree, if we want to get s_twi's really souce clock frequency.
+ *
+ * Example on sun8iw6
+ * After clk init, clk tree is like:
+ * 	periph<---periphcpus
+ * 	OSC24M<---cpurcpus<---cpurahbs<---cpurapbs<---s_twi
+ * After cpus clock init, clk tree is like:
+ * 	periph<---periphcpus<---cpurcpus<---cpurahbs<---cpurapbs<---s_twi
+ * So we need to upgrade periphcpus and cpurcpus' clock frequency of the kernel clock tree.
+ */
+static int sunxi_i2c_clk_upgrade_cpus(void)
+{
+	struct clk *clk;
+	unsigned int rate;
+
+	clk = clk_get(NULL, "pll_periphcpus");
+	if (!clk) {
+		I2C_ERR("get pll_periphcpus clock frequency failed!\n");
+		return -1;
+	}
+	rate = clk_get_rate(clk);
+	I2C_DBG("get pll_periphcpus clock frequency %d!\n", rate);
+
+	clk = clk_get(NULL , "cpurcpus");
+	if (!clk) {
+		I2C_ERR("get cpurcpus clock frequency failed!\n");
+		return -1;
+	}
+	rate = clk_get_rate(clk);
+	I2C_DBG("get cpurcpus clock frequency %d!\n", rate);
+
+	return 0;
+}
+#endif
+
 static int sunxi_i2c_clk_init(struct sunxi_i2c *i2c)
 {
 	unsigned int apb_clk = 0;
@@ -1010,6 +1054,15 @@ static int sunxi_i2c_clk_init(struct sunxi_i2c *i2c)
 
 	/* enable twi bus */
 	twi_enable_bus(i2c->base_addr);
+
+#ifdef CONFIG_SUNXI_S_TWI
+	if (i2c->bus_num == (SUNXI_TWI_NUM - 1)) {
+		if (sunxi_i2c_clk_upgrade_cpus()) {
+			I2C_ERR("[i2c%d] upgrade cpus clock frequency failed!\n", i2c->bus_num);
+			return -1;
+		}
+	}
+#endif
 
 	/* set twi module clock */
 	apb_clk  =  clk_get_rate(i2c->mclk);

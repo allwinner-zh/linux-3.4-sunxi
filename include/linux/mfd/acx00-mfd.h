@@ -118,13 +118,14 @@ struct acx00 {
 	struct device *dev;
 	struct regmap *regmap;
 	struct pwm_device *pwm_ac200;
+	struct work_struct init_work;
 	int irq;
 };
 
 /* Device I/O API */
 int acx00_reg_read(struct acx00 *acx00, unsigned short reg);
 int acx00_reg_write(struct acx00 *acx00, unsigned short reg, unsigned short val);
-
+int acx00_enable(void);
 int acx00_set_bits(struct acx00 *acx00, unsigned short reg,
 		    unsigned short mask, unsigned short val);
 

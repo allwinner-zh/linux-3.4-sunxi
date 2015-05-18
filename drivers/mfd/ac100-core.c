@@ -21,11 +21,14 @@
 #include <linux/regmap.h>
 #include <linux/mfd/ac100-mfd.h>
 #include <linux/arisc/arisc.h>
-
+#include <mach/sys_config.h>
+#ifdef CONFIG_ARCH_SUN8IW7
+	static unsigned int twi_id = 2;
+#else
 #define AUDIO_RSB_BUS
-#define SUNXI_CHIP_NAME	"AC100-CHIP"
 static unsigned int twi_id = 0;
-
+#endif
+#define SUNXI_CHIP_NAME	"AC100-CHIP"
 struct regmap_config ac100_base_regmap_config = {
 	.reg_bits = 8,
 	.val_bits = 16,
@@ -246,14 +249,30 @@ static struct i2c_driver ac100_i2c_driver = {
 	.address_list = normal_i2c,
 };
 
+static int ac100_used	= 0;
 static int __init ac100_i2c_init(void)
 {
-	int ret;
+	int ret = 0;
+	script_item_value_type_e  type;
+	script_item_u val;
 
-	ac100_i2c_driver.detect = ac100_detect;
-	ret = i2c_add_driver(&ac100_i2c_driver);
-	if (ret != 0)
-		pr_err("Failed to register ac100 I2C driver: %d\n", ret);
+	type = script_get_item("acx0", "ac100_used", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+		pr_err("[acx0] ac100_used type err!\n");
+	}
+	ac100_used = val.val;
+	if (ac100_used) {
+		type = script_get_item("acx0", "twi_ac100_used", &val);
+		if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+			pr_err("[acx0] twi_ac100_used type err!\n");
+		}else
+			twi_id = val.val;
+
+		ac100_i2c_driver.detect = ac100_detect;
+		ret = i2c_add_driver(&ac100_i2c_driver);
+		if (ret != 0)
+			pr_err("Failed to register ac100 I2C driver: %d\n", ret);
+	}
 
 	return ret;
 }

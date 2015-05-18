@@ -17,7 +17,7 @@ comment "MII PHY device drivers"
 
 config SUNXI_EPHY
 	tristate "Drivers for Allwinnertech EPHY"
-	depends on MFD_AC200
+	depends on MFD_ACX00 && ARCH_SUN8IW6
 
 config AMD_PHY
 	tristate "Drivers for the AMD PHYs"
