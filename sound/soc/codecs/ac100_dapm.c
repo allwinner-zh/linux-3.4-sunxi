@@ -71,6 +71,8 @@ static int dmic_used = 0;
 static int adc_digital_val = 0;
 static int agc_used 		= 0;
 static int drc_used 		= 0;
+static int aif2_lrck_div 	= 0;
+static int aif2_bclk_div 	= 0;
 
 #define ac100_RATES  (SNDRV_PCM_RATE_8000_192000|SNDRV_PCM_RATE_KNOT)
 #define ac100_FORMATS (SNDRV_PCM_FMTBIT_S8 | SNDRV_PCM_FMTBIT_S16_LE | \
@@ -100,12 +102,16 @@ struct ac100_priv {
 
 	struct mutex dac_mutex;
 	struct mutex adc_mutex;
+	struct mutex mute_mutex;
 	u8 dac_enable;
 	u8 adc_enable;
 	struct mutex aifclk_mutex;
 	u8 aif1_clken;
 	u8 aif2_clken;
 	u8 aif3_clken;
+
+	u8 aif2_mute;
+	u8 aif1_mute;
 
 	/*voltage supply*/
 	int num_supplies;
@@ -132,72 +138,72 @@ struct ac100_priv {
 	struct input_dev *key;
 };
 
-void get_configuration(void)
+static void get_configuration(void)
 {
 	script_item_value_type_e  type;
 	script_item_u val;
-	type = script_get_item("audio0", "speaker_double_used", &val);
+	type = script_get_item("ac100_audio0", "speaker_double_used", &val);
 	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
 		pr_err("[CODEC] speaker_double_used type err!\n");
 	}
 	speaker_double_used = val.val;
 
-	type = script_get_item("audio0", "double_speaker_val", &val);
+	type = script_get_item("ac100_audio0", "double_speaker_val", &val);
 	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
 		pr_err("[CODEC] double_speaker_val type err!\n");
 	}
 	double_speaker_val = val.val;
 
-	type = script_get_item("audio0", "single_speaker_val", &val);
+	type = script_get_item("ac100_audio0", "single_speaker_val", &val);
 	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
 		pr_err("[CODEC] single_speaker_val type err!\n");
 	}
 	single_speaker_val = val.val;
 
-	type = script_get_item("audio0", "headset_val", &val);
+	type = script_get_item("ac100_audio0", "headset_val", &val);
 	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
 		pr_err("[CODEC] headset_val type err!\n");
 	}
 	headset_val = val.val;
 
-	type = script_get_item("audio0", "earpiece_val", &val);
+	type = script_get_item("ac100_audio0", "earpiece_val", &val);
 	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
 		pr_err("[CODEC] headset_val type err!\n");
 	}
 	earpiece_val = val.val;
 
-	type = script_get_item("audio0", "mainmic_val", &val);
+	type = script_get_item("ac100_audio0", "mainmic_val", &val);
 	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
 		pr_err("[CODEC] headset_val type err!\n");
 	}
 	mainmic_val = val.val;
 
-	type = script_get_item("audio0", "headsetmic_val", &val);
+	type = script_get_item("ac100_audio0", "headsetmic_val", &val);
 	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
 		pr_err("[CODEC] headset_val type err!\n");
 	}
 	headsetmic_val = val.val;
 
-	type = script_get_item("audio0", "dmic_used", &val);
+	type = script_get_item("ac100_audio0", "dmic_used", &val);
 	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
 		pr_err("[CODEC] dmic_used type err!\n");
 	}
 	dmic_used = val.val;
 	if (dmic_used) {
-		type = script_get_item("audio0", "adc_digital_val", &val);
+		type = script_get_item("ac100_audio0", "adc_digital_val", &val);
 		if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
 			pr_err("[CODEC] adc_digital_val type err!\n");
 		}
 
 		adc_digital_val = val.val;
 	}
-	type = script_get_item("audio0", "agc_used", &val);
+	type = script_get_item("ac100_audio0", "agc_used", &val);
 	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
 		pr_err("[audiocodec] agc_used type err!\n");
 	} else {
 		agc_used = val.val;
 	}
-	type = script_get_item("audio0", "drc_used", &val);
+	type = script_get_item("ac100_audio0", "drc_used", &val);
 	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
 		pr_err("[audiocodec] drc_used type err!\n");
 	} else {
@@ -205,7 +211,7 @@ void get_configuration(void)
 	}
 
 }
-void agc_config(struct snd_soc_codec *codec)
+static void agc_config(struct snd_soc_codec *codec)
 {
 	int reg_val;
 	//if(agc_used){
@@ -267,7 +273,7 @@ void agc_config(struct snd_soc_codec *codec)
 	snd_soc_write(codec, 0x94, 0xabb3);
 	//}
 }
-void drc_config(struct snd_soc_codec *codec)
+static void drc_config(struct snd_soc_codec *codec)
 {
 	int reg_val;
 	//if(drc_used){
@@ -319,7 +325,7 @@ void drc_config(struct snd_soc_codec *codec)
 	//}
 
 }
-void agc_enable(struct snd_soc_codec *codec,bool on)
+static void agc_enable(struct snd_soc_codec *codec,bool on)
 {
 	int reg_val;
 	if (on) {
@@ -368,7 +374,7 @@ void agc_enable(struct snd_soc_codec *codec,bool on)
 		snd_soc_write(codec, 0x83, reg_val);
 	}
 }
-void drc_enable(struct snd_soc_codec *codec,bool on)
+static void drc_enable(struct snd_soc_codec *codec,bool on)
 {
 	int reg_val;
 	if (on) {
@@ -397,7 +403,7 @@ void drc_enable(struct snd_soc_codec *codec,bool on)
 		snd_soc_write(codec, 0xa0, reg_val);
 	}
 }
-void set_configuration(struct snd_soc_codec *codec)
+static void set_configuration(struct snd_soc_codec *codec)
 {
 	if (speaker_double_used) {
 		snd_soc_update_bits(codec, SPKOUT_CTRL, (0x1f<<SPK_VOL), (double_speaker_val<<SPK_VOL));
@@ -1617,13 +1623,18 @@ struct pll_div {
 
 struct aif1_fs {
 	unsigned int samplerate;
-	int aif1_bclk_div;
+	int aif1_bclk_bit;
 	int aif1_srbit;
 };
 
+struct aif1_bclk {
+	int aif1_bclk_div;
+	int aif1_bclk_bit;
+};
+
 struct aif1_lrck {
-	int aif1_lrlk_div;
-	int aif1_lrlk_bit;
+	int aif1_lrck_div;
+	int aif1_lrck_bit;
 };
 
 struct aif1_word_size {
@@ -1643,6 +1654,7 @@ static const struct pll_div codec_pll_div[] = {
 	{6000000, 22579200, 38, 429, 0},/*((429+0*0.2)*6000000)/(38*(2*1+1))*/
 	{13000000, 22579200, 19, 99, 0},
 	{19200000, 22579200, 25, 88, 1},
+	{24000000, 22579200, 38, 107, 1},
 	{128000, 24576000, 1, 576, 0},
 	{192000, 24576000, 1, 384, 0},
 	{256000, 24576000, 1, 288, 0},
@@ -1651,8 +1663,10 @@ static const struct pll_div codec_pll_div[] = {
 	{6000000, 24576000, 25, 307, 1},
 	{13000000, 24576000, 42, 238, 1},
 	{19200000, 24576000, 25, 88, 1},
+	{24000000, 24576000, 25, 76, 4},
 };
 
+/*for all of the fs freq. lrck_div is 64*/
 static const struct aif1_fs codec_aif1_fs[] = {
 	{44100, 4, 7},
 	{48000, 4, 8},
@@ -1665,6 +1679,23 @@ static const struct aif1_fs codec_aif1_fs[] = {
 	{32000, 5, 6},
 	{96000, 2, 9},
 	{192000, 1, 10},
+};
+
+static const struct aif1_bclk codec_aif1_bclk[] = {
+	{1, 0},
+	{2, 1},
+	{4, 2},
+	{6, 3},
+	{8, 4},
+	{12, 5},
+	{16, 6},
+	{24, 7},
+	{32, 8},
+	{48, 9},
+	{64, 10},
+	{96, 11},
+	{128, 12},
+	{192, 13},
 };
 
 static const struct aif1_lrck codec_aif1_lrck[] = {
@@ -1684,22 +1715,30 @@ static const struct aif1_word_size codec_aif1_wsize[] = {
 
 static int ac100_aif_mute(struct snd_soc_dai *codec_dai, int mute)
 {
-	//pr_debug("%s,line:%d,mute:%d\n",__func__,__LINE__,mute);
 	struct snd_soc_codec *codec = codec_dai->codec;
+	struct ac100_priv *ac100 = snd_soc_codec_get_drvdata(codec);
+	mutex_lock(&ac100->mute_mutex);
 	if(mute){
-		snd_soc_write(codec, DAC_VOL_CTRL, 0);
+		if (0 == ac100->aif2_mute)
+			snd_soc_write(codec, DAC_VOL_CTRL, 0);
 	}else{
 		snd_soc_write(codec, DAC_VOL_CTRL, 0xa0a0);
 	}
+	mutex_unlock(&ac100->mute_mutex);
 	return 0;
 }
 static int ac100_aif2_mute(struct snd_soc_dai *codec_dai, int mute)
 {
-	//printk("%s,line:%d,mute:%d\n",__func__,__LINE__,mute);
 	struct snd_soc_codec *codec = codec_dai->codec;
+	struct ac100_priv *ac100 = snd_soc_codec_get_drvdata(codec);
+	mutex_lock(&ac100->mute_mutex);
 	if (mute == 0) {
 		snd_soc_write(codec, DAC_VOL_CTRL, 0xa0a0);
+		ac100->aif2_mute = 1;
 	}
+	else
+		ac100->aif2_mute = 0;
+	mutex_unlock(&ac100->mute_mutex);
 	return 0;
 }
 static void ac100_aif_shutdown(struct snd_pcm_substream *substream,
@@ -1729,27 +1768,44 @@ static int ac100_hw_params(struct snd_pcm_substream *substream,
 	int i = 0;
 	int AIF_CLK_CTRL = 0;
 	int aif1_word_size = 16;
-	int aif1_lrlk_div = 64;
+	/*
+	* 22.5792M/8 = 2.8224M;
+	* 2.8224M/64 = 44.1k;
+	*
+	* 24.576M/8 = 3.072M;
+	* 3.072M/64 = 48k;
+	*/
+	int aif1_bclk_div = 8;
+	int aif1_lrck_div = 64;
+
 	struct snd_soc_codec *codec = codec_dai->codec;
 	switch (codec_dai->id) {
 	case 1:
 		AIF_CLK_CTRL = AIF1_CLK_CTRL;
-		aif1_lrlk_div = 64;
+		aif1_lrck_div = 64;
 		break;
 	case 2:
 		AIF_CLK_CTRL = AIF2_CLK_CTRL;
-		aif1_lrlk_div = 64;
+		aif1_lrck_div = 64;
 		break;
 	default:
 		return -EINVAL;
 	}
 
-	for (i = 0; i < ARRAY_SIZE(codec_aif1_lrck); i++) {
-		if (codec_aif1_lrck[i].aif1_lrlk_div == aif1_lrlk_div) {
-			snd_soc_update_bits(codec, AIF_CLK_CTRL, (0x7<<AIF1_LRCK_DIV), ((codec_aif1_lrck[i].aif1_lrlk_bit)<<AIF1_LRCK_DIV));
+	for (i = 0; i < ARRAY_SIZE(codec_aif1_bclk); i++) {
+		if (codec_aif1_bclk[i].aif1_bclk_div == aif1_bclk_div) {
+			snd_soc_update_bits(codec, AIF_CLK_CTRL, (0xf<<AIF1_BCLK_DIV), ((codec_aif1_bclk[i].aif1_bclk_bit)<<AIF1_BCLK_DIV));
 			break;
 		}
 	}
+
+	for (i = 0; i < ARRAY_SIZE(codec_aif1_lrck); i++) {
+		if (codec_aif1_lrck[i].aif1_lrck_div == aif1_lrck_div) {
+			snd_soc_update_bits(codec, AIF_CLK_CTRL, (0x7<<AIF1_LRCK_DIV), ((codec_aif1_lrck[i].aif1_lrck_bit)<<AIF1_LRCK_DIV));
+			break;
+		}
+	}
+	/*for all of the fs freq. lrck_div is 64*/
 	for (i = 0; i < ARRAY_SIZE(codec_aif1_fs); i++) {
 		if (codec_aif1_fs[i].samplerate ==  params_rate(params)) {
 			if (codec_dai->capture_active && dmic_used && codec_aif1_fs[i].samplerate == 44100) {
@@ -1757,7 +1813,7 @@ static int ac100_hw_params(struct snd_pcm_substream *substream,
 			} else
 				snd_soc_update_bits(codec, AIF_SR_CTRL, (0xf<<AIF1_FS), ((codec_aif1_fs[i].aif1_srbit)<<AIF1_FS));
 			snd_soc_update_bits(codec, AIF_SR_CTRL, (0xf<<AIF2_FS), ((codec_aif1_fs[i].aif1_srbit)<<AIF2_FS));
-			snd_soc_update_bits(codec, AIF_CLK_CTRL, (0xf<<AIF1_BCLK_DIV), ((codec_aif1_fs[i].aif1_bclk_div)<<AIF1_BCLK_DIV));
+			snd_soc_update_bits(codec, AIF_CLK_CTRL, (0xf<<AIF1_BCLK_DIV), ((codec_aif1_fs[i].aif1_bclk_bit)<<AIF1_BCLK_DIV));
 			break;
 		}
 	}
@@ -1983,24 +2039,31 @@ static int ac100_aif2_hw_params(struct snd_pcm_substream *substream,
 	int i = 0;
 	int AIF_CLK_CTRL = 0;
 	int aif1_word_size = 16;
-	int aif1_lrlk_div = 256;
+	int aif1_bclk_div = aif2_bclk_div;/*aif2_bclk_div=8, 24.576M/8=3.072M*/
+	int aif1_lrck_div = aif2_lrck_div;/*aif2_lrck_div=64, 3.072M/64=48k*/
 	struct snd_soc_codec *codec = codec_dai->codec;
+
 	switch (codec_dai->id) {
-	case 1:
-		AIF_CLK_CTRL = AIF1_CLK_CTRL;
-		//aif1_lrlk_div = 64;
-		break;
-	case 2:
-		AIF_CLK_CTRL = AIF2_CLK_CTRL;
-		//aif1_lrlk_div = 64;
-		break;
-	default:
+		case 1:
+			AIF_CLK_CTRL = AIF1_CLK_CTRL;
+			break;
+		case 2:
+			AIF_CLK_CTRL = AIF2_CLK_CTRL;
+			break;
+		default:
 		return -EINVAL;
 	}
 
+	for (i = 0; i < ARRAY_SIZE(codec_aif1_bclk); i++) {
+		if (codec_aif1_bclk[i].aif1_bclk_div == aif1_bclk_div) {
+			snd_soc_update_bits(codec, AIF_CLK_CTRL, (0xf<<AIF1_BCLK_DIV), ((codec_aif1_bclk[i].aif1_bclk_bit)<<AIF1_BCLK_DIV));
+			break;
+		}
+	}
+
 	for (i = 0; i < ARRAY_SIZE(codec_aif1_lrck); i++) {
-		if (codec_aif1_lrck[i].aif1_lrlk_div == aif1_lrlk_div) {
-			snd_soc_update_bits(codec, AIF_CLK_CTRL, (0x7<<AIF1_LRCK_DIV), ((codec_aif1_lrck[i].aif1_lrlk_bit)<<AIF1_LRCK_DIV));
+		if (codec_aif1_lrck[i].aif1_lrck_div == aif1_lrck_div) {
+			snd_soc_update_bits(codec, AIF_CLK_CTRL, (0x7<<AIF1_LRCK_DIV), ((codec_aif1_lrck[i].aif1_lrck_bit)<<AIF1_LRCK_DIV));
 			break;
 		}
 	}
@@ -2008,7 +2071,6 @@ static int ac100_aif2_hw_params(struct snd_pcm_substream *substream,
 		if (codec_aif1_fs[i].samplerate ==  params_rate(params)) {
 			snd_soc_update_bits(codec, AIF_SR_CTRL, (0xf<<AIF1_FS), ((codec_aif1_fs[i].aif1_srbit)<<AIF1_FS));
 			snd_soc_update_bits(codec, AIF_SR_CTRL, (0xf<<AIF2_FS), ((codec_aif1_fs[i].aif1_srbit)<<AIF2_FS));
-			snd_soc_update_bits(codec, AIF_CLK_CTRL, (0xf<<AIF1_BCLK_DIV), (0x5<<AIF1_BCLK_DIV));
 			break;
 		}
 	}
@@ -2028,9 +2090,14 @@ static int ac100_aif2_hw_params(struct snd_pcm_substream *substream,
 			break;
 		}
 	}
-	snd_soc_update_bits(codec, AIF_CLK_CTRL, (0x1<<1), (0x1<<1));
+	if (params_channels(params) == 1) {
+	
+		snd_soc_update_bits(codec, AIF_CLK_CTRL, (0x1<<1), (0x1<<1));
+	} else
+		snd_soc_update_bits(codec, AIF_CLK_CTRL, (0x1<<1), (0x1<<0));
 	return 0;
 }
+
 static int ac100_aif3_set_dai_fmt(struct snd_soc_dai *codec_dai,
 			       unsigned int fmt)
 {
@@ -2569,6 +2636,7 @@ static int ac100_codec_probe(struct snd_soc_codec *codec)
 	int req_status = 0;
 #endif
 	script_item_value_type_e  type;
+	script_item_u val;
 	struct ac100_priv *ac100;
 	//struct device *dev = codec->dev;
 	struct snd_soc_dapm_context *dapm = &codec->dapm;
@@ -2634,7 +2702,7 @@ static int ac100_codec_probe(struct snd_soc_codec *codec)
 		goto err_switch_work_queue;
 	}
 
-	type = script_get_item("audio0", "audio_int_ctrl", &item_eint);
+	type = script_get_item("ac100_audio0", "audio_int_ctrl", &item_eint);
 	if (SCIRPT_ITEM_VALUE_TYPE_PIO != type) {
 		pr_err("[AC100] script_get_item return type err\n");
 	}
@@ -2648,13 +2716,13 @@ static int ac100_codec_probe(struct snd_soc_codec *codec)
 	mutex_init(&ac100->dac_mutex);
 	mutex_init(&ac100->adc_mutex);
 	mutex_init(&ac100->aifclk_mutex);
+	mutex_init(&ac100->mute_mutex);
 
 	/*get the default pa val(close)*/
-	type = script_get_item("audio0", "audio_pa_ctrl", &item);
+	type = script_get_item("ac100_audio0", "audio_pa_ctrl", &item);
 	if (SCIRPT_ITEM_VALUE_TYPE_PIO != type) {
-		pr_err("script_get_item return type err\n");
+		pr_err("ac100_audio0 audio_pa_ctrl script_get_item return type err\n");
 		spkgpio.used = false;
-		//return -EFAULT;
 	} else {
 		spkgpio.used = true;
 		spkgpio.gpio = item.gpio.gpio;
@@ -2669,6 +2737,19 @@ static int ac100_codec_probe(struct snd_soc_codec *codec)
 		gpio_direction_output(spkgpio.gpio, 1);
 		gpio_set_value(spkgpio.gpio, 0);
 	}
+	type = script_get_item("ac100_audio0", "aif2_lrck_div", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+		pr_err("[CODEC] aif2_lrck_div type err, use default aif2 lrck div 256!\n");
+		aif2_lrck_div = 256;
+	} else
+		aif2_lrck_div = val.val;
+
+	type = script_get_item("ac100_audio0", "aif2_bclk_div", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+		pr_err("[CODEC] aif2_lrck_div type err, use default aif2 bclk div 12!\n");
+		aif2_bclk_div = 12;
+	} else
+		aif2_bclk_div = val.val;
 
 #ifndef CONFIG_SUNXI_SWITCH_GPIO
 	/*
@@ -2886,6 +2967,7 @@ static int __devinit ac100_probe(struct platform_device *pdev)
 	int ret = 0;
 	struct ac100_priv *ac100;
 	pr_debug("%s,line:%d\n", __func__, __LINE__);
+
 	ac100 = devm_kzalloc(&pdev->dev, sizeof(struct ac100_priv), GFP_KERNEL);
 	if (ac100 == NULL) {
 		return -ENOMEM;
