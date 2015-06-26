@@ -50,6 +50,7 @@ static DEFINE_PER_CPU(char[CPUFREQ_NAME_LEN], cpufreq_cpu_governor);
 #endif
 static DEFINE_RWLOCK(cpufreq_driver_lock);
 static DEFINE_MUTEX(cpufreq_governor_lock);
+static DEFINE_MUTEX(cpufreq_remove_lock);
 
 /*
  * cpu_policy_rwsem is a per CPU reader-writer semaphore designed to cure
@@ -1139,6 +1140,7 @@ static int __cpufreq_remove_dev(struct device *dev, struct subsys_interface *sif
 	struct device *cpu_dev;
 
 	pr_debug("%s: unregistering CPU %u\n", __func__, cpu);
+	mutex_lock(&cpufreq_remove_lock);
 
 	write_lock_irqsave(&cpufreq_driver_lock, flags);
 
@@ -1149,6 +1151,7 @@ static int __cpufreq_remove_dev(struct device *dev, struct subsys_interface *sif
 
 	if (!data) {
 		pr_debug("%s: No cpu_data found\n", __func__);
+		mutex_unlock(&cpufreq_remove_lock);
 		return -EINVAL;
 	}
 
@@ -1189,6 +1192,7 @@ static int __cpufreq_remove_dev(struct device *dev, struct subsys_interface *sif
 
 			ret = sysfs_create_link(&cpu_dev->kobj, &data->kobj,
 					"cpufreq");
+			mutex_unlock(&cpufreq_remove_lock);
 			return -EINVAL;
 		}
 
@@ -1234,6 +1238,8 @@ static int __cpufreq_remove_dev(struct device *dev, struct subsys_interface *sif
 	}
 
 	per_cpu(cpufreq_policy_cpu, cpu) = -1;
+	mutex_unlock(&cpufreq_remove_lock);
+
 	return 0;
 }
 
@@ -1929,10 +1935,12 @@ error_out:
  */
 int cpufreq_update_policy(unsigned int cpu)
 {
-	struct cpufreq_policy *data = cpufreq_cpu_get(cpu);
+	struct cpufreq_policy *data;
 	struct cpufreq_policy policy;
 	int ret;
 
+	mutex_lock(&cpufreq_remove_lock);
+	data = cpufreq_cpu_get(cpu);
 	if (!data) {
 		ret = -ENODEV;
 		goto no_policy;
@@ -1971,6 +1979,7 @@ int cpufreq_update_policy(unsigned int cpu)
 fail:
 	cpufreq_cpu_put(data);
 no_policy:
+	mutex_unlock(&cpufreq_remove_lock);
 	return ret;
 }
 EXPORT_SYMBOL(cpufreq_update_policy);

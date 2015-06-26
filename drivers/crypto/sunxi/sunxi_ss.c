@@ -32,16 +32,7 @@
 
 #include "sunxi_ss.h"
 #include "sunxi_ss_proc.h"
-#if defined(CONFIG_ARCH_SUN8IW1) || defined(CONFIG_ARCH_SUN8IW5) \
-		|| defined(CONFIG_ARCH_SUN8IW8)
-#include "v1/sunxi_ss_reg.h"
-#endif
-#if defined(CONFIG_ARCH_SUN8IW6) || defined(CONFIG_ARCH_SUN9IW1)
-#include "v2/sunxi_ss_reg.h"
-#endif
-#if defined(CONFIG_ARCH_SUN8IW7) || defined(CONFIG_ARCH_SUN8IW9)
-#include "v3/sunxi_ss_reg.h"
-#endif
+#include "sunxi_ss_reg.h"
 
 sunxi_ss_t *ss_dev = NULL;
 
@@ -57,6 +48,11 @@ void ss_dev_unlock(void)
 	mutex_unlock(&ss_lock);
 }
 
+void __iomem *ss_membase(void)
+{
+	return ss_dev->base_addr;
+}
+
 void ss_reset(void)
 {
 	SS_ENTER();
@@ -64,85 +60,20 @@ void ss_reset(void)
 	sunxi_periph_reset_deassert(ss_dev->mclk);
 }
 
-void print_hex(char *_data, int _len, int _addr)
+void ss_clk_set(u32 rate)
 {
-	int i;
+#ifdef CONFIG_EVB_PLATFORM
+	int ret = 0;
 
-	pr_debug("-------------------- The valid len = %d ----------------------- ", _len);
-	for (i=0; i<_len/8; i++) {
-		pr_debug("0x%08X: %02X %02X %02X %02X %02X %02X %02X %02X ", i*8 + _addr,
-			_data[i*8+0], _data[i*8+1], _data[i*8+2], _data[i*8+3],
-			_data[i*8+4], _data[i*8+5], _data[i*8+6], _data[i*8+7]);
-	}
-	pr_debug("-------------------------------------------------------------- ");
-}
+	ret = clk_get_rate(ss_dev->mclk);
+	if (ret == rate)
+		return;
 
-/* Prepare for padding in Hash. Final() will process the data. */
-void ss_hash_padding_data_prepare(ss_hash_ctx_t *ctx, char *tail, int len)
-{
-	if (len != 0)
-		memcpy(ctx->pad, tail, len);
-
-	SS_DBG("The padding data: \n");
-	print_hex(ctx->pad, len, 0);
-}
-
-/* The tail data will be processed later. */
-void ss_hash_padding_sg_prepare(struct scatterlist *last, int total)
-{
-	if (total%SHA1_BLOCK_SIZE != 0) {
-		SS_DBG("sg len: %d, total: %d \n", sg_dma_len(last), total);
-		WARN(sg_dma_len(last) < total%SHA1_BLOCK_SIZE, "sg len: %d, total: %d \n", sg_dma_len(last), total);
-		sg_dma_len(last) = sg_dma_len(last) - total%SHA1_BLOCK_SIZE;
-	}
-	WARN_ON(sg_dma_len(last) > total);
-}
-
-int ss_hash_blk_size(int type)
-{
-#if defined(SS_SHA384_ENABLE) || defined(SS_SHA512_ENABLE)
-	if ((type == SS_METHOD_SHA384) || (type == SS_METHOD_SHA512))
-		return SHA512_BLOCK_SIZE;
-	else
+	SS_DBG("Change the SS clk to %d MHz. \n", rate/1000000);
+	ret = clk_set_rate(ss_dev->mclk, rate);
+	if (ret != 0)
+		SS_ERR("clk_set_rate(%d) failed! return %d\n", rate, ret);
 #endif
-		return SHA1_BLOCK_SIZE;
-}
-
-int ss_hash_padding(ss_hash_ctx_t *ctx, int type)
-{
-	int n = ctx->cnt % ss_hash_blk_size(type);
-	u8 *p = ctx->pad;
-	int len_l = ctx->cnt << 3;  /* total len, in bits. */
-	int len_h = ctx->cnt >> 29;
-	int big_endian = type == SS_METHOD_MD5 ? 0 : 1;
-
-	SS_DBG("type = %d, n = %d, ctx->cnt = %d\n", type, n, ctx->cnt);
-	p[n] = 0x80;
-	n++;
-
-	if (n > (ss_hash_blk_size(type)-8)) {
-		memset(p+n, 0, ss_hash_blk_size(type)*2 - n);
-		p += ss_hash_blk_size(type)*2-8;
-	}
-	else {
-		memset(p+n, 0, ss_hash_blk_size(type)-8-n);
-		p += ss_hash_blk_size(type)-8;
-	}
-
-	if (big_endian == 1) {
-		*(int *)p = swab32(len_h);
-		*(int *)(p+4) = swab32(len_l);
-	}
-	else {
-		*(int *)p = len_l;
-		*(int *)(p+4) = len_h;
-	}
-
-	SS_DBG("After padding %d: %02x %02x %02x %02x   %02x %02x %02x %02x\n",
-			p + 8 - ctx->pad,
-			p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
-
-	return p + 8 - ctx->pad;
 }
 
 static int ss_aes_setkey(struct crypto_ablkcipher *tfm, const u8 *key, 
@@ -495,22 +426,6 @@ static void sunxi_ss_cra_exit(struct crypto_tfm *tfm)
 #endif
 }
 
-#if defined(SS_SHA_SWAP_PRE_ENABLE) || defined(SS_SHA_SWAP_FINAL_ENABLE)
-/* A bug of SS controller, need fix it by software. */
-void ss_hash_swap(char *data, int len)
-{
-	int i;
-	int temp = 0;
-	int *cur = (int *)data;
-
-	SS_DBG("Convert the byter-order of digest. len %d\n", len);
-	for (i=0; i<len/4; i++, cur++) {
-		temp = cpu_to_be32(*cur);
-		*cur = temp;
-	}
-}
-#endif
-
 static int ss_hash_init(struct ahash_request *req, int type, int size, char *iv)
 {
 	ss_aes_req_ctx_t *req_ctx = ahash_request_ctx(req);
@@ -732,11 +647,11 @@ static struct crypto_alg sunxi_ss_algs[] =
 	DECLARE_SS_ASYM_ALG(ecdh, 160, 160/8, 160/8),
 	DECLARE_SS_ASYM_ALG(ecdh, 224, 224/8, 224/8),
 	DECLARE_SS_ASYM_ALG(ecdh, 256, 256/8, 256/8),
-	DECLARE_SS_ASYM_ALG(ecdh, 521, (521+31)/8, (521+31)/8),
+	DECLARE_SS_ASYM_ALG(ecdh, 521, ((521+31)/32)*4, ((521+31)/32)*4),
 	DECLARE_SS_ASYM_ALG(ecc_sign, 160, 160/8, (160/8)*2),
-	DECLARE_SS_ASYM_ALG(ecc_sign, 224, 224/8, (224/4)*2),
-	DECLARE_SS_ASYM_ALG(ecc_sign, 256, 256/8, (256/4)*2),
-	DECLARE_SS_ASYM_ALG(ecc_sign, 521, (521+31)/8, ((521+31)/8)*2),
+	DECLARE_SS_ASYM_ALG(ecc_sign, 224, 224/8, (224/8)*2),
+	DECLARE_SS_ASYM_ALG(ecc_sign, 256, 256/8, (256/8)*2),
+	DECLARE_SS_ASYM_ALG(ecc_sign, 521, ((521+31)/32)*4, ((521+31)/32)*4*2),
 	DECLARE_SS_RSA_ALG(ecc_verify, 512),
 	DECLARE_SS_RSA_ALG(ecc_verify, 1024),
 #endif
@@ -892,17 +807,18 @@ static int __devexit sunxi_ss_res_release(sunxi_ss_t *sss)
 	return 0;
 }
 
-#ifdef CONFIG_EVB_PLATFORM
-
 static int sunxi_ss_hw_init(sunxi_ss_t *sss)
 {
+#ifdef CONFIG_EVB_PLATFORM
 	int ret = 0;
+#endif
+	struct clk *pclk = NULL;
 
-	sss->pclk = clk_get(&sss->pdev->dev, SS_PLL_CLK);
-	if (IS_ERR_OR_NULL(sss->pclk)) {
+	pclk = clk_get(&sss->pdev->dev, SS_PLL_CLK);
+	if (IS_ERR_OR_NULL(pclk)) {
 		SS_ERR("Unable to acquire module clock '%s', return %x\n",
-				SS_PLL_CLK, PTR_RET(sss->pclk));
-		return PTR_RET(sss->pclk);
+				SS_PLL_CLK, PTR_RET(pclk));
+		return PTR_RET(pclk);
 	}
 
 	sss->mclk = clk_get(&sss->pdev->dev, sss->dev_name);
@@ -912,7 +828,8 @@ static int sunxi_ss_hw_init(sunxi_ss_t *sss)
 		return PTR_RET(sss->mclk);
 	}
 
-	ret = clk_set_parent(sss->mclk, sss->pclk);
+#ifdef CONFIG_EVB_PLATFORM
+	ret = clk_set_parent(sss->mclk, pclk);
 	if (ret != 0) {
 		SS_ERR("clk_set_parent() failed! return %d\n", ret);
 		return ret;
@@ -923,59 +840,26 @@ static int sunxi_ss_hw_init(sunxi_ss_t *sss)
 		SS_ERR("clk_set_rate(%d) failed! return %d\n", SS_CLK_RATE, ret);
 		return ret;
 	}
-
-	SS_DBG("SS mclk %luMHz, pclk %luMHz\n", clk_get_rate(sss->mclk)/1000000,
-			clk_get_rate(sss->pclk)/1000000);
-
-	if (clk_prepare_enable(sss->mclk)) {
-		SS_ERR("Couldn't enable module clock\n");
-		return -EBUSY;
-	}
-
-//	sunxi_periph_reset_deassert(sss->mclk);
-	return 0;
-}
-
-static int sunxi_ss_hw_exit(sunxi_ss_t *sss)
-{
-//	sunxi_periph_reset_assert(sss->mclk);
-	clk_disable_unprepare(sss->mclk);
-	clk_put(sss->mclk);
-	clk_put(sss->pclk);
-	sss->mclk = NULL;
-	sss->pclk = NULL;
-	return 0;
-}
-
-#else
-
-static int sunxi_ss_hw_init(sunxi_ss_t *sss)
-{
-	sss->mclk = clk_get(&sss->pdev->dev, sss->dev_name);
-	if (IS_ERR_OR_NULL(sss->mclk)) {
-		SS_ERR("Unable to acquire module clock '%s', return %x\n",
-				sss->dev_name, PTR_RET(sss->mclk));
-		return PTR_RET(sss->mclk);
-	}
-
-	SS_DBG("SS mclk %luMHz\n", clk_get_rate(sss->mclk)/1000000);
-
-	if (clk_prepare_enable(sss->mclk)) {
-		SS_ERR("Couldn't enable module clock\n");
-		return -EBUSY;
-	}
-	return 0;
-}
-
-static int sunxi_ss_hw_exit(sunxi_ss_t *sss)
-{
-	clk_disable_unprepare(sss->mclk);
-	clk_put(sss->mclk);
-	sss->mclk = NULL;
-	return 0;
-}
-
 #endif
+	SS_DBG("SS mclk %luMHz, pclk %luMHz\n", clk_get_rate(sss->mclk)/1000000,
+			clk_get_rate(pclk)/1000000);
+
+	if (clk_prepare_enable(sss->mclk)) {
+		SS_ERR("Couldn't enable module clock\n");
+		return -EBUSY;
+	}
+
+	clk_put(pclk);
+	return 0;
+}
+
+static int sunxi_ss_hw_exit(sunxi_ss_t *sss)
+{
+	clk_disable_unprepare(sss->mclk);
+	clk_put(sss->mclk);
+	sss->mclk = NULL;
+	return 0;
+}
 
 static int sunxi_ss_alg_register(void)
 {
@@ -1026,6 +910,73 @@ static void sunxi_ss_alg_unregister(void)
 		crypto_unregister_ahash(&sunxi_ss_algs_hash[i]);
 }
 
+static ssize_t sunxi_ss_info_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	sunxi_ss_t *sss = platform_get_drvdata(pdev);
+
+	return snprintf(buf, PAGE_SIZE,
+		"pdev->id   = %d \n"
+		"pdev->name = %s \n"
+		"pdev->num_resources = %u \n"
+		"pdev->resource.mem = [0x%08x, 0x%08x] \n"
+		"pdev->resource.irq = %d \n"
+		"SS module clk rate = %ld Mhz \n"
+		"IO membase = 0x%p \n",
+		pdev->id, pdev->name, pdev->num_resources,
+		pdev->resource[0].start, pdev->resource[0].end,
+		sss->irq,
+		(clk_get_rate(sss->mclk)/1000000), sss->base_addr);
+}
+static struct device_attribute sunxi_ss_info_attr =
+	__ATTR(info, S_IRUGO, sunxi_ss_info_show, NULL);
+
+static ssize_t sunxi_ss_status_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	int i;
+	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	sunxi_ss_t *sss = platform_get_drvdata(pdev);
+	char *avail[] = {"Available", "Unavailable"};
+
+	if (sss == NULL)
+		return snprintf(buf, PAGE_SIZE, "%s\n", "sunxi_ss_t is NULL!");
+
+	buf[0] = 0;
+	for (i=0; i<SS_FLOW_NUM; i++) {
+		snprintf(buf+strlen(buf), PAGE_SIZE-strlen(buf),
+			"The flow %d state: %s \n"
+#ifdef SS_IDMA_ENABLE
+			"    Src: 0x%p / 0x%08x \n"
+			"    Dst: 0x%p / 0x%08x \n"
+#endif
+			, i, avail[sss->flows[i].available]
+#ifdef SS_IDMA_ENABLE
+			, sss->flows[i].buf_src, sss->flows[i].buf_src_dma
+			, sss->flows[i].buf_dst, sss->flows[i].buf_dst_dma
+#endif
+		);
+	}
+
+	return strlen(buf) + ss_reg_print(buf + strlen(buf), PAGE_SIZE - strlen(buf));
+}
+
+static struct device_attribute sunxi_ss_status_attr =
+	__ATTR(status, S_IRUGO, sunxi_ss_status_show, NULL);
+
+static void sunxi_ss_sysfs_create(struct platform_device *_pdev)
+{
+	device_create_file(&_pdev->dev, &sunxi_ss_info_attr);
+	device_create_file(&_pdev->dev, &sunxi_ss_status_attr);
+}
+
+static void sunxi_ss_sysfs_remove(struct platform_device *_pdev)
+{
+	device_remove_file(&_pdev->dev, &sunxi_ss_info_attr);
+	device_remove_file(&_pdev->dev, &sunxi_ss_status_attr);
+}
+
 static int __devinit sunxi_ss_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -1070,8 +1021,10 @@ static int __devinit sunxi_ss_probe(struct platform_device *pdev)
 		goto err3;
 	}
 
+	sunxi_ss_sysfs_create(pdev);
+
 	ss_dev = sss;
-	SS_DBG("SS driver probe succeed, base %p, irq %d!\n", sss->base_addr, sss->irq);
+	SS_DBG("SS driver probe succeed, base 0x%p, irq %d!\n", sss->base_addr, sss->irq);
 	return 0;
 
 err3:
@@ -1090,6 +1043,7 @@ static int __devexit sunxi_ss_remove(struct platform_device *pdev)
 	sunxi_ss_t *sss = platform_get_drvdata(pdev);
 
 	ss_wait_idle();
+	sunxi_ss_sysfs_remove(pdev);
 
 	cancel_work_sync(&sss->work);
 	flush_workqueue(sss->workqueue);
@@ -1190,71 +1144,6 @@ static struct platform_device sunxi_ss_device = {
 	.dev.release = sunxi_ss_release,
 };
 
-static ssize_t sunxi_ss_info_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
-	sunxi_ss_t *sss = platform_get_drvdata(pdev);
-
-	return snprintf(buf, PAGE_SIZE,
-		"pdev->id   = %d \n"
-		"pdev->name = %s \n"
-		"pdev->num_resources = %u \n"
-		"pdev->resource.mem = [0x%08x, 0x%08x] \n"
-		"pdev->resource.irq = %d \n"
-		"SS module clk rate = %ld Mhz \n",
-		pdev->id, pdev->name, pdev->num_resources,
-		pdev->resource[0].start, pdev->resource[0].end, pdev->resource[1].start,
-		clk_get_rate(sss->mclk)/1000000);
-}
-static struct device_attribute sunxi_ss_info_attr =
-	__ATTR(info, S_IRUGO, sunxi_ss_info_show, NULL);
-
-static ssize_t sunxi_ss_status_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	int i;
-	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
-	sunxi_ss_t *sss = platform_get_drvdata(pdev);
-	char *avail[] = {"Available", "Unavailable"};
-
-	if (sss == NULL)
-		return snprintf(buf, PAGE_SIZE, "%s\n", "sunxi_ss_t is NULL!");
-
-	buf[0] = 0;
-	for (i=0; i<SS_FLOW_NUM; i++) {
-		snprintf(buf+strlen(buf), PAGE_SIZE-strlen(buf),
-			"The flow %d state: %s \n"
-#ifdef SS_IDMA_ENABLE
-			"    Src: 0x%p / 0x%08x \n"
-			"    Dst: 0x%p / 0x%08x \n"
-#endif
-			, i, avail[sss->flows[i].available]
-#ifdef SS_IDMA_ENABLE
-			, sss->flows[i].buf_src, sss->flows[i].buf_src_dma
-			, sss->flows[i].buf_dst, sss->flows[i].buf_dst_dma
-#endif
-		);
-	}
-
-	return strlen(buf) + ss_reg_print(buf + strlen(buf), PAGE_SIZE - strlen(buf));
-}
-
-static struct device_attribute sunxi_ss_status_attr =
-	__ATTR(status, S_IRUGO, sunxi_ss_status_show, NULL);
-
-static void sunxi_ss_sysfs_create(struct platform_device *_pdev)
-{
-	device_create_file(&_pdev->dev, &sunxi_ss_info_attr);
-	device_create_file(&_pdev->dev, &sunxi_ss_status_attr);
-}
-
-static void sunxi_ss_sysfs_remove(struct platform_device *_pdev)
-{
-	device_remove_file(&_pdev->dev, &sunxi_ss_info_attr);
-	device_remove_file(&_pdev->dev, &sunxi_ss_status_attr);
-}
-
 static int __init sunxi_ss_init(void)
 {
     int ret = 0;
@@ -1272,14 +1161,12 @@ static int __init sunxi_ss_init(void)
 		SS_ERR("platform_device_register() failed, return %d\n", ret);
 		return ret;
 	}
-	sunxi_ss_sysfs_create(&sunxi_ss_device);
 
 	return ret;
 }
 
 static void __exit sunxi_ss_exit(void)
 {
-	sunxi_ss_sysfs_remove(&sunxi_ss_device);
 	platform_device_unregister(&sunxi_ss_device);
     platform_driver_unregister(&sunxi_ss_driver);
 }

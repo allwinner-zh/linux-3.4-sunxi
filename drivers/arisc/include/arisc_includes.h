@@ -65,7 +65,4 @@ extern int arisc_query_set_standby_info(struct standby_info_para *para, arisc_rw
 extern int arisc_sysconfig_sstpower_paras(void);
 extern int arisc_report_error_info(struct arisc_message *pmessage);
 
-/* global vars */
-extern unsigned long arisc_sram_a2_vbase;
-
 #endif /* __ARISC_INCLUDES_H */

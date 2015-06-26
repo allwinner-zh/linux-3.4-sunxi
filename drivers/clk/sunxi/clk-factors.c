@@ -27,7 +27,7 @@ static int sunxi_clk_fators_enable(struct clk_hw *hw)
 	struct sunxi_clk_factors *factor = to_clk_factor(hw);
     struct sunxi_clk_factors_config *config = factor->config;
     unsigned long reg = factor_readl(factor,factor->reg);
-	unsigned int loop = 500;
+	unsigned int loop = 300;
     if(config->sdmwidth)
     {
         factor_writel(factor,config->sdmval, (void __iomem *)config->sdmpat);
@@ -49,7 +49,7 @@ static int sunxi_clk_fators_enable(struct clk_hw *hw)
         if(GET_BITS(factor->lock_bit, 1, reg))
              break;
         else
-            udelay(1);
+            udelay(10);
     }
     if(!loop)
 #if (defined CONFIG_FPGA_V4_PLATFORM) || (defined CONFIG_FPGA_V7_PLATFORM)
@@ -65,6 +65,9 @@ static void sunxi_clk_fators_disable(struct clk_hw *hw)
 	struct sunxi_clk_factors *factor = to_clk_factor(hw);
     struct sunxi_clk_factors_config *config = factor->config;
     unsigned long reg = factor_readl(factor,factor->reg);
+
+	if(factor->flags & CLK_IGNORE_DISABLE)
+        return;
 
     if(config->sdmwidth)
         reg = SET_BITS(config->sdmshift, config->sdmwidth, reg, 0);
@@ -150,19 +153,107 @@ static long sunxi_clk_factors_round_rate(struct clk_hw *hw, unsigned long rate, 
     return factor->calc_rate(*prate, &factor_val);
 }
 
+static int sunxi_clk_factors_set_flat_facotrs(struct sunxi_clk_factors *factor , struct clk_factors_value *values)
+{
+	struct sunxi_clk_factors_config *config = factor->config;
+	/*get all factors from the regitsters*/
+	u32 reg = factor_readl(factor,factor->reg);
+	u32 tmp_factor_p = config->pwidth ? GET_BITS( config->pshift , config->pwidth , reg) : 0 ;
+	u32 tmp_factor_m = config->mwidth ? GET_BITS( config->mshift , config->mwidth , reg) : 0 ;
+	
+#ifdef CONFIG_EVB_PLATFORM	
+	unsigned int loop = 300; /*lock loops*/
+#endif	
+	
+	/* 1).try to increase factor p first */
+	if( config->pwidth && tmp_factor_p < values->factorp )
+	{
+		reg = SET_BITS( config->pshift , config->pwidth , reg , values->factorp );
+		factor_writel(factor,reg, factor->reg);
+		if( factor->flags & CLK_RATE_FLAT_DELAY)
+			udelay(config->delay);
+	}
+	/* 2).try to increase factor m first */
+	if( config->mwidth && tmp_factor_m < values->factorm )
+	{
+		reg = SET_BITS( config->mshift , config->mwidth , reg, values->factorm );
+		factor_writel(factor,reg, factor->reg);
+		if( factor->flags & CLK_RATE_FLAT_DELAY)
+			udelay(config->delay);
+	}
+
+	/* 3. write factor n & k */
+	if( config->nwidth )
+		reg = SET_BITS( config->nshift , config->nwidth , reg, values->factorn );
+	
+	if( config->kwidth )
+		reg = SET_BITS( config->kshift , config->kwidth , reg, values->factork );		
+	
+	factor_writel(factor,reg, factor->reg);
+	/* 4. do pair things for 2). decease factor m */
+	if( config->mwidth && tmp_factor_m > values->factorm)
+	{
+		reg = SET_BITS( config->mshift , config->mwidth , reg, values->factorm );
+		factor_writel(factor,reg, factor->reg);
+		if( factor->flags & CLK_RATE_FLAT_DELAY)
+			udelay(config->delay);
+	}	
+
+	/* 5. wait for PLL state stable */
+#ifdef CONFIG_EVB_PLATFORM
+	while(loop--)
+	{
+        u32 reg_val = factor_readl(factor,factor->lock_reg);
+        if(GET_BITS(factor->lock_bit, 1, reg_val))
+             break;
+        else
+            udelay(10);
+	}
+	
+    if(!loop)
+#if (defined CONFIG_FPGA_V4_PLATFORM) || (defined CONFIG_FPGA_V7_PLATFORM)
+        printk("clk %s wait lock timeout\n",factor->hw.clk->name);
+#else
+        WARN(1, "clk %s wait lock timeout\n",factor->hw.clk->name);
+#endif
+
+#endif
+
+	/*6.do pair things for 1).  decease factor p */
+	if( config->pwidth && tmp_factor_p > values->factorp )
+	{
+		reg = SET_BITS( config->pshift , config->pwidth , reg, values->factorp );
+		factor_writel(factor,reg, factor->reg);
+		if( factor->flags & CLK_RATE_FLAT_DELAY)
+			udelay(config->delay);
+	}
+
+	return 0;
+}
+
+
 static int sunxi_clk_factors_set_rate(struct clk_hw *hw, unsigned long rate, unsigned long parent_rate)
 {
     unsigned long reg;
     struct clk_factors_value factor_val;
-    unsigned int loop = 500;
+    unsigned int loop = 300;
 	struct sunxi_clk_factors *factor = to_clk_factor(hw);
     struct sunxi_clk_factors_config *config = factor->config;
 
     if(!factor->get_factors)
         return 0;
 
-    factor->get_factors(rate, parent_rate, &factor_val);
+	//factor_val is initialized with its original value , it's factors(such as:M,N,K,P,d1,d2...) are Random Value. 
+	//if donot judge the return value of "factor->get_factors" , it may change the original register value.
+    if( factor->get_factors(rate, parent_rate, &factor_val) < 0 ) //cannot get right factors for clk,just break
+	{
+		WARN(1, "clk %s set rate failed! Because cannot get right factors for clk\n",hw->clk->name);
+		return 0;
+	}
 
+    if(factor->flags & CLK_RATE_FLAT_FACTORS )
+		return sunxi_clk_factors_set_flat_facotrs(factor , &factor_val);
+		
     reg = factor_readl(factor,factor->reg);
 
     if(config->sdmwidth)
@@ -207,7 +298,7 @@ static int sunxi_clk_factors_set_rate(struct clk_hw *hw, unsigned long rate, uns
             if(GET_BITS(factor->lock_bit, 1, reg))
                 break;
             else
-               udelay(1);
+               udelay(10);
         }
         if(!loop)
 #if (defined CONFIG_FPGA_V4_PLATFORM) || (defined CONFIG_FPGA_V7_PLATFORM)
@@ -279,7 +370,7 @@ struct clk *sunxi_clk_register_factors(struct device *dev,void __iomem *base,spi
     factors->hw.init = &init;
     factors->get_factors = init_data->get_factors;
     factors->calc_rate = init_data->calc_rate;
-
+	factors->flags = init_data->flags;
     /* register the clock */
     clk = clk_register(dev, &factors->hw);
 

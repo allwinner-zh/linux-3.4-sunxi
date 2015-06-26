@@ -173,21 +173,32 @@ static void set_cpu_load(unsigned int cpu, unsigned int load)
 int do_cpu_down(unsigned int cpu)
 {
 	int i, c0_online=0, c1_online=0;
+    struct cpumask* c0_mask;
+    struct cpumask* c1_mask;
 
 	if (cpu == 0 || cpu >= total_nr_cpus)
 		return 0;
-
+    if(cpumask_test_cpu(0,&hmp_slow_cpu_mask))
+    {
+        c0_mask=&hmp_slow_cpu_mask;
+        c1_mask=&hmp_fast_cpu_mask;
+    }
+    else
+    {
+        c0_mask=&hmp_fast_cpu_mask;
+        c1_mask=&hmp_slow_cpu_mask;
+    }
 	for_each_online_cpu(i) {
-		if (cpumask_test_cpu(i, &hmp_slow_cpu_mask))
+		if (cpumask_test_cpu(i, c0_mask))
 			c0_online++;
-		else if (cpumask_test_cpu(i, &hmp_fast_cpu_mask))
+		else if (cpumask_test_cpu(i, c1_mask))
 			c1_online++;
 	}
 
-	if (is_cpu_little(cpu) && c0_online <= c0_min)
+	if (cpumask_test_cpu(cpu,c0_mask) && c0_online <= c0_min)
 		return 0;
 
-	if (is_cpu_big(cpu) && c1_online <= c1_min)
+	if (cpumask_test_cpu(cpu,c1_mask) && c1_online <= c1_min)
 		return 0;
 
 	if (cpu == cpu_up_lastcpu && time_before(jiffies,
@@ -209,21 +220,32 @@ int do_cpu_down(unsigned int cpu)
 int do_cpu_up(unsigned int cpu)
 {
 	int i, c0_online = 0, c1_online = 0;
+    struct cpumask* c0_mask;
+    struct cpumask* c1_mask;
 
 	if (cpu == 0 || cpu >= total_nr_cpus)
 		return 0;
-
+    if(cpumask_test_cpu(0,&hmp_slow_cpu_mask))
+    {
+        c0_mask=&hmp_slow_cpu_mask;
+        c1_mask=&hmp_fast_cpu_mask;
+    }
+    else
+    {
+        c0_mask=&hmp_fast_cpu_mask;
+        c1_mask=&hmp_slow_cpu_mask;
+    }
 	for_each_online_cpu(i) {
-		if (cpumask_test_cpu(i, &hmp_slow_cpu_mask))
+		if (cpumask_test_cpu(i, c0_mask))
 			c0_online++;
-		else if (cpumask_test_cpu(i, &hmp_fast_cpu_mask))
+		else if (cpumask_test_cpu(i, c1_mask))
 			c1_online++;
 	}
 
-	if (is_cpu_little(cpu) && c0_online >= c0_max)
+	if (cpumask_test_cpu(cpu,c0_mask) && c0_online >= c0_max)
 		return 0;
 
-	if (is_cpu_big(cpu) && c1_online >= c0_max)
+	if (cpumask_test_cpu(cpu,c1_mask) && c1_online >= c1_max)
 		return 0;
 
 	if (cpu_up(cpu))
@@ -494,34 +516,46 @@ static int autohotplug_tryroom(void)
 {
 	unsigned int to_down, to_up;
 	int i, c0_online = 0, c1_online = 0;
+    struct cpumask* c0_mask;
+    struct cpumask* c1_mask;
 
+    if(cpumask_test_cpu(0,&hmp_slow_cpu_mask))
+    {
+        c0_mask=&hmp_slow_cpu_mask;
+        c1_mask=&hmp_fast_cpu_mask;
+    }
+    else
+    {
+        c0_mask=&hmp_fast_cpu_mask;
+        c1_mask=&hmp_slow_cpu_mask;
+    }
 	for_each_online_cpu(i) {
-		if (cpumask_test_cpu(i, &hmp_slow_cpu_mask))
+		if (cpumask_test_cpu(i, c0_mask))
 			c0_online++;
-		else if (cpumask_test_cpu(i, &hmp_fast_cpu_mask))
+		else if (cpumask_test_cpu(i, c1_mask))
 			c1_online++;
 	}
 
 	while (c1_online > c1_max) {
-		to_down = get_any_online_cpu(&hmp_fast_cpu_mask);
+		to_down = get_any_online_cpu(c1_mask);
 		do_cpu_down(to_down);
 		c1_online--;
 	}
 
 	while (c0_online > c0_max) {
-		to_down = get_any_online_cpu(&hmp_slow_cpu_mask);
+		to_down = get_any_online_cpu(c0_mask);
 		do_cpu_down(to_down);
 		c0_online--;
 	}
 
 	while (c1_online < c1_min) {
-		to_up = get_any_offline_cpu(&hmp_fast_cpu_mask);
+		to_up = get_any_offline_cpu(c1_mask);
 		do_cpu_up(to_up);
 		c1_online++;
 	}
 
 	while (c0_online < c0_min) {
-		to_up = get_any_offline_cpu(&hmp_slow_cpu_mask);
+		to_up = get_any_offline_cpu(c0_mask);
 		do_cpu_up(to_up);
 		c0_online++;
 	}
@@ -680,9 +714,6 @@ static void autohotplug_sample_timer(unsigned long data)
 	static const char performance_governor[] = "performance";
 	static const char powersave_governor[] = "powersave";
 
-	if (!mutex_trylock(&hotplug_enable_mutex))
-		goto rearm;
-
 	for_each_possible_cpu(i) {
 		if ((cpufreq_get_policy(&policy, i) == 0)
 				&& policy.governor->name
@@ -717,9 +748,6 @@ static void autohotplug_sample_timer(unsigned long data)
 #endif
 	}
 
-	mutex_unlock(&hotplug_enable_mutex);
-
-rearm:
 	if (!timer_pending(&hotplug_sample_timer)) {
 		expires = jiffies + usecs_to_jiffies(hotplug_sample_us);
 		mod_timer_pinned(&hotplug_sample_timer, expires);

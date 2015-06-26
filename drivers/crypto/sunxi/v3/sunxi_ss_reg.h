@@ -167,8 +167,6 @@ void ss_key_set(char *key, int size, ce_task_desc_t *task);
 
 int ss_pending_get(void);
 void ss_pending_clear(int flow);
-void ss_dma_enable(int flow);
-void ss_dma_disable(int flow);
 void ss_irq_enable(int flow);
 void ss_irq_disable(int flow);
 
@@ -178,7 +176,7 @@ void ss_iv_mode_set(int mode, ce_task_desc_t *task);
 void ss_cnt_set(char *cnt, int size, ce_task_desc_t *task);
 void ss_cnt_get(int flow, char *cnt, int size);
 
-void ss_md_get(char *md, int size);
+void ss_md_get(char *dst, char *src, int size);
 void ss_sha_final(void);
 void ss_check_sha_end(void);
 
@@ -196,12 +194,9 @@ void ss_method_set(int dir, int type, ce_task_desc_t *task);
 void ss_aes_mode_set(int mode, ce_task_desc_t *task);
 void ss_cfb_bitwidth_set(int bitwidth, ce_task_desc_t *task);
 
-int ss_random_rd(char *data, int len);
-void ss_trng_osc_enable(void);
-void ss_trng_osc_disable(void);
-
 void ss_wait_idle(void);
 void ss_ctrl_start(ce_task_desc_t *task);
+void ss_ctrl_stop(void);
 int ss_flow_err(int flow);
 
 void ss_data_len_set(int len, ce_task_desc_t *task);

@@ -56,7 +56,7 @@ static struct sunxi_dma_params sunxi_hdmiaudio_pcm_stereo_out = {
 	#endif
 };
 #if defined CONFIG_ARCH_SUN9I || CONFIG_ARCH_SUN8IW6
-static void sunxi_snd_txctrl_i2s1(struct snd_pcm_substream *substream, int on)
+void sunxi_snd_txctrl_i2s1(struct snd_pcm_substream *substream, int on,int hub_on)
 {
 	u32 reg_val;
 
@@ -125,9 +125,20 @@ static void sunxi_snd_txctrl_i2s1(struct snd_pcm_substream *substream, int on)
 		reg_val &= ~SUNXI_I2S1INT_TXDRQEN;
 		writel(reg_val, sunxi_i2s1.regs + SUNXI_I2S1INT);
 	}
-}
 
-static int sunxi_hdmiaudio_set_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
+	if (hub_on) {
+		reg_val = readl(sunxi_i2s1.regs + SUNXI_I2S1FCTL);
+	    	reg_val |= SUNXI_I2S1FCTL_HUBEN;
+		writel(reg_val, sunxi_i2s1.regs + SUNXI_I2S1FCTL);
+	} else {
+		reg_val = readl(sunxi_i2s1.regs + SUNXI_I2S1FCTL);
+	    	reg_val &= ~SUNXI_I2S1FCTL_HUBEN;
+		writel(reg_val, sunxi_i2s1.regs + SUNXI_I2S1FCTL);
+	}
+}
+ EXPORT_SYMBOL(sunxi_snd_txctrl_i2s1);
+
+ int sunxi_hdmiaudio_set_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt)
 {
 	u32 reg_val = 0;
 	u32 reg_val1 = 0;
@@ -216,9 +227,10 @@ static int sunxi_hdmiaudio_set_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt
 	writel(reg_val, sunxi_i2s1.regs + SUNXI_I2S1FCTL);
 	return 0;
 }
+ EXPORT_SYMBOL(sunxi_hdmiaudio_set_fmt);
 #endif
 
-static int sunxi_hdmiaudio_hw_params(struct snd_pcm_substream *substream,
+int sunxi_hdmiaudio_hw_params(struct snd_pcm_substream *substream,
 																struct snd_pcm_hw_params *params,
 																struct snd_soc_dai *dai)
 {
@@ -228,7 +240,7 @@ static int sunxi_hdmiaudio_hw_params(struct snd_pcm_substream *substream,
 #ifdef CONFIG_SND_SUNXI_SOC_SUPPORT_AUDIO_RAW
 	int raw_flag = params_raw(params);
 #else
-	int raw_flag = 1;
+	int raw_flag = hdmi_format;
 #endif
 	switch (params_format(params))
 	{
@@ -283,7 +295,7 @@ static int sunxi_hdmiaudio_hw_params(struct snd_pcm_substream *substream,
 	
 	return 0;
 }
-
+ EXPORT_SYMBOL(sunxi_hdmiaudio_hw_params);
 #if defined CONFIG_ARCH_SUN9I || CONFIG_ARCH_SUN8IW6
 static int sunxi_i2s1_trigger(struct snd_pcm_substream *substream,
                               int cmd, struct snd_soc_dai *dai)
@@ -293,12 +305,12 @@ static int sunxi_i2s1_trigger(struct snd_pcm_substream *substream,
 		case SNDRV_PCM_TRIGGER_START:
 		case SNDRV_PCM_TRIGGER_RESUME:
 		case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
-			sunxi_snd_txctrl_i2s1(substream, 1);
+			sunxi_snd_txctrl_i2s1(substream, 1,0);
 			break;
 		case SNDRV_PCM_TRIGGER_STOP:
 		case SNDRV_PCM_TRIGGER_SUSPEND:
 		case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
-			sunxi_snd_txctrl_i2s1(substream, 0);
+			sunxi_snd_txctrl_i2s1(substream, 0,0);
 			break;
 		default:
 			ret = -EINVAL;
@@ -316,8 +328,15 @@ static int sunxi_i2s1_set_sysclk(struct snd_soc_dai *cpu_dai, int clk_id,
 	}
 	return 0;
 }
-
-static int sunxi_i2s1_set_clkdiv(struct snd_soc_dai *cpu_dai, int div_id, int sample_rate)
+int sunxi_hdmii2s_set_rate(int freq)
+{
+	if (clk_set_rate(i2s1_pllclk, freq)) {
+		pr_err("try to set the i2s1_pllclk failed!\n");
+	}
+	return 0;
+}
+EXPORT_SYMBOL(sunxi_hdmii2s_set_rate);
+int sunxi_i2s1_set_clkdiv(struct snd_soc_dai *cpu_dai, int div_id, int sample_rate)
 {
 	u32 reg_val;
 	u32 mclk;
@@ -558,6 +577,7 @@ static int sunxi_i2s1_set_clkdiv(struct snd_soc_dai *cpu_dai, int div_id, int sa
 
 	return 0;
 }
+ EXPORT_SYMBOL(sunxi_i2s1_set_clkdiv);
 #endif
 
 static int sunxi_hdmiaudio_dai_probe(struct snd_soc_dai *dai)
@@ -628,7 +648,7 @@ static int sunxi_hdmiaudio_resume(struct snd_soc_dai *cpu_dai)
 
 	/*Global Enable Digital Audio Interface*/
 	reg_val = readl(sunxi_i2s1.regs + SUNXI_I2S1CTL);
-	reg_val |= SUNXI_I2S1CTL_GEN;
+	reg_val &= ~SUNXI_I2S1CTL_GEN;
 	writel(reg_val, sunxi_i2s1.regs + SUNXI_I2S1CTL);
 
 	return 0;
@@ -692,8 +712,9 @@ static int __init sunxi_hdmiaudio_dev_probe(struct platform_device *pdev)
 	}
 
 	reg_val = readl(sunxi_i2s1.regs + SUNXI_I2S1CTL);
-	reg_val |= SUNXI_I2S1CTL_GEN;
+	reg_val &= ~SUNXI_I2S1CTL_GEN;
 	writel(reg_val, sunxi_i2s1.regs + SUNXI_I2S1CTL);
+
 #endif
 #ifdef CONFIG_ARCH_SUN8IW6
 	sunxi_i2s1.regs = ioremap(SUNXI_I2S1BASE, 0x100);
@@ -724,7 +745,7 @@ static int __init sunxi_hdmiaudio_dev_probe(struct platform_device *pdev)
 	}
 
 	reg_val = readl(sunxi_i2s1.regs + SUNXI_I2S1CTL);
-	reg_val |= SUNXI_I2S1CTL_GEN;
+	reg_val &= ~SUNXI_I2S1CTL_GEN;
 	writel(reg_val, sunxi_i2s1.regs + SUNXI_I2S1CTL);
 #endif
 

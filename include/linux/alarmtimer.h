@@ -9,7 +9,7 @@
 enum alarmtimer_type {
 	ALARM_REALTIME,
 	ALARM_BOOTTIME,
-
+	ALARM_REALTIME_SHUTDOWN,        //add for wakeup form shutdown
 	ALARM_NUMTYPE,
 };
 

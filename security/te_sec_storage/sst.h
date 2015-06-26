@@ -33,26 +33,26 @@
 //#define SST_BIND_DEBUG
 
 /* Enable a test daemon to test SST function*/
-#define SST_FUNCTION_TEST_DAEMON
+//#define SST_FUNCTION_TEST_DAEMON
 
 /*Test OEM storage in file-system */
-#define OEM_STORE_IN_FS
+//#define OEM_STORE_IN_FS
 
 
-extern int debug_mask;
+extern int sst_debug_mask;
 
 #undef dprintk
 #define dprintk(format, arg...)        \
 	do { \
-		if (debug_mask) \
+		if (sst_debug_mask) \
 		printk(KERN_DEBUG "[Nwd-SST](%s) " format, \
 				__FUNCTION__, ## arg);  \
 	}while(0)
 
 #define fprintk(format, arg...)        \
 	do { \
-		if (debug_mask) \
-		printk(format, ## arg);    \
+		if (sst_debug_mask) \
+		printk(KERN_DEBUG format, ## arg);    \
 	}while(0)
 
 
@@ -198,5 +198,9 @@ extern int sst_user_file_test(void);
 /*check crc and magic*/
 extern int check_object_valid(store_object_t *object);
 
-
+/*User file operateion in sst*/
+extern int _sst_user_open(char *filename );
+extern int _sst_user_read(char *filename, char *buf, ssize_t len,int offset);
+extern int _sst_user_write(char *filename, char *buf, ssize_t len, int offset);
+extern int _sst_user_ioctl(char *filename, int ioctl, void *param);
 #endif

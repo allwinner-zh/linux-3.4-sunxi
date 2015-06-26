@@ -31,7 +31,8 @@ obj-$(CONFIG_SND_SOC)  += sunxi/daudio0/
 obj-$(CONFIG_SND_SOC)  += sunxi/daudio1/
 obj-$(CONFIG_SND_SOC)  += sunxi/hdmiaudio/
 obj-$(CONFIG_SND_SOC)  += sunxi/spdif/
+obj-$(CONFIG_SND_SOC)  += sunxi/audiohub/
 obj-$(CONFIG_SND_SOC)  += sunxi/i2s0/
 obj-$(CONFIG_SND_SOC)  += sunxi/i2s1/
-obj-$(CONFIG_SND_SOC)  += sunxi/virtual_audio/
+
 

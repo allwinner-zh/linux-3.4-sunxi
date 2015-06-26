@@ -30,9 +30,9 @@
 #define SUPER_STANDBY_MEM_BASE   (PLAT_PHYS_OFFSET + SZ_32M + SZ_16M + SZ_512K) /* 0x43080000 */
 #define SUPER_STANDBY_MEM_SIZE   (SZ_2K)                                        /* 0x00000800 */
 
-#if defined(CONFIG_ION) || defined(CONFIG_ION_MODULE)
-#define ION_CARVEOUT_MEM_BASE    (0x43100000)                                   /* 0x43100000 */
-#define ION_CARVEOUT_MEM_SIZE    (CONFIG_ION_SUNXI_CARVEOUT_SIZE * SZ_1M)
+#ifdef CONFIG_ANDROID_RAM_CONSOLE
+#define RC_MEM_BASE              (SUPER_STANDBY_MEM_BASE + SUPER_STANDBY_MEM_SIZE)
+#define RC_MEM_SIZE              (SZ_64K)
 #endif
 
 #define SRAM_DDRFREQ_OFFSET	0xf0000000

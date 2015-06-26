@@ -41,6 +41,7 @@ module_param_named(debug_mask, debug_mask, int, S_IRUGO | S_IWUSR | S_IWGRP);
 	} while (0)
 
 #define ANDROID_ALARM_WAKEUP_MASK ( \
+	ANDROID_ALARM_RTC_SHUTDOWN_WAKEUP_MASK \
 	ANDROID_ALARM_RTC_WAKEUP_MASK | \
 	ANDROID_ALARM_ELAPSED_REALTIME_WAKEUP_MASK)
 
@@ -70,6 +71,7 @@ static struct devalarm alarms[ANDROID_ALARM_TYPE_COUNT];
 static int is_wakeup(enum android_alarm_type type)
 {
 	if (type == ANDROID_ALARM_RTC_WAKEUP ||
+			type == ANDROID_ALARM_RTC_SHUTDOWN_WAKEUP ||
 			type == ANDROID_ALARM_ELAPSED_REALTIME_WAKEUP)
 		return 1;
 	return 0;
@@ -217,6 +219,7 @@ from_old_alarm_set:
 	case ANDROID_ALARM_GET_TIME(0):
 		switch (alarm_type) {
 		case ANDROID_ALARM_RTC_WAKEUP:
+		case ANDROID_ALARM_RTC_SHUTDOWN_WAKEUP:
 		case ANDROID_ALARM_RTC:
 			getnstimeofday(&tmp_time);
 			break;
@@ -342,6 +345,8 @@ static int __init alarm_dev_init(void)
 
 	alarm_init(&alarms[ANDROID_ALARM_RTC_WAKEUP].u.alrm,
 			ALARM_REALTIME, devalarm_alarmhandler);
+	alarm_init(&alarms[ANDROID_ALARM_RTC_SHUTDOWN_WAKEUP].u.alrm,
+			ALARM_REALTIME_SHUTDOWN, devalarm_alarmhandler);
 	hrtimer_init(&alarms[ANDROID_ALARM_RTC].u.hrt,
 			CLOCK_REALTIME, HRTIMER_MODE_ABS);
 	alarm_init(&alarms[ANDROID_ALARM_ELAPSED_REALTIME_WAKEUP].u.alrm,

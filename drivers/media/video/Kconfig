@@ -1160,6 +1160,13 @@ config VIDEO_S5P_MIPI_CSIS
 
 source "drivers/media/video/s5p-tv/Kconfig"
 
+config VIDEO_SUNXI_VFE
+	tristate "sunxi video front end (camera and etc)driver"
+	default m
+
+if VIDEO_SUNXI_VFE
+source "drivers/media/video/sunxi-vfe/Kconfig"
+endif
 
 endif # V4L_PLATFORM_DRIVERS
 endif # VIDEO_CAPTURE_DRIVERS
@@ -1224,3 +1231,4 @@ config VIDEO_MX2_EMMAPRP
 
 endif # V4L_MEM2MEM_DRIVERS
 
+source "drivers/media/video/sunxi-tsc/Kconfig"

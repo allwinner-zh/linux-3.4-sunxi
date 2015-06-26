@@ -1,5 +1,5 @@
 /*
- * sunxi-sc.c smartcard driver
+ * sunxi-scr.c smartcard driver
  *
  * Copyright (C) 2013-2014 allwinner.
  *	Ming Li<liming@allwinnertech.com>
@@ -233,7 +233,7 @@ static void scr_work_func(struct work_struct *work)
 	return;
 }
 
-//�������ݵ��ж���������
+/* data irq must immediate processing. */
 static void irq_immediate(void)
 {
 	unsigned long irqflags;
@@ -330,7 +330,7 @@ static unsigned long scr_clk_cfg(void)
 {
 	unsigned long rate = 0;
 
-	scr_clk_source = clk_get(NULL, AHB1_CLK);
+	scr_clk_source = clk_get(NULL, APB2_CLK);
 	if(!scr_clk_source || IS_ERR(scr_clk_source)) {
 		printk("%s err: try to get scr_clk_source clock failed! line %d\n", __func__, __LINE__);
 		return -1;
@@ -353,7 +353,7 @@ static unsigned long scr_clk_cfg(void)
 	dprintk(DEBUG_INIT, "%s line %d: scr_clk= 0x%ld\n", __func__, __LINE__, rate);
 
 	if (clk_prepare_enable(scr_clk)) {
-			printk(KERN_DEBUG "try to enable ir_clk failed!\n");
+		printk(KERN_DEBUG "try to enable scr_clk failed!\n");
 	}
 
 	return rate;
@@ -386,7 +386,8 @@ static uint32_t scr_init_reg(pscr_struct pscr)
 	unsigned long rate = 0;
 
 	rate = scr_clk_cfg();
-	pscr->scclk_div = rate/card_para.freq/2000-1;	//��λrate�ĵ�λ��hz����card_para.freq�ĵ�λ��khz
+	/* rate'unit is hz，card_para.freq'unit is khz */
+	pscr->scclk_div = rate/card_para.freq/2000-1;
 	pscr->baud_div = (scr.scclk_div + 1)*(card_para.f/card_para.d)-1;
 
 	dprintk(DEBUG_INIT, "%s: scclk_div=%d, baud_div=%d\n", __func__,
@@ -423,7 +424,7 @@ static uint32_t scr_init_reg(pscr_struct pscr)
 	scr_set_interrupt_enable(pscr, pscr->inten_bm);
 	scr_global_interrupt_enable(&scr);
 
-	//Ĭ������Ϊ���ܲ�У��
+	/* the default seting is no recv check*/
 	if  (1==card_para.recv_no_parity)
 		scr_set_recv_parity(pscr, card_para.recv_no_parity&0x01);
 
@@ -455,34 +456,34 @@ static void card_para_default(void)
 {
 	card_para.f = 372;
 	card_para.d = 1;
-	card_para.freq = 4000;		//4Mhz����λkhz
+	card_para.freq = 4000;		              //4Mhz，unit khz
 	card_para.recv_no_parity = 1;
 }
 static void sunxi_scr_params_init(void)
 {
-	scr.reg_base = (void __iomem *)(0xf1C2C400);
+	scr.reg_base = (void __iomem *)(0xf1c2c400);
 	scr.irq_no = SUNXI_IRQ_SCR;
 	scr.csr_config = 0x0100000;
-	//�رշ�����ص��ж�
-	scr.inten_bm = 0xfffffff0;	//scr.inten_bm = 0xffffffff;
+	/* disable tx irq */
+	scr.inten_bm = 0xfffffff0;	              //scr.inten_bm = 0xffffffff;
 	scr.txfifo_thh = SCR_FIFO_DEPTH/2;
 	scr.rxfifo_thh = SCR_FIFO_DEPTH/4;
 	scr.tx_repeat = 0x3;
 	scr.rx_repeat = 0x3;
-	scr.scclk_div = 0;  //(APB1CLK/4000000) PCLK/14, <175, && SCCLK >= 1M && =<4M
-	scr.baud_div = 0;   //ETU = 372*SCCLK
-	scr.act_time = 1;   //=1*256, 100;
-	scr.rst_time = 0xff;   //=2*256, >=400
-	scr.atr_time = 0xff;	//scr.atr_time = (40000>>8)+1; //=256*256, 400~40000
-	scr.guard_time = 2; //=2*ETUs
-	scr.chlimit_time = 1024*(10+scr.guard_time); //1K Characters
+	scr.scclk_div = 0;                            //(APB1CLK/4000000) PCLK/14, <175, && SCCLK >= 1M && =<4M
+	scr.baud_div = 0;                             //ETU = 372*SCCLK
+	scr.act_time = 1;                             //=1*256, 100;
+	scr.rst_time = 0xff;                          //=2*256, >=400
+	scr.atr_time = 0xff;                          //scr.atr_time = (40000>>8)+1; //=256*256, 400~40000
+	scr.guard_time = 2;                           //=2*ETUs
+	scr.chlimit_time = 1024*(10+scr.guard_time);  //1K Characters
 }
 
 /**
-* 1. ʵ��һ�ο��ͳ��ܶ����������������read�Ļ���Ӧ�ð�Ҫ���ĳ�������copy��
-*	�ڶ��μ������Ļ������ϴεĵط���ʼcopy
-* 2. ��ʱʱ��Ŀ��ƣ�ʹ��whileѭ���Ĵ������ƣ���ʱʱ����Ҫ4.5S
-* 3. ��write��ʱ�����rxbuf
+* 1. the card actually send a lot number data one time, if call the read twice, should copy data according to
+*    the length want to read. second read from the last place to start copy.
+* 2. timeout seting is 255*20ms = 4.5s
+* 3. when write, clear rxbuf
 */
 static ssize_t
 sunxi_scr_read(struct file *file, char __user *buf,
@@ -568,7 +569,8 @@ static long sunxi_scr_ioctl(struct file *filp, unsigned int cmd, unsigned long a
 {
 	void __user *argp = (void __user *)arg;
 
-	uint8_t tryTimes = 0;	//����SCR_ATR_RESP_FAIL == scr.atr_resp Ҳ�����յ���������atr
+	/* if SCR_ATR_RESP_FAIL == scr.atr_resp, we must make the received data as atr */
+	uint8_t tryTimes = 0;
 	dprintk(DEBUG_INIT, "%s: enter!!\n", __func__);
 
 	switch (cmd) {

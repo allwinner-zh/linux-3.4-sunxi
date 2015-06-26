@@ -65,6 +65,18 @@ static DEFINE_SPINLOCK(boot_lock);
 /* boot entry for each cpu */
 extern void *cpus_boot_entry[NR_CPUS];
 extern void secondary_startup(void);
+
+#ifdef CONFIG_SUNXI_TRUSTZONE
+static void sunxi_secure_set_secondary_entry(void *entry)
+{
+	if (sunxi_soc_is_secure()) {
+		call_firmware_op(set_secondary_entry, entry);
+	} else {
+		sunxi_set_secondary_entry(entry);
+	}
+}
+#endif
+
 void sunxi_set_cpus_boot_entry(int cpu, void *entry)
 {
 	if(cpu < NR_CPUS) {
@@ -91,9 +103,11 @@ void sunxi_smp_init_cpus(void)
 		/* parse hardware parameter */
 		switch(chip_ver) {
 			case SUN8IW7P1_REV_A:
+			case SUN8IW7P1_REV_B:
 				nr_cpu_ids = 4;
 				break;
 			case SUN8IW7P2_REV_A:
+			case SUN8IW7P2_REV_B:
 			default:
 				nr_cpu_ids = 2;
 				break;
@@ -125,7 +139,11 @@ void sunxi_smp_init_cpus(void)
 static void sunxi_smp_prepare_cpus(unsigned int max_cpus)
 {
 	pr_info("[%s] enter\n", __func__);
+#ifdef CONFIG_SUNXI_TRUSTZONE
+	sunxi_secure_set_secondary_entry((void *)(virt_to_phys(sunxi_secondary_startup)));
+#else
 	sunxi_set_secondary_entry((void *)(virt_to_phys(sunxi_secondary_startup)));
+#endif
 }
 
 /*
@@ -194,7 +212,11 @@ static void sunxi_cpu_restore(void)
 	//pr_info("[%s] enter\n", __func__);
 
 	/* restore the secondary cpu boot entry address */
+#ifdef CONFIG_SUNXI_TRUSTZONE
+	sunxi_secure_set_secondary_entry(sunxi_secondary_entry_save);
+#else
 	sunxi_set_secondary_entry(sunxi_secondary_entry_save);
+#endif
 }
 
 static int sunxi_cpususpend_notifier(struct notifier_block *self, unsigned long cmd, void *v)

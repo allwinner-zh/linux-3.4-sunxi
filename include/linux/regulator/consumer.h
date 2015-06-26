@@ -354,43 +354,6 @@ static inline void regulator_set_drvdata(struct regulator *regulator,
 {
 }
 
-#ifdef CONFIG_AW_AXP
-int get_ldo_name(const char *supply_name, char * ldo_name)
-{
-	return -1;
-}
-
-static int get_enable_id_count(const char *ldo_name)
-{
-	return 0;
-}
-
-static int get_enable_id(const char *ldo_name, unsigned int count, char *enable_id)
-{
-	return -1;
-}
-
-static int check_enable_id(const char *ldo_name, const char *enalbe_id)
-{
-	return -1;
-}
-
-static int check_ldo_alwayson(const char *ldo_name)
-{
-	return -1;
-}
-
-static int set_ldo_alwayson(const char *ldo_name, unsigned int value)
-{
-	return -1;
-}
-static int axp_regulator_dump(void)
-{
-	return 0;
-}
-
-#endif
-
 #endif
 
 #endif

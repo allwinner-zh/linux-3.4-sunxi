@@ -54,6 +54,8 @@ struct tdm_runtime_data {
 };
 #endif
 
+static bool BOOT_MUSIC_PARA = 0;
+
 static const struct snd_pcm_hardware sunxi_pcm_play_hardware = {
 	.info			= SNDRV_PCM_INFO_INTERLEAVED | SNDRV_PCM_INFO_BLOCK_TRANSFER |
 				      SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_MMAP_VALID |
@@ -237,7 +239,7 @@ static int sunxi_pcm_hw_params(struct snd_pcm_substream *substream,
 #endif
 #ifdef CONFIG_ARCH_SUN9IW1
 #ifndef AR200_AUDIO
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK && BOOT_MUSIC_PARA != 1) {
 		substream->dma_buffer.addr = 0x14000;
 		substream->dma_buffer.area = (unsigned char *)0xf0014000;
 		memset((void *)0xf0014000, 0, 0x4000);
@@ -636,7 +638,7 @@ static int __init sunxi_soc_platform_daudio_init(void)
 	return 0;	
 }
 module_init(sunxi_soc_platform_daudio_init);
-
+module_param_named(BOOT_MUSIC_PARA, BOOT_MUSIC_PARA, bool, S_IRUGO | S_IWUSR);
 static void __exit sunxi_soc_platform_daudio_exit(void)
 {
 	return platform_driver_unregister(&sunxi_daudio_pcm_driver);

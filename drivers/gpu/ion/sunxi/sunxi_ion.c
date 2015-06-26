@@ -40,6 +40,8 @@
 #include <linux/dma-buf.h>
 #include <linux/ion_sunxi.h>
 #include <linux/vmalloc.h>
+#include <linux/secure/te_protocol.h>
+#include <mach/sunxi-smc.h>
 #include <asm/setup.h>
 #include "../ion_priv.h"
 
@@ -55,68 +57,6 @@ EXPORT_SYMBOL(idev);
 
 int sunxi_ion_show(struct seq_file *m, void *unused);
 long sunxi_ion_ioctl(struct ion_client *client, unsigned int cmd, unsigned long arg);
-
-int flush_clean_user_range(long start, long end);
-EXPORT_SYMBOL(flush_clean_user_range);
-
-int flush_user_range(long start, long end);
-EXPORT_SYMBOL(flush_user_range);
-
-void flush_dcache_all(void);
-EXPORT_SYMBOL(flush_dcache_all);
-
-/*
- * use sunxi_map_kernel to map phys addr to kernel space, instead of ioremap,
- * which cannot be used for mem_reserve areas.
- */
-void *sunxi_map_kernel(unsigned int phys_addr, unsigned int size)
-{
-	int npages = PAGE_ALIGN(size) / PAGE_SIZE;
-	struct page **pages = vmalloc(sizeof(struct page *) * npages);
-	struct page **tmp = pages;
-	struct page *cur_page = phys_to_page(phys_addr);
-	pgprot_t pgprot;
-	void *vaddr;
-	int i;
-
-	if(!pages)
-		return 0;
-
-	for(i = 0; i < npages; i++)
-		*(tmp++) = cur_page++;
-
-	pgprot = pgprot_noncached(PAGE_KERNEL);
-	vaddr = vmap(pages, npages, VM_MAP, pgprot);
-
-	vfree(pages);
-	return vaddr;
-}
-EXPORT_SYMBOL(sunxi_map_kernel);
-
-void sunxi_unmap_kernel(void *vaddr)
-{
-	vunmap(vaddr);
-}
-EXPORT_SYMBOL(sunxi_unmap_kernel);
-
-unsigned int sunxi_mem_alloc(unsigned int size)
-{
-	ion_phys_addr_t phys_addr;
-
-	if(unlikely(!carveout_heap))
-		return 0;
-	phys_addr = ion_carveout_allocate(carveout_heap, size, 0);
-	if((ion_phys_addr_t)ION_CARVEOUT_ALLOCATE_FAIL == phys_addr)
-		return 0;
-	return phys_addr;
-}
-EXPORT_SYMBOL_GPL(sunxi_mem_alloc);
-
-void sunxi_mem_free(unsigned int phys_addr, unsigned int size)
-{
-	ion_carveout_free(carveout_heap, phys_addr, size);
-}
-EXPORT_SYMBOL_GPL(sunxi_mem_free);
 
 int sunxi_ion_probe(struct platform_device *pdev)
 {
@@ -136,6 +76,18 @@ int sunxi_ion_probe(struct platform_device *pdev)
 		if(heaps_desc->type == ION_HEAP_TYPE_CARVEOUT) {
 			heaps_desc->base = ion_mem.start;
 			heaps_desc->size = ion_mem.size;
+		}
+		if(heaps_desc->type == ION_HEAP_TYPE_SECURE) {
+#ifdef			CONFIG_SUNXI_TRUSTZONE
+			struct smc_param param;
+			param.a0 = TEE_SMC_PLAFORM_OPERATION;
+			param.a1 = TE_SMC_GET_DRM_MEM_INFO;
+			sunxi_smc_call(&param);
+			heaps_desc->base = param.a2;
+			heaps_desc->size = param.a3;
+			pr_debug("%s: secure-heap base=%x size= %x\n", 
+			         __func__, heaps_desc->base, heaps_desc->size);
+#endif
 		}
 		pheap[i] = ion_heap_create(heaps_desc);
 		if(IS_ERR_OR_NULL(pheap[i])) {
@@ -171,7 +123,11 @@ int sunxi_ion_remove(struct platform_device *pdev)
 }
 
 static struct ion_platform_data ion_data = {
+#ifndef  CONFIG_SUNXI_TRUSTZONE
 	.nr = 3,
+#else
+	.nr = 4,
+#endif
 	.heaps = {
 		[0] = {
 			.type = ION_HEAP_TYPE_SYSTEM,
@@ -183,6 +139,15 @@ static struct ion_platform_data ion_data = {
 			.id = (u32)ION_HEAP_TYPE_SYSTEM_CONTIG,
 			.name = "system_contig",
 		},
+#ifdef CONFIG_CMA
+		[2] = {
+			.type = ION_HEAP_TYPE_DMA,
+			.id = (u32)ION_HEAP_TYPE_DMA,
+			.name = "cma",
+			.base = 0, .size = 0,
+			.align = 0, .priv = NULL,
+		},
+#else
 		[2] = {
 			.type = ION_HEAP_TYPE_CARVEOUT,
 			.id = (u32)ION_HEAP_TYPE_CARVEOUT,
@@ -190,6 +155,16 @@ static struct ion_platform_data ion_data = {
 			.base = 0, .size = 0,
 			.align = 0, .priv = NULL,
 		},
+#endif
+#ifdef          CONFIG_SUNXI_TRUSTZONE
+		[3] = {
+			.type = ION_HEAP_TYPE_SECURE,
+			.id = (u32)ION_HEAP_TYPE_SECURE,
+			.name = "secure",
+			.base = 0, .size = 0,
+			.align = 0, .priv = NULL,
+		},
+#endif
 	}
 };
 static struct platform_device ion_dev = {

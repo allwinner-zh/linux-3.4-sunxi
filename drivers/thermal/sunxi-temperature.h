@@ -131,6 +131,7 @@
 #define THS_INT_SHUT_TH_VALUE2	(0x68)
 
 #define THS_CTRL0_VALUE		(0x17)
+#define THS_CTRL1_VALUE		(0x1<<17)
 #define THS_CTRL2_VALUE		(0x00170007)
 #define THS_INT_CTRL_VALUE	(0x1070)//gai
 #define THS_CLEAR_INT_STA	(0x777)
@@ -167,11 +168,12 @@
 #define THS_INT_ALM_TH_VALUE	(0x50)
 #define THS_INT_SHUT_TH_VALUE	(0x60)
 
-#define THS_CTRL0_VALUE		(0x17)
-#define THS_CTRL2_VALUE		(0x00170001)
-#define THS_INT_CTRL_VALUE	(0x000)///gai
+#define THS_CTRL0_VALUE		(0x3f)
+#define THS_CTRL1_VALUE		(0x1<<17)
+#define THS_CTRL2_VALUE		(0x003f0001)
+#define THS_INT_CTRL_VALUE	(0x39010)///gai
 #define THS_CLEAR_INT_STA	(0x1111)
-#define THS_FILT_CTRL_VALUE	(0x05)
+#define THS_FILT_CTRL_VALUE	(0x06)
 
 #define THS_INTS_DATA0		(0x100)
 #define THS_INTS_SHT0		(0x010)

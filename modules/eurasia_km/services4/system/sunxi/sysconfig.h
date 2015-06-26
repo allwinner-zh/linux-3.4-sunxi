@@ -43,9 +43,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <mach/irqs.h>
 #define VS_PRODUCT_NAME	"sunxi"
 
-#define SYS_SGX_CLOCK_SPEED		 533000000
+#define SYS_SGX_CLOCK_SPEED		 300000000
 #define SYS_SGX_CORE_CLOCK_SPEED 300000000
-#define SYS_SGX_MEM_CLOCK_SPEED 400000000  //the frequency is different with core clk and hyd clk, the source  maybe pll-gpu, pll-periph
+#define SYS_SGX_HYD_CLOCK_SPEED  330000000
 
 #define SYS_SGX_HWRECOVERY_TIMEOUT_FREQ		(100)	// 10ms (100hz)
 #define SYS_SGX_PDS_TIMER_FREQ				(1000)	// 1ms (1000hz)

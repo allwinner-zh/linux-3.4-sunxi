@@ -359,8 +359,9 @@ static void handle_critical_trips(struct thermal_zone_device *tz,
 		tz->ops->notify(tz, trip, trip_type);
 
 	if (trip_type == THERMAL_TRIP_CRITICAL) {
+		/* Our system report temperature in centigrade, by qin 2014 .11.25 */
 		pr_emerg("Critical temperature reached(%d C),shutting down\n",
-			 tz->temperature / 1000);
+			 tz->temperature );
 		orderly_poweroff(true);
 	}
 }

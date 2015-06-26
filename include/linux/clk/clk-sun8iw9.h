@@ -44,7 +44,6 @@
 #define USBPHY1_CLK "usbphy1"
 #define USBOHCI_CLK "usbohci"
 #define USBHSIC_CLK "usbhsic"
-#define USBHSIC12M_CLK "usbhsic12m"
 #define DE_CLK "de"
 #define LCD0CH0_CLK "lcd0ch0"
 #define CSI0_S_CLK "csi0_s"

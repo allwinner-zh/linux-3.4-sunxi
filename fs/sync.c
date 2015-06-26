@@ -17,6 +17,8 @@
 #include <linux/backing-dev.h>
 #include "internal.h"
 
+#include <linux/blkdev.h>
+
 #define VALID_FLAGS (SYNC_FILE_RANGE_WAIT_BEFORE|SYNC_FILE_RANGE_WRITE| \
 			SYNC_FILE_RANGE_WAIT_AFTER)
 
@@ -162,12 +164,42 @@ SYSCALL_DEFINE1(syncfs, int, fd)
  * @datasync is set only metadata needed to access modified file data is
  * written.
  */
+
+ /**
+  * date : 2013.8.21
+  * modify the vfs_fsync_range method
+  * add the __blkdev_driver_ioctl call at the end of vfs_fsync_range,
+  * to ensure that after sync system call, all the relative data will be in
+  * the nand device
+  **/
+
+#ifndef CONFIG_SYNC_FOR_BLKDEV
 int vfs_fsync_range(struct file *file, loff_t start, loff_t end, int datasync)
 {
 	if (!file->f_op || !file->f_op->fsync)
 		return -EINVAL;
 	return file->f_op->fsync(file, start, end, datasync);
 }
+#else
+int vfs_fsync_range(struct file *file, loff_t start, loff_t end, int datasync)
+{
+	int err;
+	struct super_block *sb = file->f_dentry->d_sb;
+	struct block_device *bdev = sb->s_bdev;
+	if (!file->f_op || !file->f_op->fsync)
+		return -EINVAL;
+	err = file->f_op->fsync(file, start, end, datasync);
+	if(err)
+		return err;
+	/*
+	 *2013.09.30: fix the bug that system cannot start up when storage
+	 *device is emmc, ioctl chanel only for nand flash
+	 */
+	if (bdev != NULL && MAJOR(bdev->bd_dev) == 93) 
+		__blkdev_driver_ioctl(bdev, O_RDONLY, BLKFLSBUF, 0);
+	return err;
+}
+#endif
 EXPORT_SYMBOL(vfs_fsync_range);
 
 /**

@@ -337,6 +337,27 @@ static void twi_chan_cfg(struct sunxi_i2c_platform_data *pdata)
 		}
 		strncpy(pdata[i].regulator_id, item.str, 16);
 	}
+
+#ifdef CONFIG_SUNXI_S_TWI
+	do {
+		i = SUNXI_TWI_NUM - 1;
+		sprintf(twi_para, SUNXI_S_TWI_DEV_NAME"%d", 0);
+		type = script_get_item(twi_para, "twi_used", &item);
+		if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+			I2C_ERR("[twi%d] has no twi_used!\n", i);
+			continue;
+		}
+		if (item.val)
+			twi_used_mask |= SUNXI_TWI_CHAN_MASK(i);
+
+		type = script_get_item(twi_para, "twi_regulator", &item);
+		if (SCIRPT_ITEM_VALUE_TYPE_STR != type) {
+			I2C_ERR("[twi%d] has no twi_regulator.\n", i);
+			continue;
+		}
+		strncpy(pdata[i].regulator_id, item.str, 16);
+	} while(0);
+#endif
 }
 
 static int twi_chan_is_enable(int _ch)
@@ -369,11 +390,25 @@ static int twi_request_gpio(struct sunxi_i2c *i2c)
 	if (!twi_chan_is_enable(i2c->bus_num))
 		return -1;
 	
+#ifdef CONFIG_SUNXI_S_TWI
+	if (i2c->bus_num == (SUNXI_TWI_NUM - 1)) {
+		/* use name s_twi1 to get pinctrl */
+		snprintf(i2c->adap.name, sizeof(i2c->adap.name), SUNXI_S_TWI_DEV_NAME"%u", 0);
+		I2C_DBG("%s\n", i2c->adap.name);
+	}
+#endif
+
 	i2c->pctrl = devm_pinctrl_get(i2c->adap.dev.parent);
 	if (IS_ERR(i2c->pctrl)) {
 		I2C_ERR("TWI%d devm_pinctrl_get() failed! return %ld\n", i2c->bus_num, PTR_ERR(i2c->pctrl));
 		return -1;
 	}
+
+#ifdef CONFIG_SUNXI_S_TWI
+	if (i2c->bus_num == (SUNXI_TWI_NUM - 1)) {
+		snprintf(i2c->adap.name, sizeof(i2c->adap.name), SUNXI_TWI_DEV_NAME"%u", i2c->bus_num);
+	}
+#endif
 
 	return twi_select_gpio_state(i2c->pctrl, PINCTRL_STATE_DEFAULT, i2c->bus_num);
 }
@@ -649,6 +684,8 @@ static int sunxi_i2c_core_process(struct sunxi_i2c *i2c)
 
 	state = twi_query_irq_status(base_addr);
 
+	spin_lock_irqsave(&i2c->lock, flags);
+
 #ifdef CONFIG_SUNXI_I2C_PRINT_TRANSFER_INFO
 	if (i2c->bus_num == CONFIG_SUNXI_I2C_PRINT_TRANSFER_INFO_WITH_BUS_NUM) {
 		I2C_DBG("[i2c%d][slave address = (0x%x), state = (0x%x)]\n", i2c->bus_num, i2c->msg->addr, state);
@@ -667,7 +704,6 @@ static int sunxi_i2c_core_process(struct sunxi_i2c *i2c)
         goto msg_null;
     }
 
-	spin_lock_irqsave(&i2c->lock, flags);
 	switch (state) {
 	case 0xf8: /* On reset or stop the bus is idle, use only at poll method */
 		err_code = 0xf8;
@@ -791,11 +827,11 @@ err_out:
 	if (SUNXI_I2C_TFAIL == twi_stop(base_addr, i2c->bus_num)) {
 		I2C_ERR("[i2c%d] STOP failed!\n", i2c->bus_num);
 	}
-	spin_unlock_irqrestore(&i2c->lock, flags);
 
 msg_null:
 	ret = sunxi_i2c_xfer_complete(i2c, err_code);/* wake up */
 	i2c->debug_state = state;/* just for debug */
+	spin_unlock_irqrestore(&i2c->lock, flags);
 	return ret;
 }
 
@@ -935,6 +971,9 @@ static int sunxi_i2c_do_xfer(struct sunxi_i2c *i2c, struct i2c_msg *msgs, int nu
 	ret = i2c->msg_idx;
 	if (timeout == 0) {
 		I2C_ERR("[i2c%d] xfer timeout (dev addr:0x%x)\n", i2c->bus_num, msgs->addr);
+		spin_lock_irqsave(&i2c->lock, flags);
+		i2c->msg = NULL;
+		spin_unlock_irqrestore(&i2c->lock, flags);
 		ret = -ETIME;
 	}
 	else if (ret != num) {
@@ -1314,6 +1353,18 @@ static void sunxi_twi_device_scan(void)
 		sunxi_twi_device[i].dev.platform_data = &sunxi_twi_pdata[i];
 		sunxi_twi_device[i].dev.release = sunxi_i2c_release;
 	}
+
+#ifdef CONFIG_SUNXI_S_TWI
+	{
+		sunxi_twi_resources[(SUNXI_TWI_NUM - 1) * SUNXI_TWI_RES_NUM].start = SUNXI_S_TWI_MEM_START;
+		sunxi_twi_resources[(SUNXI_TWI_NUM - 1) * SUNXI_TWI_RES_NUM].end   = SUNXI_S_TWI_MEM_END;
+		sunxi_twi_resources[(SUNXI_TWI_NUM - 1) * SUNXI_TWI_RES_NUM].flags = IORESOURCE_MEM;
+
+		sunxi_twi_resources[(SUNXI_TWI_NUM - 1) * SUNXI_TWI_RES_NUM + 1].start = SUNXI_S_TWI_IRQ;
+		sunxi_twi_resources[(SUNXI_TWI_NUM - 1) * SUNXI_TWI_RES_NUM + 1].end   = SUNXI_S_TWI_IRQ;
+		sunxi_twi_resources[(SUNXI_TWI_NUM - 1) * SUNXI_TWI_RES_NUM + 1].flags = IORESOURCE_IRQ;
+	}
+#endif
 }
 
 static ssize_t sunxi_i2c_info_show(struct device *dev,

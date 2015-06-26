@@ -965,10 +965,11 @@ static int __init sun9i_mcpm_init(void)
 	hrtimer_start(&cluster_power_down_timer, ktime_set(0, 10000000), HRTIMER_MODE_REL);
 
 	ret = mcpm_platform_register(&sun9i_mcpm_power_ops);
+#ifndef CONFIG_SUNXI_TRUSTZONE
 	if (!ret) {
 		ret = mcpm_sync_init(sun9i_power_up_setup);
 	}
-
+#endif
 	/* map brom address to 0x0 */
 	sunxi_smc_writel(0x16AA0000, (void *)0xF08000E0);
 

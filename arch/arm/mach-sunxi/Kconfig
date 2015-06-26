@@ -58,7 +58,7 @@ config ARCH_SUN8I
 	bool "Allwinner A7 smp socs(sun8i)"
 	select ARM_GIC
 	select CPU_V7
-	select HAVE_SMP
+	select HAVE_SMP if !ARCH_SUN8IW8
 	select SUNXI_TIMER
 	select COMMON_CLK
 	select CLKDEV_LOOKUP
@@ -68,6 +68,7 @@ config ARCH_SUN8I
 	select PINCTRL_SUNXI
 	select ARCH_REQUIRE_GPIOLIB
 	select HAVE_UNSTABLE_SCHED_CLOCK
+	select GENERIC_ALLOCATOR
 	help
 	  Allwinner A7 smp socs
 
@@ -372,5 +373,19 @@ config SUNXI_TRUSTZONE
        default n
     help
         Support for SUNXI trustzone security
+
+config HOMLET_PLATFORM
+       bool "Homlet platform Features"
+       default y
+       help
+         Enable special features for box then select Yes,
+         For example, fsync & sync immediatetly to nand disk.
+
+config SUNXI_BOOTUP_EXTEND
+        bool "Homlet platform bootup extend"
+        depends on HOMLET_PLATFORM
+        default n
+    help
+        Support system bootup triggered by ir, when system is poweroff.
 
 endif

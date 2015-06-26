@@ -44,7 +44,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #if defined(SUPPORT_ION)
 
-#include <linux/ion.h>
+#include SUPPORT_ION_HEADER
 
 #include "img_types.h"
 #include "servicesext.h"

@@ -303,7 +303,11 @@ static void parse_fex(void)
 {
 	script_item_u mali_used, mali_max_freq, mali_clk_freq;
 	
-	if(SCIRPT_ITEM_VALUE_TYPE_INT == script_get_item("clock", "pll8", &mali_clk_freq)) 
+#if defined(CONFIG_ARCH_SUN8IW7P1)
+	if(SCIRPT_ITEM_VALUE_TYPE_INT == script_get_item("clock", "pll_gpu", &mali_clk_freq))
+#else
+	if(SCIRPT_ITEM_VALUE_TYPE_INT == script_get_item("clock", "pll8", &mali_clk_freq))
+#endif
 	{
 		if(mali_clk_freq.val > 0)
 		{

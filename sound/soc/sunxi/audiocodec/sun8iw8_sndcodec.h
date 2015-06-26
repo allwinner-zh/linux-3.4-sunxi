@@ -77,6 +77,7 @@
 #define SUNXI_DAC_DRC_LKE		(0X178)
 #define SUNXI_DAC_DRC_HOPE		(0X17C)
 #define SUNXI_DAC_DRC_LOPE		(0X180)
+#define SUNXI_DAC_DRC_HKN		(0X184)
 #define SUNXI_DAC_DRC_LKN		(0X188)
 #define SUNXI_DAC_DRC_SFHAT		(0X18C)
 #define SUNXI_DAC_DRC_SFLAT		(0X190)
@@ -89,12 +90,17 @@
 #define SUNXI_DAC_DRC_EPSHC		(0X1AC)
 #define SUNXI_DAC_DRC_EPSLC		(0X1B0)
 #define SUNXI_DAC_DRC_OPT		(0X1B4)
+#define SUNXI_DAC_HPF_HG		(0x1B8)
+#define SUNXI_DAC_HPF_LG		(0x1BC)
+
+
 #define SUNXI_ADC_DRC_HHPFC		(0X200)
 #define SUNXI_ADC_DRC_LHPFC		(0X204)
 #define SUNXI_ADC_DRC_CTRL		(0X208)
 #define SUNXI_ADC_DRC_LPFHAT		(0X20C)
 #define SUNXI_ADC_DRC_LPFLAT		(0X210)
 #define SUNXI_ADC_DRC_RPFHAT		(0X214)
+#define SUNXI_ADC_DRC_RPFLAT		(0X218)
 #define SUNXI_ADC_DRC_LPFHRT		(0X21C)
 #define SUNXI_ADC_DRC_LPFLRT		(0X220)
 #define SUNXI_ADC_DRC_RPFHRT		(0X224)
@@ -128,12 +134,14 @@
 #define SUNXI_ADC_DRC_SFHRT		(0X294)
 #define SUNXI_ADC_DRC_SFLRT		(0X298)
 #define SUNXI_ADC_DRC_MXGHS		(0X29C)
-#define SUNXI_ADC_DRC_MSGLS		(0X2A0)
+#define SUNXI_ADC_DRC_MXGLS		(0X2A0)
 #define SUNXI_ADC_DRC_MNGHS		(0X2A4)
 #define SUNXI_ADC_DRC_MNGLS		(0X2A8)
 #define SUNXI_ADC_DRC_EPSHC		(0X2AC)
-#define SUNXI_ADC_DRC_SPSLC		(0X2B0)
+#define SUNXI_ADC_DRC_EPSLC		(0X2B0)
 #define SUNXI_ADC_DRC_OPT		(0X2B4)
+#define SUNXI_ADC_HPF_HG		(0x2B8)
+#define SUNXI_ADC_HPF_LG		(0x2BC)
 
 /*DAC Digital Part Control Register
 * codecbase+0x00
@@ -187,6 +195,7 @@
 
 #define MIC_GCTR			  (0x06)
 #define HP_CTRL			  (0x07)
+#define LINEOUT_VOLC			  (0x09)
 
 #define MIC2_CTRL		  (0x0A)
 #define BIAS_MIC_CTRL		  (0x0B)
@@ -215,6 +224,7 @@
 #define LMIXMUTE				  (0)
 #define LMIXMUTEDACR			  (0)
 #define LMIXMUTEDACL			  (1)
+#define LMIXMUTELINEINL			  (2)
 #define LMIXMUTEMIC2BOOST		  (5)
 #define LMIXMUTEMIC1BOOST		  (6)
 
@@ -225,6 +235,7 @@
 #define RMIXMUTE				  (0)
 #define RMIXMUTEDACL			  (0)
 #define RMIXMUTEDACR			  (1)
+#define RMIXMUTELINEINR			  (2)
 #define RMIXMUTEMIC2BOOST		  (5)
 #define RMIXMUTEMIC1BOOST		  (6)
 
@@ -260,11 +271,21 @@
 #define RTLNMUTE		 (0)
 
 /*
+*
+*	0x09 LINEOUT_VOLC
+*/
+#define LINEOUTVOL		 (3)
+
+/*
 *	apb0 base
 *	0x0A MIC2G_LINEEN_CTRL
 */
 #define MIC2AMPEN		 (7)
 #define MIC2BOOST		 (4)
+#define LINEOUTLEFTEN		 (3)
+#define	LINEOUTRIGHTEN		 (2)
+#define LEFTLINEOUTSRC		 (1)
+#define RIGHTLINEOUTSRC		 (0)
 
 /*
 *	apb0 base
@@ -283,6 +304,7 @@
 #define LADCMIXMUTE		 		  (0)
 #define LADCMIXMUTEMIC1BOOST	  (6)
 #define LADCMIXMUTEMIC2BOOST	  (5)
+#define LADCMIXMUTELINEINL		  (2)
 #define LADCMIXMUTELOUTPUT		  (1)
 #define LADCMIXMUTEROUTPUT		  (0)
 
@@ -293,6 +315,7 @@
 #define RADCMIXMUTE		          (0)
 #define RADCMIXMUTEMIC1BOOST	  (6)
 #define RADCMIXMUTEMIC2BOOST	  (5)
+#define RADCMIXMUTELINEINR		  (2)
 #define RADCMIXMUTEROUTPUT		  (1)
 #define RADCMIXMUTELOUTPUT		  (0)
 

@@ -182,11 +182,6 @@ static int __devinit sunxi_sndi2s1_dev_probe(struct platform_device *pdev)
 	script_item_value_type_e  type;
 	struct snd_soc_card *card = &snd_soc_sunxi_sndi2s1;
 
-	type = script_get_item("i2s1", "i2s1_used", &val);
-	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
-        pr_err("[I2S1] type err!\n");
-    }
-	i2s1_used = val.val;
 	type = script_get_item("i2s1", "i2s1_select", &val);
 	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
         pr_err("[I2S1] i2s1_select type err!\n");
@@ -210,16 +205,10 @@ static int __devinit sunxi_sndi2s1_dev_probe(struct platform_device *pdev)
         pr_err("[I2S1] signal_inversion type err!\n");
     }
 	signal_inversion = val.val;
-
-	if (i2s1_used) {
-		card->dev = &pdev->dev;
-		ret = snd_soc_register_card(card);
-		if (ret) {
-			dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n", ret);
-		}
-	} else {
-		pr_err("[i2s1]sunxi_sndi2s1_dev_probe cannot find any using configuration for controllers, return directly!\n");
-        return 0;
+	card->dev = &pdev->dev;
+	ret = snd_soc_register_card(card);
+	if (ret) {
+		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n", ret);
 	}
 	return ret;
 }
@@ -228,9 +217,7 @@ static int __devexit sunxi_sndi2s1_dev_remove(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = platform_get_drvdata(pdev);
 
-	if (i2s1_used) {
-		snd_soc_unregister_card(card);
-	}
+	snd_soc_unregister_card(card);
 	return 0;
 }
 
@@ -254,19 +241,33 @@ static struct platform_driver sunxi_i2s1_driver = {
 static int __init sunxi_sndi2s1_init(void)
 {
 	int err = 0;
-	if((err = platform_device_register(&sunxi_i2s1_device)) < 0)
-		return err;
+	script_item_u val;
+	script_item_value_type_e  type;
+	type = script_get_item("i2s1", "i2s1_used", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+        	pr_err("[I2S] type err!\n");
+    	}
+	i2s1_used = val.val;
+	if (i2s1_used) {
+		if((err = platform_device_register(&sunxi_i2s1_device)) < 0)
+			return err;
 
-	if ((err = platform_driver_register(&sunxi_i2s1_driver)) < 0)
-		return err;	
-
+		if ((err = platform_driver_register(&sunxi_i2s1_driver)) < 0)
+			return err;
+    	} else {
+		pr_warning("I2S1 driver not init,just return.\n");
+	}
 	return 0;
 }
 module_init(sunxi_sndi2s1_init);
 
 static void __exit sunxi_sndi2s1_exit(void)
 {
-	platform_driver_unregister(&sunxi_i2s1_driver);
+	if (i2s1_used) {
+		i2s1_used = 0;
+		platform_driver_unregister(&sunxi_i2s1_driver);
+		platform_device_unregister(&sunxi_i2s1_device);
+	}
 }
 module_exit(sunxi_sndi2s1_exit);
 MODULE_AUTHOR("huangxin");

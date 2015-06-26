@@ -56,3 +56,4 @@ obj-$(CONFIG_KEYBOARD_SUNXI)		+= sunxi-keyboard.o
 obj-$(CONFIG_IR_RX_SUNXI)		+= sunxi-ir-rx.o
 obj-$(CONFIG_IR_TX_SUNXI)		+= sunxi-ir-tx.o
 obj-$(CONFIG_KEYPAD_SUNXI)		+= sunxi-keypad.o
+obj-$(CONFIG_SUNXI_GPIO_KEY)	+= sunxi-gpiokey.o

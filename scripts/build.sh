@@ -3,7 +3,14 @@ set -e
 
 #Setup common variables
 export ARCH=arm
-export CROSS_COMPILE=arm-linux-gnueabi-
+export CROSS_COMPILE=${ARCH}-linux-gnueabi-
+if [ -d "${LICHEE_TOOLCHAIN_PATH}" ]; then
+	GCC=$(find ${LICHEE_TOOLCHAIN_PATH} -perm /a+x -a -regex '.*-gcc');
+	export CROSS_COMPILE="${GCC%-*}-";
+elif [ -n "${LICHEE_CROSS_COMPILER}" ]; then
+	export CROSS_COMPILE="${LICHEE_CROSS_COMPILER}-"
+fi
+
 export AS=${CROSS_COMPILE}as
 export LD=${CROSS_COMPILE}ld
 export CC=${CROSS_COMPILE}gcc
@@ -154,23 +161,23 @@ build_kernel()
         SUNXI_STACK_CHECK=1
     fi
     if [ "x$SUNXI_SPARSE_CHECK" = "x" ] && [ "x$SUNXI_SMATCH_CHECK" = "x" ];then
-        make ARCH=arm CROSS_COMPILE=${CROSS_COMPILE} -j${LICHEE_JLEVEL} uImage modules
+        make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} -j${LICHEE_JLEVEL} uImage modules
     else
         if [ "x$SUNXI_SPARSE_CHECK" = "x1" ] && [ -f ../tools/codecheck/sparse/sparse ];then
             echo "\n\033[0;31;1mBuilding Round for sparse check ${KERNEL_CFG}...\033[0m\n\n"
             make clean
-            make CHECK="../tools/codecheck/sparse/sparse" ARCH=arm CROSS_COMPILE=${CROSS_COMPILE} -j${LICHEE_JLEVEL} C=2 uImage modules 2>&1|tee output/build_sparse.txt
+            make CHECK="../tools/codecheck/sparse/sparse" ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} -j${LICHEE_JLEVEL} C=2 uImage modules 2>&1|tee output/build_sparse.txt
             cat output/build_sparse.txt|egrep -w '(warn|error|warning)' >output/warn_sparse.txt
         fi
         if [ "x$SUNXI_SMATCH_CHECK" = "x1" ]&& [ -f ../tools/codecheck/smatch/smatch ];then
             echo "\n\033[0;31;1mBuilding Round for smatch check ${KERNEL_CFG}...\033[0m\n\n"
             make clean
-            make CHECK="../tools/codecheck/smatch/smatch --full-path --no-data -p=kkernel" ARCH=arm CROSS_COMPILE=${CROSS_COMPILE} -j${LICHEE_JLEVEL} C=2 uImage modules 2>&1|tee output/build_smatch.txt
+            make CHECK="../tools/codecheck/smatch/smatch --full-path --no-data -p=kkernel" ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} -j${LICHEE_JLEVEL} C=2 uImage modules 2>&1|tee output/build_smatch.txt
             cat output/build_smatch.txt|egrep -w '(warn|error|warning)' >output/warn_smatch.txt
         fi
     fi
     if [ "x$SUNXI_STACK_CHECK" = "x1" ];then
-        make ARCH=arm CROSS_COMPILE=${CROSS_COMPILE} -j${LICHEE_JLEVEL} checkstack 2>&1|tee output/warn_stack.txt
+        make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} -j${LICHEE_JLEVEL} checkstack 2>&1|tee output/warn_stack.txt
     fi
 	update_kern_ver
 
@@ -181,11 +188,6 @@ build_kernel()
 	cp .config output/
 
 	tar -jcf output/vmlinux.tar.bz2 vmlinux
-
-        if [ ! -f ./drivers/arisc/binary/arisc ]; then
-                echo "arisc" > ./drivers/arisc/binary/arisc
-        fi
-        cp ./drivers/arisc/binary/arisc output/
 
 	for file in $(find drivers sound crypto block fs security net -name "*.ko"); do
 		cp $file ${LICHEE_MOD_DIR}
@@ -204,7 +206,6 @@ build_modules()
 	fi
 
 	update_kern_ver
-
 	build_gpu
 }
 
@@ -225,8 +226,7 @@ regen_rootfs_cpio()
 	if [ -e ${LICHEE_MOD_DIR}/nand.ko ]; then
 		cp ${LICHEE_MOD_DIR}/nand.ko ./skel/lib/modules/${KERNEL_VERSION}
 		if [ $? -ne 0 ]; then
-			echo "copy nand module error: $?"
-			exit 1
+			echo "not support nand"
 		fi
 	fi
 
@@ -236,7 +236,18 @@ regen_rootfs_cpio()
 	fi
 
 	rm -f rootfs.cpio.gz
-	../scripts/build_rootfs.sh c rootfs.cpio.gz > /dev/null
+
+	CHIP=`echo ${LICHEE_CHIP} | sed -n -e 's/.*\(sun8iw8\).*/\1/pg'`;
+	if [ "${CHIP}" == "sun8iw8" ]; then
+		if [ -d skel ]; then
+			(cd skel; find . | fakeroot  cpio -o -Hnewc | lzma -9 > ../rootfs.cpio.gz)
+		else
+			echo "Warning: Not found skel dir"
+		fi
+	else
+		../scripts/build_rootfs.sh c rootfs.cpio.gz > /dev/null
+	fi
+
 	rm -rf skel
 
 	cd - > /dev/null
@@ -261,6 +272,10 @@ build_ramfs()
 		BASE="0x20000000";
 	else
 		BASE="0x40000000";
+	fi
+
+	if [ -n "`echo ${LICHEE_CHIP} | sed -n -e 's/.*\(sun8iw8\).*/\1/pg'`" ]; then
+		BIMAGE="output/zImage";
 	fi
 
 	if [ -f vmlinux ]; then
@@ -288,12 +303,9 @@ build_ramfs()
 	echo build_ramfs
     	echo "Copy boot.img to output directory ..."
     	cp output/boot.img ${LICHEE_PLAT_OUT}
+    	cp output/uImage ${LICHEE_PLAT_OUT}
+    	cp output/zImage ${LICHEE_PLAT_OUT}
 	cp output/vmlinux.tar.bz2 ${LICHEE_PLAT_OUT}
-
-        if [ ! -f output/arisc ]; then
-        	echo "arisc" > output/arisc
-        fi
-        cp output/arisc    ${LICHEE_PLAT_OUT}
 }
 
 gen_output()
@@ -317,7 +329,7 @@ gen_output()
 clean_kernel()
 {
 	echo "Cleaning kernel"
-	make ARCH=arm clean
+	make ARCH=${ARCH} clean
 	rm -rf output/*
 
 	(

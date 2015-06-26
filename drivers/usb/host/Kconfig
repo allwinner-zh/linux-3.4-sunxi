@@ -441,6 +441,22 @@ config USB_OHCI_LITTLE_ENDIAN
 	default n if STB03xxx || PPC_MPC52xx
 	default y
 
+config USB_HCD_ENHANCE
+    bool "Enhance for the host controller"
+           depends on USB_EHCI_HCD && USB_OHCI_HCD && ARCH_SUN9IW1
+                   ---help---
+                       Say 'Y' to turn on enhance for the host controller driver.
+                       This should only be used for enhance host driver.
+
+                       If unsure, say N.
+
+config USB_SYNC_SUSPEND
+bool "support usb sync suspend"
+           depends on ARCH_SUN9IW1
+                   ---help---
+                       Say 'Y' to support usb sync suspend.
+                       This should only be used for usb sync suspend.
+
 config USB_UHCI_HCD
 	tristate "UHCI HCD (most Intel and VIA) support"
 	depends on USB && (PCI || SPARC_LEON)
@@ -650,11 +666,7 @@ config USB_SUNXI_HCD
 	help
 	    SoftWinner SUNXI USB2.0 Host Controller support.
 
-config USB_SUNXI_HCD0
-	tristate "SoftWinner SUNXI USB Host Controller0"
-	depends on USB_SUNXI_HCD && (USB_SUNXI_USB0_HOST_ONLY || USB_SUNXI_USB0_OTG)
-	help
-	    SoftWinner SUNXI USB2.0 Host Controller0.
+source "drivers/usb/sunxi_usb/hcd/Kconfig"
 
 config USB_SUNXI_HCI
     tristate "SoftWinner SUNXI USB HCI"
@@ -663,58 +675,52 @@ config USB_SUNXI_HCI
 	    SoftWinner SUNXI USB HCI.
 
 config USB_SUNXI_EHCI0
-    tristate "SoftWinner SUNXI USB EHCI0"
+    tristate "SUNXI USB EHCI0"
 	depends on USB_SUNXI_HCI
 	help
 	    SoftWinner SUNXI USB EHCI0.
 
-config USB_SUNXI_EHCI1
-    tristate "SoftWinner SUNXI USB EHCI1"
-	depends on USB_SUNXI_HCI
-	help
-	    SoftWinner SUNXI USB EHCI1.
-
 config USB_SUNXI_OHCI0
-    tristate "SoftWinner SUNXI USB OHCI0"
+    tristate "SUNXI USB OHCI0"
 	depends on USB_SUNXI_HCI
 	help
 	    SoftWinner SUNXI USB OHCI0.
 
+config USB_SUNXI_EHCI1
+    tristate "SUNXI USB EHCI1"
+	depends on USB_SUNXI_HCI
+	help
+	    SoftWinner SUNXI USB EHCI1.
+
 config USB_SUNXI_OHCI1
-    tristate "SoftWinner SUNXI USB OHCI1"
+    tristate "SUNXI USB OHCI1"
 	depends on USB_SUNXI_HCI
 	help
 	    SoftWinner SUNXI USB OHCI1.
 
 config USB_SUNXI_EHCI2
-    tristate "SoftWinner SUNXI USB EHCI2"
-	depends on USB_SUNXI_HCI
+    tristate "SUNXI USB EHCI2"
+	depends on USB_SUNXI_HCI && (ARCH_SUN8IW7 || ARCH_SUN9IW1)
 	help
 	    SoftWinner SUNXI USB EHCI2.
 
 config USB_SUNXI_OHCI2
-    tristate "SoftWinner SUNXI USB OHCI2"
-	depends on USB_SUNXI_HCI
+    tristate "SUNXI USB OHCI2"
+	depends on USB_SUNXI_HCI && (ARCH_SUN8IW7 || ARCH_SUN9IW1)
 	help
 	    SoftWinner SUNXI USB OHCI2.
 
 config USB_SUNXI_EHCI3
-    tristate "SoftWinner SUNXI USB EHCI3"
-	depends on USB_SUNXI_HCI
+    tristate "SUNXI USB EHCI3"
+	depends on USB_SUNXI_HCI && ARCH_SUN8IW7
 	help
 	    SoftWinner SUNXI USB EHCI3.
 
 config USB_SUNXI_OHCI3
-    tristate "SoftWinner SUNXI USB OHCI3"
-	depends on USB_SUNXI_HCI
+    tristate "SUNXI USB OHCI3"
+	depends on USB_SUNXI_HCI && ARCH_SUN8IW7
 	help
 	    SoftWinner SUNXI USB OHCI3.
-
-config USB_SUNXI_HSIC
-    tristate "SoftWinner SUNXI USB HSIC"
-	depends on USB_SUNXI_HCI
-	help
-	    SoftWinner SUNXI USB HSIC.
 
 config SW_USB_3G
 	tristate "support usb 3G modem"

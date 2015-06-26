@@ -47,6 +47,104 @@
 #define SUNXI_ADC_DAP_LINAC	         (0x94)
 #define SUNXI_ADC_DAP_RINAC	         (0x98)
 #define SUNXI_ADC_DAP_ORT	         (0x9C)
+#define SUNXI_DAC_DRC_HHPFC		(0X100)
+#define SUNXI_DAC_DRC_LHPFC		(0X104)
+#define SUNXI_DAC_DRC_CTRL		(0X108)
+#define SUNXI_DAC_DRC_LPFHAT		(0X10C)
+#define SUNXI_DAC_DRC_LPFLAT		(0X110)
+#define SUNXI_DAC_DRC_RPFHAT		(0X114)
+#define SUNXI_DAC_DRC_RPFLAT		(0X118)
+#define SUNXI_DAC_DRC_LPFHRT		(0X11C)
+#define SUNXI_DAC_DRC_LPFLRT		(0X120)
+#define SUNXI_DAC_DRC_RPFHRT		(0X124)
+#define SUNXI_DAC_DRC_RPFLRT		(0X128)
+#define SUNXI_DAC_DRC_LRMSHAT		(0X12C)
+#define SUNXI_DAC_DRC_LRMSLAT		(0X130)
+#define SUNXI_DAC_DRC_RRMSHAT		(0X134)
+#define SUNXI_DAC_DRC_RRMSLAT		(0X138)
+#define SUNXI_DAC_DRC_HCT		(0X13C)
+#define SUNXI_DAC_DRC_LCT		(0X140)
+#define SUNXI_DAC_DRC_HKC		(0X144)
+#define SUNXI_DAC_DRC_LKC		(0X148)
+#define SUNXI_DAC_DRC_HOPC		(0X14C)
+#define SUNXI_DAC_DRC_LOPC		(0X150)
+#define SUNXI_DAC_DRC_HLT		(0X154)
+#define SUNXI_DAC_DRC_LLT		(0X158)
+#define SUNXI_DAC_DRC_HKI		(0X15C)
+#define SUNXI_DAC_DRC_LKI		(0X160)
+#define SUNXI_DAC_DRC_HOPL		(0X164)
+#define SUNXI_DAC_DRC_LOPL		(0X168)
+#define SUNXI_DAC_DRC_HET		(0X16C)
+#define	SUNXI_DAC_DRC_LET		(0X170)
+#define SUNXI_DAC_DRC_HKE		(0X174)
+#define SUNXI_DAC_DRC_LKE		(0X178)
+#define SUNXI_DAC_DRC_HOPE		(0X17C)
+#define SUNXI_DAC_DRC_LOPE		(0X180)
+#define SUNXI_DAC_DRC_HKN		(0X184)
+#define SUNXI_DAC_DRC_LKN		(0X188)
+#define SUNXI_DAC_DRC_SFHAT		(0X18C)
+#define SUNXI_DAC_DRC_SFLAT		(0X190)
+#define SUNXI_DAC_DRC_SFHRT		(0X194)
+#define	SUNXI_DAC_DRC_SFLRT		(0X198)
+#define	SUNXI_DAC_DRC_MXGHS		(0X19C)
+#define SUNXI_DAC_DRC_MXGLS		(0X1A0)
+#define SUNXI_DAC_DRC_MNGHS		(0X1A4)
+#define SUNXI_DAC_DRC_MNGLS		(0X1A8)
+#define SUNXI_DAC_DRC_EPSHC		(0X1AC)
+#define SUNXI_DAC_DRC_EPSLC		(0X1B0)
+#define SUNXI_DAC_DRC_OPT		(0X1B4)
+#define SUNXI_DAC_HPF_HG		(0x1B8)
+#define SUNXI_DAC_HPF_LG		(0x1BC)
+
+
+#define SUNXI_ADC_DRC_HHPFC		(0X200)
+#define SUNXI_ADC_DRC_LHPFC		(0X204)
+#define SUNXI_ADC_DRC_CTRL		(0X208)
+#define SUNXI_ADC_DRC_LPFHAT		(0X20C)
+#define SUNXI_ADC_DRC_LPFLAT		(0X210)
+#define SUNXI_ADC_DRC_RPFHAT		(0X214)
+#define SUNXI_ADC_DRC_RPFLAT		(0X218)
+#define SUNXI_ADC_DRC_LPFHRT		(0X21C)
+#define SUNXI_ADC_DRC_LPFLRT		(0X220)
+#define SUNXI_ADC_DRC_RPFHRT		(0X224)
+#define SUNXI_ADC_DRC_RPFLRT		(0X228)
+#define SUNXI_ADC_DRC_LRMSHAT		(0X22C)
+#define SUNXI_ADC_DRC_LRMSLAT		(0X230)
+#define SUNXI_ADC_DRC_RRMSHAT		(0X234)
+#define SUNXI_ADC_DRC_RRMSLAT		(0X238)
+#define SUNXI_ADC_DRC_HCT		(0X23C)
+#define SUNXI_ADC_DRC_LCT		(0X240)
+#define SUNXI_ADC_DRC_HKC		(0X244)
+#define SUNXI_ADC_DRC_LKC		(0X248)
+#define SUNXI_ADC_DRC_HOPC		(0X24C)
+#define SUNXI_ADC_DRC_LOPC		(0X250)
+#define SUNXI_ADC_DRC_HLT		(0X254)
+#define SUNXI_ADC_DRC_LLT		(0X258)
+#define SUNXI_ADC_DRC_HKI		(0X25C)
+#define SUNXI_ADC_DRC_LKI		(0X260)
+#define SUNXI_ADC_DRC_HOPL		(0X264)
+#define SUNXI_ADC_DRC_LOPL		(0X268)
+#define SUNXI_ADC_DRC_HET		(0X26C)
+#define SUNXI_ADC_DRC_LET		(0X270)
+#define	SUNXI_ADC_DRC_HKE		(0X274)
+#define SUNXI_ADC_DRC_LKE		(0X278)
+#define SUNXI_ADC_DRC_HOPE		(0X27C)
+#define SUNXI_ADC_DRC_LOPE		(0X280)
+#define SUNXI_ADC_DRC_HKN		(0X284)
+#define SUNXI_ADC_DRC_LKN		(0X288)
+#define SUNXI_ADC_DRC_SFHAT		(0X28C)
+#define SUNXI_ADC_DRC_SFLAT		(0X290)
+#define SUNXI_ADC_DRC_SFHRT		(0X294)
+#define SUNXI_ADC_DRC_SFLRT		(0X298)
+#define SUNXI_ADC_DRC_MXGHS		(0X29C)
+#define SUNXI_ADC_DRC_MXGLS		(0X2A0)
+#define SUNXI_ADC_DRC_MNGHS		(0X2A4)
+#define SUNXI_ADC_DRC_MNGLS		(0X2A8)
+#define SUNXI_ADC_DRC_EPSHC		(0X2AC)
+#define SUNXI_ADC_DRC_EPSLC		(0X2B0)
+#define SUNXI_ADC_DRC_OPT		(0X2B4)
+#define SUNXI_ADC_HPF_HG		(0x2B8)
+#define SUNXI_ADC_HPF_LG		(0x2BC)
 
 /*DAC Digital Part Control Register 
 * codecbase+0x00
@@ -482,75 +580,7 @@ struct	codec_mixer_control{
 	unsigned int invert;
 	unsigned int value;
 };
-
-#define    DAC_Digital_Part_Control 0x00
-#define    DAC_FIFO_Control        0x04
-#define    DAC_FIFO_Status         0x08
-#define    DAC_TX_DATA             0x0c
-#define    ADC_FIFO_Control        0x10
-#define    ADC_FIFO_Status         0x14
-#define    ADC_RX_DATA             0x18
-#define    DAC_TX_Counter          0x40
-#define    ADC_RX_Counter          0x44
-#define    DAC_Debug               0x48
-#define    ADC_Debug               0x4c
-
-#define    Headphone_Volume_Control 			0x0  
-#define    Left_Output_Mixer_Source_Control 		0x1  
-#define    Right_Output_Mixer_Source_Control 		0x2  
-#define    DAC_Analog_Enable_and_PA_Source_Control 	0x3  
-#define    Phonein_Stereo_Gain_Control 			0x4  
-#define    Linein_and_Phone_P_N_Gain_Control 		0x5  
-#define    MIC1_and_MIC2_GAIN_Control 			0x6  
-#define    PA_Enable_and_HP_Control 			0x7  
-#define    Phoneout_Control 				0x8  
-#define    Lineout_Volume_Control 			0x9  
-#define    Mic2_Boost_and_Lineout_Enable_Control 	0xA  
-#define    Mic1_Boost_and_MICBIAS_Control 		0xB  
-#define    Left_ADC_Mixer_Source_Control 		0xC  
-#define    Right_ADC_Mixer_Source_Control 		0xD  
-
-#define    PA_UPTIME_CTRL                                   0xE  
-#define    ADC_ANALIG_PART_ENABLE_REG                    0xF  
-
-
-struct label {
-    const char *name;
-    int value;
-};
-
-#define LABEL(constant) { #constant, constant }
-#define LABEL_END { NULL, -1 }
-static struct label reg_labels[]={
-        LABEL(DAC_Digital_Part_Control),
-        LABEL(DAC_FIFO_Control),
-        LABEL(DAC_FIFO_Status),
-        LABEL(DAC_TX_DATA),
-        LABEL(ADC_FIFO_Control),
-        LABEL(ADC_FIFO_Status),
-        LABEL(ADC_RX_DATA),
-        LABEL(DAC_TX_Counter),
-        LABEL(ADC_RX_Counter),
-        LABEL(DAC_Debug),
-        LABEL(ADC_Debug),
-       
-        LABEL(Headphone_Volume_Control), 		  
-        LABEL(Left_Output_Mixer_Source_Control), 
-        LABEL(Right_Output_Mixer_Source_Control), 
-        LABEL(DAC_Analog_Enable_and_PA_Source_Control), 
-        LABEL(Phonein_Stereo_Gain_Control), 
-        LABEL(Linein_and_Phone_P_N_Gain_Control), 
-        LABEL(MIC1_and_MIC2_GAIN_Control),   
-        LABEL(PA_Enable_and_HP_Control),  
-        LABEL(Phoneout_Control), 
-        LABEL(Lineout_Volume_Control), 
-        LABEL(Mic2_Boost_and_Lineout_Enable_Control),  
-        LABEL(Mic1_Boost_and_MICBIAS_Control), 
-        LABEL(Left_ADC_Mixer_Source_Control), 
-        LABEL(Right_ADC_Mixer_Source_Control),  
-		LABEL(PA_UPTIME_CTRL),
-		LABEL(ADC_ANALIG_PART_ENABLE_REG),
-	LABEL_END,
-};
-
+extern void audiocodec_hub_enable(int hub_en);
+extern int codec_capture_open(void);
+extern int codec_capture_stop(void);
 #endif

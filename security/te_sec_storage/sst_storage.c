@@ -1,4 +1,4 @@
-/* secure storage driver for sunxi platform 
+/* secure no-voliate memory(nand/emmc) driver for sunxi platform 
  *
  * Copyright (C) 2014 Allwinner Ltd. 
  *
@@ -26,13 +26,28 @@
 #include "sst.h"
 #include "sst_debug.h"
 
-
-#define SEC_BLK_SIZE	(4096)
+#ifdef OEM_STORE_IN_FS 
 #define EMMC_SEC_STORE	"/data/oem_secure_store"
+#endif
 
-static char *oem_path="/dev/block/by-name/bootloader";
-static char file[128];
+#define SEC_BLK_SIZE						(4096)
+#define MAX_SECURE_STORAGE_MAX_ITEM          (32)
+static unsigned char secure_storage_map[SEC_BLK_SIZE] = {0};
+static unsigned int  secure_storage_inited = 0;
 
+/*
+ * EMMC parameters 
+ */
+#define SDMMC_SECTOR_SIZE				(512)
+#define SDMMC_SECURE_STORAGE_START_ADD  (6*1024*1024/512)//6M
+#define SDMMC_ITEM_SIZE                                 (4*1024/512)//4K
+static char *sd_oem_path="/dev/block/mmcblk0" ;
+
+/*
+ * Nand parameters
+ */
+static char *nand_oem_path="/dev/block/by-name/bootloader";
+static struct secblc_op_t secblk_op ;
 /*
  *  secure storage map
  *
@@ -47,134 +62,232 @@ static char file[128];
  *			... 
  */
 
+#define FLASH_TYPE_NAND  0
+#define FLASH_TYPE_SD1  1
+#define FLASH_TYPE_SD2  2
+#define FLASH_TYPE_UNKNOW	-1
 
-static unsigned char secure_storage_map[SEC_BLK_SIZE] = {0};
-static unsigned int  secure_storage_inited = 0;
+static int flash_boot_type = FLASH_TYPE_UNKNOW ;
+static char cmdline[1024];
+#define CMDLINE_FILE_PATH "/proc/cmdline"
+static int getInfoFromCmdline(char* key, char* value)
+{
+	char *p = NULL ;
+	int line_len , key_len;
+	int ret ;
 
-#ifndef OEM_STORE_IN_FS
+	memset(cmdline,0,1024);
 
-static struct secblc_op_t secblk_op ;
-static int __oem_read(
-		int id,
-		char *buf, 
-		ssize_t len
-		)
-{	
-	struct file *fd;
-	//ssize_t ret;
-	int ret = -1;
-	mm_segment_t old_fs ;
-	char *filename = oem_path ;
-
-	if(!filename || !buf){
-		dprintk("- filename/buf NULL\n");
-		return (-EINVAL);
-	}
-
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	fd = filp_open(filename, O_RDONLY, 0);
-
-	if(IS_ERR(fd)) {
-		dprintk(" -file open fail\n");
+	ret = _sst_user_read( CMDLINE_FILE_PATH, cmdline,1024,0);
+	if(ret < 0 || ret >1024 ){
+		derr("Cmd line read fail\n");	
 		return -1;
 	}
-	do{
-		if ((fd->f_op == NULL) || (fd->f_op->unlocked_ioctl == NULL))
-		{
-			dprintk(" -file can't to open!!\n");
-			break;
-		} 	
-		secblk_op.item = id ;
-		secblk_op.buf = buf;
-		secblk_op.len = len ;
-		
-		dprintk("oem read parameter: cmd %x, arg %x", 
-				SECBLK_READ, (unsigned int)(&secblk_op));
-		ret = fd->f_op->unlocked_ioctl(
-				fd,
-				SECBLK_READ,
-				(unsigned int)(&secblk_op));			
 
-	}while(false);
+	line_len = ret ;
+	key_len = strnlen(key,1024);
+	p=cmdline ;
+	while( p < cmdline + line_len - key_len){
+		if( strncmp(key, p , key_len ) )
+			p ++ ;
+		else{
+	memcpy(value, p+key_len,1);	
+			return 0 ;
+		}
+	}
 
-	filp_close(fd, NULL);
+    strcpy(value, "-1");
+    return -1;
 
-	set_fs(old_fs);
+}
+
+static int get_flash_type(void)
+{
+	char ctype[16];
+
+	memset(ctype, 0, 16);
+	if( getInfoFromCmdline("boot_type=", ctype) ){
+		derr("Get boot type cmd line fail\n");
+		return -1 ;
+	}
 	
-	dprintk("__oem_read:%d\n ",ret);
-
-	return ret ;
+	flash_boot_type= simple_strtol(ctype, NULL, 10);
+	dprintk("Boot type %d\n", flash_boot_type);
+	return 0;
 }
-static int __oem_write(
-		int	id, 
-		char *buf, 
-		ssize_t len
-		)
-{	
-	struct file *fd;
-	//ssize_t ret;
-	int ret = -1;
-	mm_segment_t old_fs = get_fs();
-	char *filename = oem_path ;
 
-	if(!filename || !buf){
-		dprintk("- filename/buf NULL\n");
+/*nand secure storage read/write*/
+static int _nand_read(int id, char *buf, ssize_t len)
+{	
+	if(!buf){
+		dprintk("-buf NULL\n");
+		return (-EINVAL);
+	}
+	if(id >MAX_SECURE_STORAGE_MAX_ITEM){
+		dprintk("out of range id %x\n", id);
+		return (-EINVAL);
+	}
+	secblk_op.item = id ;
+	secblk_op.buf = buf;
+	secblk_op.len = len ;
+
+	return  _sst_user_ioctl(nand_oem_path, SECBLK_READ,&secblk_op);			
+}
+
+static int _nand_write( int	id, char *buf, ssize_t len)
+{	
+	if(!buf){
+		dprintk("- buf NULL\n");
 		return (-EINVAL);
 	}
 
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	fd = filp_open(filename, O_WRONLY|O_CREAT, 0666);
-
-	if(IS_ERR(fd)) {
-		dprintk(" -file open fail\n");
-		return -1;
+	if(id >MAX_SECURE_STORAGE_MAX_ITEM){
+		dprintk("out of range id %x\n", id);
+		return (-EINVAL);
 	}
-	do{
-		if ((fd->f_op == NULL) || (fd->f_op->unlocked_ioctl == NULL))
-		{
-			dprintk(" -file can't to write!!\n");
-			break;
-		} 
+	secblk_op.item = id ;
+	secblk_op.buf = buf;
+	secblk_op.len = len ;
 
-		secblk_op.item = id ;
-		secblk_op.buf = buf;
-		secblk_op.len = len ;
-		
-		ret = fd->f_op->unlocked_ioctl(
-				fd,
-				SECBLK_WRITE,
-				(unsigned int)(&secblk_op));			
+	return  _sst_user_ioctl(nand_oem_path, SECBLK_WRITE,&secblk_op);			
 
-	}while(false);
-
-	vfs_fsync(fd, 0);
-
-	filp_close(fd, NULL);
-
-	set_fs(old_fs);
-	dprintk("__oem_read:%d\n ",ret);
-	return ret ;
 }
 
-#endif
+/*emmc secure storage read/write*/
+static int _sd_read(int id, char *buf, ssize_t len)
+{
+	int offset ,ret ;
+	char *align, *sd_align_buffer ;
 
+	if(!buf){
+		dprintk("-buf NULL\n");
+		return (-EINVAL);
+	}
+
+	if(id >MAX_SECURE_STORAGE_MAX_ITEM){
+		dprintk("out of range id %x\n", id);
+		return (-EINVAL);
+	}
+
+	sd_align_buffer = kmalloc(SEC_BLK_SIZE + 64 , GFP_KERNEL);
+	if(!sd_align_buffer){
+		dprintk("out of memory\n");
+		return - ENOMEM;
+	}
+
+	align = (char *)(((unsigned int)sd_align_buffer+0x20)&(~0x1f));
+
+	offset = (SDMMC_SECURE_STORAGE_START_ADD+SDMMC_ITEM_SIZE*2*id) *SDMMC_SECTOR_SIZE ;
+
+	ret =  _sst_user_read( sd_oem_path, align, len, offset);
+	if(ret != len){
+		dprintk("_sst_user_read: read request len 0x%x, actual read 0x%x\n",
+				len, ret);
+		kfree(sd_align_buffer);
+		return -1;
+	}
+	memcpy(buf,align,len);
+
+	kfree(sd_align_buffer);
+	return 0 ;
+}
+
+static int _sd_write( int id, char *buf, ssize_t len)
+{
+	int offset, ret ; 
+	char *align, *sd_align_buffer ;
+
+	if(!buf){
+		dprintk("- buf NULL\n");
+		return (-EINVAL);
+	}
+
+	if(id >MAX_SECURE_STORAGE_MAX_ITEM){
+		dprintk("out of range id %x\n", id);
+		return (-EINVAL);
+	}
+
+	sd_align_buffer = kmalloc(SEC_BLK_SIZE + 64 , GFP_KERNEL);
+	if(!sd_align_buffer){
+		dprintk("out of memory\n");
+		return - ENOMEM;
+	}
+
+	align = (char *)(((unsigned int)sd_align_buffer+0x20)&(~0x1f));
+	memcpy(align, buf, len);
+
+	offset = (SDMMC_SECURE_STORAGE_START_ADD+SDMMC_ITEM_SIZE*2*id)*SDMMC_SECTOR_SIZE  ;
+
+	ret =  _sst_user_write( sd_oem_path, align, len, offset);
+	if(ret != len){
+		dprintk("_sst_user_write: write request len 0x%x, actual write 0x%x\n",
+				len, ret);
+		kfree(sd_align_buffer);
+		return -1;
+	}
+
+	kfree(sd_align_buffer);
+	return 0 ;
+
+}
+static int nv_write( int id,char *buf, ssize_t len )
+{
+	int ret ;
+	switch(flash_boot_type){
+		case FLASH_TYPE_NAND:
+			ret = _nand_write(id, buf, len);
+			break;
+		case FLASH_TYPE_SD1:
+		case FLASH_TYPE_SD2:
+			ret = _sd_write(id, buf,len);
+			break;
+		default:
+			printk("Unknown no-volatile device\n");
+			ret = -1 ;
+			break; 
+	}
+
+	return ret ;
+
+}
+
+static int nv_read( int	id, char *buf, ssize_t len)
+{
+	int ret ;
+	switch(flash_boot_type){
+		case FLASH_TYPE_NAND:
+			ret = _nand_read(id, buf, len);
+			break;
+		case FLASH_TYPE_SD1:
+		case FLASH_TYPE_SD2:
+			ret = _sd_read(id,buf,len); 
+			break;
+		default:
+			printk("Unknown no-volatile device\n");
+			ret = -1 ;
+			break; 
+	}
+
+	return ret ;
+
+}
+
+/*Low-level operation*/
 static int sunxi_secstorage_read(int item, unsigned char *buf, unsigned int len)
 {
 #ifdef OEM_STORE_IN_FS 
 	int ret ;
 	struct secure_storage_t * sst ;
 
+	char file[128];
 	sst =  sst_get_aw_storage();
 	sst_memset(file,0, 128);
+
 	sprintf(file, "%s/08%d.bin", EMMC_SEC_STORE, item);
 	ret=(sst->st_operate->read((st_path_t)file, buf, len , USER_DATA) );
 	return (ret != len);
 #else
-	return __oem_read(item, buf, len);
+	return nv_read(item, buf, len);
 #endif
 }
 
@@ -183,6 +296,7 @@ static int sunxi_secstorage_write(int item, unsigned char *buf, unsigned int len
 #ifdef OEM_STORE_IN_FS 
 	int ret ;
 	struct secure_storage_t * sst ;
+	char file[128];
 
 	sst =  sst_get_aw_storage();
 	sst_memset(file,0, 128);
@@ -191,7 +305,7 @@ static int sunxi_secstorage_write(int item, unsigned char *buf, unsigned int len
 	return (ret != len );
 
 #else
-	return __oem_write(item, buf, len);
+	return nv_write(item, buf, len);
 #endif
 }
 /*
@@ -230,7 +344,6 @@ static int __probe_name_in_map(unsigned char *buffer, const char *item_name, int
 		{
 			buf_start += strlen(item_name) + 1;
 			*len = simple_strtoul((const char *)length, NULL, 10);
-
 			return index;
 		}
 		index ++;
@@ -274,6 +387,7 @@ int sunxi_secure_storage_init(void)
 
 	if(!secure_storage_inited)
 	{
+		get_flash_type();
 		ret = sunxi_secstorage_read(0, secure_storage_map, SEC_BLK_SIZE);
 		if(ret < 0)
 		{
@@ -291,6 +405,43 @@ int sunxi_secure_storage_init(void)
 	secure_storage_inited = 1;
 
 	return 0;
+}
+
+int sunxi_secure_storage_init_oem_class(void *oem_class)
+{
+	int id ,i ,size ;
+	char * buf, *name;
+	unsigned int re_encrypt; 
+
+	buf = (char *)kmalloc(SEC_BLK_SIZE,GFP_KERNEL);
+	if(!buf){
+		dprintk("out of memory\n");
+		return - ENOMEM;
+	}
+
+	/*Skip map sector*/
+	for(id = 0,i=1 ;id < MAX_OEM_STORE_NUM && i<32 ; i++){
+		memset(buf, 0 ,SEC_BLK_SIZE);
+		if( sunxi_secstorage_read(i, buf, SEC_BLK_SIZE) !=0 ){
+			dprintk("%s : secstorage read fail\n",__func__);
+			kfree(buf);
+			return - EIO ;
+		}
+		/*Find oem object*/
+		if( (((store_object_t *)buf)->re_encrypt  == STORE_REENCRYPT_MAGIC) && 
+				( check_object_valid((store_object_t *)buf ) ==0 ) ){
+
+			 memcpy((char *)((int)oem_class+id*64), 
+					 ((store_object_t *)buf)->name, 
+					 64);
+			 dprintk("Fill OEM name %s to oem_map %d:%s\n",((store_object_t *)buf)->name,id,
+					 (char *)((int)oem_class+id*64));
+			 id ++; 
+		}
+	}
+	kfree(buf);
+	
+	return  (size = id);
 }
 
 int sunxi_secure_storage_exit(void)
@@ -417,6 +568,7 @@ int sunxi_secure_storage_write(const char *item_name, char *buffer, int length)
 	return 0;
 }
 
+#ifdef OEM_STORE_IN_FS 
 /*Store source data to secure_object struct
  *
  * src		: payload data to secure_object
@@ -571,4 +723,4 @@ int secure_store_in_fs_test(void)
 	return 0 ;
 }
 
-
+#endif

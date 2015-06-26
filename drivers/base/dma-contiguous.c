@@ -60,6 +60,7 @@ struct cma *dma_contiguous_default_area;
 static const phys_addr_t size_bytes = CMA_SIZE_MBYTES * SZ_1M;
 static phys_addr_t size_cmdline = -1;
 
+#include <asm/setup.h>
 static int __init early_cma(char *p)
 {
 	pr_debug("%s(%s)\n", __func__, p);
@@ -95,6 +96,11 @@ static inline __maybe_unused phys_addr_t cma_early_percent_memory(void)
 
 #endif
 
+#ifdef CONFIG_ARCH_SUNXI
+extern struct tag_mem32 ion_mem;
+extern unsigned int mem_start;
+extern unsigned int mem_size;
+#endif
 /**
  * dma_contiguous_reserve() - reserve area for contiguous memory handling
  * @limit: End address of the reserved memory (optional, 0 for any).
@@ -129,7 +135,7 @@ void __init dma_contiguous_reserve(phys_addr_t limit)
 			 (unsigned long)selected_size / SZ_1M);
 
 #ifdef CONFIG_ARCH_SUNXI /* ve can only use phys memory in below 256M */
-		dma_declare_contiguous(NULL, selected_size, CONFIG_CMA_RESERVE_BASE, limit);
+		dma_declare_contiguous(NULL, ion_mem.size, ion_mem.start, limit);
 #else
 		dma_declare_contiguous(NULL, selected_size, 0, limit);
 #endif
@@ -254,6 +260,12 @@ int __init dma_declare_contiguous(struct device *dev, phys_addr_t size,
 	alignment = PAGE_SIZE << max(MAX_ORDER - 1, pageblock_order);
 	base = ALIGN(base, alignment);
 	size = ALIGN(size, alignment);
+#ifdef CONFIG_ARCH_SUNXI
+	if (base + size > mem_start + mem_size) {
+		size = mem_start + mem_size - base;
+		pr_err("%s(%d): ION reserve size should be 4m align! adjust size to %dMBytes\n", __func__, __LINE__, (int)(size>>20));
+	}
+#endif
 	limit &= ~(alignment - 1);
 
 	/* Reserve memory */
@@ -296,6 +308,34 @@ err:
 	return base;
 }
 
+#ifdef CMA_DEBUG
+static void __dump_cma_area(struct device *dev)
+{
+#define DUMP_UNIT	SZ_16K
+	struct cma *cma = dev_get_cma_area(dev);
+	int tmp = 0, busy = 0, free_cnt = 0, busy_cnt = 0;
+	int bits_per_unit = DUMP_UNIT >> PAGE_SHIFT;
+	int i = 0, index, offset;
+
+	printk("%s(%d): memory 0x%08x~0x%08x, layout(+: free, -: busy, unit: 0x%08xbytes):\n",
+		__func__, __LINE__, (int)(cma->base_pfn<<PAGE_SHIFT),
+		(int)((cma->base_pfn + cma->count)<<PAGE_SHIFT), DUMP_UNIT);
+
+	for (i = 0; i < cma->count; i++) {
+		index = i >> 5;
+		offset = i & 31;
+		if (!busy && (cma->bitmap[index] & (1<<offset)))
+			busy = 1;
+		if (++tmp == bits_per_unit) {
+			busy ? (printk("-"), busy_cnt++) : (printk("+"), free_cnt++);
+			busy = 0;
+			tmp = 0;
+		}
+	}
+	printk("\n%s: free: 0x%08x bytes, busy: 0x%08x bytes\n", __func__, free_cnt*DUMP_UNIT, busy_cnt*DUMP_UNIT);
+}
+#endif
+
 /**
  * dma_alloc_from_contiguous() - allocate pages from contiguous area
  * @dev:   Pointer to device for which the allocation is performed.
@@ -310,10 +350,9 @@ err:
 struct page *dma_alloc_from_contiguous(struct device *dev, int count,
 				       unsigned int align)
 {
-	unsigned long mask, pfn, pageno, start = 0;
+	unsigned long mask, pfn, pageno, start = 0, next;
 	struct cma *cma = dev_get_cma_area(dev);
-	struct page *page = NULL;
-	int ret;
+	int ret = 0, retry = 1;
 
 	if (!cma || !cma->count)
 		return NULL;
@@ -332,29 +371,51 @@ struct page *dma_alloc_from_contiguous(struct device *dev, int count,
 	mutex_lock(&cma_mutex);
 
 	for (;;) {
+again:
 		pageno = bitmap_find_next_zero_area(cma->bitmap, cma->count,
 						    start, count, mask);
-		if (pageno >= cma->count)
-			break;
+		if (pageno >= cma->count) {
+			if (ret == -EBUSY && --retry) {
+				start = 0;
+				goto again;
+			}
+#ifdef CMA_DEBUG
+			printk("%s: alloc pages count %d failed, retry %d, ret 0x%x\n", __func__, count, retry, 0 - ret);
+			__dump_cma_area(dev);
+#endif
+			ret = -ENOMEM;
+			goto error;
+		}
 
 		pfn = cma->base_pfn + pageno;
-		ret = alloc_contig_range(pfn, pfn + count, MIGRATE_CMA);
+		next = 0;
+		ret = alloc_contig_range(pfn, pfn + count, MIGRATE_CMA, &next);
 		if (ret == 0) {
 			bitmap_set(cma->bitmap, pageno, count);
-			page = pfn_to_page(pfn);
 			break;
 		} else if (ret != -EBUSY) {
-			break;
+			goto error;
 		}
 		pr_debug("%s(): memory range at %p is busy, retrying\n",
 			 __func__, pfn_to_page(pfn));
 		/* try again with a bit different memory target */
 		start = pageno + mask + 1;
+		if (next)
+			next -= cma->base_pfn;
+		if (start < next) {
+			pr_info("%s(%d): start 0x%x less than next buddy 0x%x, adjust to it!\n",
+			       __func__, __LINE__, (u32)(start + cma->base_pfn), (u32)(next + cma->base_pfn));
+			start = next;
+		}
 	}
 
 	mutex_unlock(&cma_mutex);
-	pr_debug("%s(): returned %p\n", __func__, page);
-	return page;
+
+	pr_debug("%s(): returned %p\n", __func__, pfn_to_page(pfn));
+	return pfn_to_page(pfn);
+error:
+	mutex_unlock(&cma_mutex);
+	return NULL;
 }
 
 /**

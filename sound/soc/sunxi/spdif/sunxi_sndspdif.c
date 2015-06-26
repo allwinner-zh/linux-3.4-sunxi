@@ -28,6 +28,8 @@
 #include "sunxi_spdif.h"
 #include "sunxi_spdma.h"
 
+static int spdif_format = 1;
+
 static int spdif_used = 0;
 
 static int sunxi_sndspdif_startup(struct snd_pcm_substream *substream)
@@ -109,7 +111,7 @@ static __mclk_set_inf  MCLK_INF[] =
     {0xffffffff, 0, 0, 0},
 };
 
-static s32 get_clock_divder(u32 sample_rate, u32 sample_width, u32 * mclk_div, u32* mpll, u32* bclk_div, u32* mult_fs)
+s32 get_clock_divder(u32 sample_rate, u32 sample_width, u32 * mclk_div, u32* mpll, u32* bclk_div, u32* mult_fs)
 {
 	u32 i, j, ret = -EINVAL;
 
@@ -134,6 +136,7 @@ static s32 get_clock_divder(u32 sample_rate, u32 sample_width, u32 * mclk_div, u
 
 	return ret;
 }
+EXPORT_SYMBOL(get_clock_divder);
 
 static int sunxi_sndspdif_hw_params(struct snd_pcm_substream *substream,
 					struct snd_pcm_hw_params *params)
@@ -150,9 +153,17 @@ static int sunxi_sndspdif_hw_params(struct snd_pcm_substream *substream,
 	if (ret < 0)
 		return ret;
 #ifdef CONFIG_SND_SUNXI_SOC_SUPPORT_AUDIO_RAW
-	/*fmt:0:pcm;1:rawdata*/
+	/*fmt:1:pcm; >1:rawdata*/
 	fmt = params_raw(params);
+#else
+	fmt = spdif_format;
 #endif
+	if(fmt > 1){
+		fmt = 1;
+	}else{
+		fmt = 0;
+	}
+
 	ret = snd_soc_dai_set_fmt(cpu_dai, fmt);//0:pcm,1:raw data
 	if (ret < 0)
 		return ret;
@@ -164,10 +175,49 @@ static int sunxi_sndspdif_hw_params(struct snd_pcm_substream *substream,
 	ret = snd_soc_dai_set_clkdiv(cpu_dai, SUNXI_DIV_MCLK, mclk_div);
 	if (ret < 0)
 		return ret;
-		
-	ret = snd_soc_dai_set_clkdiv(cpu_dai, SUNXI_DIV_BCLK, bclk_div);
-	if (ret < 0)
-		return ret;
+	return 0;
+}
+static int sunxi_spdif_set_audio_mode(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	spdif_format = ucontrol->value.integer.value[0];
+	return 0;
+}
+
+static int sunxi_spdif_get_audio_mode(struct snd_kcontrol *kcontrol,
+	struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = spdif_format;
+	return 0;
+}
+
+static const char *spdif_format_function[] = {"null", "pcm", "DTS"};
+static const struct soc_enum spdif_format_enum[] = {
+        SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(spdif_format_function), spdif_format_function),
+};
+
+/* dts pcm Audio Mode Select */
+static const struct snd_kcontrol_new sunxi_spdif_controls[] = {
+	SOC_ENUM_EXT("spdif audio format Function", spdif_format_enum[0], sunxi_spdif_get_audio_mode, sunxi_spdif_set_audio_mode),
+};
+
+/*
+ * Card initialization
+ */
+static int sunxi_spdif_init(struct snd_soc_pcm_runtime *rtd)
+{
+	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_card *card = rtd->card;
+	int ret;
+
+	/* Add virtual switch */
+	ret = snd_soc_add_codec_controls(codec, sunxi_spdif_controls,
+					ARRAY_SIZE(sunxi_spdif_controls));
+	if (ret) {
+		dev_warn(card->dev,
+				"Failed to register audio mode control, "
+				"will continue without it.\n");
+	}
 	return 0;
 }
 
@@ -184,6 +234,7 @@ static struct snd_soc_dai_link sunxi_sndspdif_dai_link = {
 	.codec_dai_name = "sndspdif",
 	.platform_name 	= "sunxi-spdif-pcm-audio.0",
 	.codec_name 	= "sunxi-spdif-codec.0",
+	.init 			= sunxi_spdif_init,
 	.ops 			= &sunxi_sndspdif_ops,
 };
 
@@ -197,27 +248,12 @@ static struct snd_soc_card snd_soc_sunxi_sndspdif = {
 static int __devinit sunxi_sndspdif_dev_probe(struct platform_device *pdev)
 {
 	int ret = 0;
-	static script_item_u val;
-	script_item_value_type_e  type;
+
 	struct snd_soc_card *card = &snd_soc_sunxi_sndspdif;
-
-	type = script_get_item("spdif0", "spdif_used", &val);
-	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
-      	pr_err("[SPDIF]:%s,line:%d type err!\n", __func__, __LINE__);
-        return -EINVAL;
-    }
-
-    spdif_used = val.val;
-    pr_debug("%s, line:%d, spdif_used:%d\n", __func__, __LINE__, spdif_used);
-    if (spdif_used) {
-		card->dev = &pdev->dev;
-		ret = snd_soc_register_card(card);
-		if (ret) {
-			dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n", ret);
-		}
-	} else {
-		pr_err("[SPDIF]sunxi_sndspdif cannot find any using configuration for controllers, return directly!\n");
-        return 0;
+	card->dev = &pdev->dev;
+	ret = snd_soc_register_card(card);
+	if (ret) {
+		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n", ret);
 	}
 	return ret;
 }
@@ -225,10 +261,7 @@ static int __devinit sunxi_sndspdif_dev_probe(struct platform_device *pdev)
 static int __devexit sunxi_sndspdif_dev_remove(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = platform_get_drvdata(pdev);
-
-	if (spdif_used) {
-		snd_soc_unregister_card(card);
-	}
+	snd_soc_unregister_card(card);
 	return 0;
 }
 
@@ -252,19 +285,34 @@ static struct platform_driver sunxi_spdif_driver = {
 static int __init sunxi_sndspdif_init(void)
 {
 	int err = 0;
-	if((err = platform_device_register(&sunxi_spdif_device)) < 0)
-		return err;
+	static script_item_u val;
+	script_item_value_type_e  type;
 
-	if ((err = platform_driver_register(&sunxi_spdif_driver)) < 0)
-		return err;	
+	type = script_get_item("spdif0", "spdif_used", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+      		pr_err("[SPDIF]:%s,line:%d type err!\n", __func__, __LINE__);
+    	}
+    	spdif_used = val.val;
+	if (spdif_used) {
+		if((err = platform_device_register(&sunxi_spdif_device)) < 0)
+			return err;
 
+		if ((err = platform_driver_register(&sunxi_spdif_driver)) < 0)
+			return err;
+	} else {
+		pr_warning("[SPDIF] driver not init,just return.\n");
+	}
 	return 0;
 }
 module_init(sunxi_sndspdif_init);
 
 static void __exit sunxi_sndspdif_exit(void)
 {
-	platform_driver_unregister(&sunxi_spdif_driver);
+	if (spdif_used){
+		spdif_used = 0;
+		platform_driver_unregister(&sunxi_spdif_driver);
+		platform_device_unregister(&sunxi_spdif_device);
+	}
 }
 module_exit(sunxi_sndspdif_exit);
 MODULE_AUTHOR("chenpailin");

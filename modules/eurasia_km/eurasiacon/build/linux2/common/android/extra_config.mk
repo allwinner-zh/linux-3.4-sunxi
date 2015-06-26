@@ -50,3 +50,5 @@ $(eval $(call TunableBothConfigMake,SUPPORT_PVRSRV_ANDROID_SYSTRACE,))
 
 $(eval $(call TunableBothConfigMake,PVR_ANDROID_NATIVE_WINDOW_HAS_SYNC,))
 $(eval $(call TunableBothConfigC,PVR_ANDROID_NATIVE_WINDOW_HAS_SYNC,))
+
+include ../common/ion.mk

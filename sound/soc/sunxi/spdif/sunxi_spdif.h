@@ -15,12 +15,15 @@
 
 #ifndef SUNXI_SPDIF_H_
 #define SUNXI_SPDIF_H_
-
+#include <mach/platform.h>
 /*------------------SPDIF register definition--------------------*/
 #ifdef CONFIG_ARCH_SUN9I
 #define SUNXI_SPDIFBASE 0x06001000
 #else
 #define SUNXI_SPDIFBASE 0x01C21000
+#ifdef CONFIG_ARCH_SUN8IW6
+#define SUNXI_SPDIF_VBASE 0xf1C21000
+#endif
 #endif
 #define	SUNXI_SPDIF_CTL	(0x00)
 #ifdef CONFIG_ARCH_SUN8IW1
@@ -150,15 +153,18 @@
 #define SUNXI_DIV_MCLK	0
 #define SUNXI_DIV_BCLK	1
 
-extern void sunxi_snd_txctrl(struct snd_pcm_substream *substream, int on);
-extern void sunxi_snd_rxctrl(struct snd_pcm_substream *substream, int on);
+extern void spdif_txctrl_enable(int tx_en, int chan, int hub_en);
+extern void spdif_rxctrl_enable(int rx_en);
 
 struct sunxi_spdif_info {
 	void __iomem   *regs;    /* spdif base */
 };
 
 extern struct sunxi_spdif_info sunxi_spdif;
+extern s32 get_clock_divder(u32 sample_rate, u32 sample_width, u32 * mclk_div, u32* mpll, u32* bclk_div, u32* mult_fs);
 
-unsigned int sunxi_spdif_get_clockrate(void);
-
+extern int spdif_set_fmt(unsigned int fmt);
+extern int spdif_set_clkdiv(int div_id, int div);
+extern int spdif_hw_params(int format);
+extern void spdif_txctrl_enable(int tx_en, int chan, int hub_en);
 #endif

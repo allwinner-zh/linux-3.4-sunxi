@@ -12,7 +12,7 @@
 #include <linux/power/axp_depend.h>
 #include "axp-regu.h"
 
-struct axp_consumer_supply *consumer_supply_count = NULL;
+static struct axp_consumer_supply *consumer_supply_count = NULL;
 
 int axp_regu_fetch_sysconfig_para(char * pmu_type, struct axp_reg_init *axp_init_data)
 {

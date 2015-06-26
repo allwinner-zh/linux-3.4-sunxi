@@ -25,6 +25,22 @@
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 
+#ifdef CONFIG_ARCH_SUNXI
+#undef atomic_cmpxchg
+#define atomic_cmpxchg(v, old, new)	atomic_cmpxchg_v6(v,old,new)
+static inline int atomic_cmpxchg_v6(atomic_t *v, int old, int new)
+{
+	int ret;
+	unsigned long flags;
+	raw_local_irq_save(flags);
+	ret = v->counter;
+	if (likely(ret == old))
+		v->counter = new;
+	raw_local_irq_restore(flags);
+	return ret;
+}
+#endif
+
 struct persistent_ram_buffer {
 	uint32_t    sig;
 	atomic_t    start;

@@ -40,7 +40,9 @@
 
 #define SUNXI_PCM_RATES (SNDRV_PCM_RATE_8000_192000 | SNDRV_PCM_RATE_KNOT)
 
+
 #if defined CONFIG_ARCH_SUN8IW5 || defined CONFIG_ARCH_SUN8IW9
+static u32 sample_resolution =16;
 static struct sunxi_dma_params sunxi_pcm_pcm_stereo_out = {
 	.name		= "audio_play",
 	.dma_addr	= CODEC_BASSADDRESS + SUNXI_DA_TXFIFO,//send data address
@@ -124,14 +126,72 @@ static int sunxi_i2s_hw_params(struct snd_pcm_substream *substream,
 	struct snd_pcm_hw_params *params,
 	struct snd_soc_dai *dai)
 {
+	int rs_value  = 0;
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct sunxi_dma_params *dma_data;
+
+	switch (params_format(params))
+	{
+		case SNDRV_PCM_FORMAT_S16_LE:
+			sample_resolution = 16;
+			break;
+		case SNDRV_PCM_FORMAT_S20_3LE:
+			sample_resolution = 24;
+			break;
+		case SNDRV_PCM_FORMAT_S24_LE:
+			sample_resolution = 24;
+			break;
+		case SNDRV_PCM_FORMAT_S32_LE:
+			sample_resolution = 24;
+			break;
+		default:
+			return -EINVAL;
+	}
+
+		/* sample rate */
+	switch(sample_resolution)
+	{
+		case 16: rs_value = 0;
+			break;
+		case 20: rs_value = 1;
+			break;
+		case 24: rs_value = 2;
+			break;
+		default:
+			return -EINVAL;
+		//case 32: rs_value = 3;
+		//	break;
+	}
+	codec_wr_control(SUNXI_DA_FAT0, 0x3, SR, rs_value);
+#ifdef CONFIG_ARCH_SUN8IW5
+	/*calculate word select bit*/
+	switch (sample_resolution)
+	{
+		case 16: rs_value = 0x1;
+			break;
+		case 8: rs_value = 0x0;
+			break;
+		case 20: rs_value = 0x2;
+			break;
+		case 24: rs_value = 0x3;
+			break;
+		default:
+			break;
+	}
+	codec_wr_control(SUNXI_AIF1CLK_CTRL, 0x3, AIF1_WORD_SIZ, rs_value);
+#endif
+
+	if(sample_resolution == 24)
+		codec_wr_control(SUNXI_DA_FCTL, 0xf, RXOM, 0x1);
+	else
+		codec_wr_control(SUNXI_DA_FCTL, 0xf, RXOM, 0x5);
 
 	/* play or record */
 	if(substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
 		dma_data = &sunxi_pcm_pcm_stereo_out;
 	else
 		dma_data = &sunxi_pcm_pcm_stereo_in;
+
 
 	snd_soc_dai_set_dma_data(rtd->cpu_dai, substream, dma_data);
 
@@ -160,13 +220,13 @@ static int sunxi_i2s_set_clkdiv(struct snd_soc_dai *cpu_dai, int div_id, int sam
 	u32 mclk_div = 0;
 	u32 bclk_div = 0;
 	int wss_value = 0;
-	int rs_value  = 0;
+	//int rs_value  = 0;
 	u32 over_sample_rate = 0;
 	u32 word_select_size = 32;
-	u32 sample_resolution =16;
+//	u32 sample_resolution =16;
 #ifdef CONFIG_ARCH_SUN8IW5
 	u32 bclk_lrck_div = 64;
-	int aif1_word_size = 16;
+	//int aif1_word_size = 16;
 #endif
 	/*mclk div calculate*/
 	switch(samplerate)
@@ -304,19 +364,6 @@ static int sunxi_i2s_set_clkdiv(struct snd_soc_dai *cpu_dai, int div_id, int sam
 	}
 	codec_wr_control(SUNXI_DA_FAT0, 0x3, WSS, wss_value);
 
-	/* sample rate */
-	switch(sample_resolution)
-	{
-		case 16: rs_value = 0;
-			break;
-		case 20: rs_value = 1;
-			break;
-		case 24: rs_value = 2;
-			break;
-		case 32: rs_value = 3;
-			break;
-	}
-	codec_wr_control(SUNXI_DA_FAT0, 0x3, SR, rs_value);
 #ifdef CONFIG_ARCH_SUN8IW5
 /*********aif1 part************ */
 	/*calculate bclk_lrck_div Ratio*/
@@ -337,21 +384,6 @@ static int sunxi_i2s_set_clkdiv(struct snd_soc_dai *cpu_dai, int div_id, int sam
 	}
 	codec_wr_control(SUNXI_AIF1CLK_CTRL, 0x7, AIF1_LRCK_DIV, bclk_lrck_div);
 
-	/*calculate word select bit*/
-	switch (aif1_word_size)
-	{
-		case 16: aif1_word_size = 0x1;
-			break;
-		case 8: aif1_word_size = 0x0;
-			break;
-		case 20: aif1_word_size = 0x2;
-			break;
-		case 24: aif1_word_size = 0x3;
-			break;
-		default:
-			break;
-	}
-	codec_wr_control(SUNXI_AIF1CLK_CTRL, 0x3, AIF1_WORD_SIZ, aif1_word_size);
 #endif
 	return 0;
 }
@@ -378,7 +410,7 @@ static int sunxi_i2s_set_fmt(struct snd_soc_dai *cpu_dai,
 	/*TX FIFO empty trigger level*/
 	codec_wr_control(SUNXI_DA_FCTL, 0x1f, RXTL, 0x1f);
 
-	codec_wr_control(SUNXI_DA_FCTL, 0xf, RXOM, 0x5);
+	//codec_wr_control(SUNXI_DA_FCTL, 0xf, RXOM, 0x5);
 #ifdef CONFIG_ARCH_SUN8IW5
 /**aif1 part**/
 	/*aif1 slave*/
@@ -445,13 +477,13 @@ static struct snd_soc_dai_driver sunxi_pcm_dai = {
 		.channels_min = 1,
 		.channels_max = 2,
 		.rates = SUNXI_PCM_RATES,
-		.formats = SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S20_3LE | SNDRV_PCM_FMTBIT_S24_LE,
+		.formats = SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S20_3LE | SNDRV_PCM_FMTBIT_S24_LE | SNDRV_PCM_FMTBIT_S32_LE,
 	},
 	.capture 	= {
 		.channels_min = 1,
 		.channels_max = 2,
 		.rates = SUNXI_PCM_RATES,
-		.formats = SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S20_3LE | SNDRV_PCM_FMTBIT_S24_LE,
+		.formats = SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S20_3LE | SNDRV_PCM_FMTBIT_S24_LE | SNDRV_PCM_FMTBIT_S32_LE,
 	},
 
 	#if defined CONFIG_ARCH_SUN8IW5 || defined CONFIG_ARCH_SUN8IW9

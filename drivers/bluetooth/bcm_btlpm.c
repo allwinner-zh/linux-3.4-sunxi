@@ -439,6 +439,9 @@ static int bluesleep_start(void)
 {
 	int retval;
 	unsigned long irq_flags;
+  script_item_value_type_e type;
+	script_item_u val;
+	int host_wake_invert = 0;
 
 	spin_lock_irqsave(&rw_lock, irq_flags);
 
@@ -461,12 +464,19 @@ static int bluesleep_start(void)
 	/* assert BT_WAKE */
 	gpio_set_value(bsi->ext_wake, 1);
 
-#ifndef CONFIG_BT_LOW_LEVEL_TRIGGER
-	retval = request_irq(bsi->host_wake_irq, bluesleep_hostwake_isr, IRQF_DISABLED | IRQF_TRIGGER_RISING,
-#else
-	retval = request_irq(bsi->host_wake_irq, bluesleep_hostwake_isr, IRQF_DISABLED | IRQF_TRIGGER_FALLING,
-#endif // CONFIG_BT_LOW_LEVEL_TRIGGER
-				 "bluetooth hostwake", NULL);
+  type = script_get_item("bt_para", "bt_host_wake_invert", &val);
+  if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+    BT_INFO("has no bt_host_wake_invert\n");
+  } else {
+    host_wake_invert = val.val;
+  }
+
+  if (!host_wake_invert)
+    retval = request_irq(bsi->host_wake_irq, bluesleep_hostwake_isr, IRQF_DISABLED | IRQF_TRIGGER_RISING, \
+	    "bluetooth hostwake", NULL);
+  else
+    retval = request_irq(bsi->host_wake_irq, bluesleep_hostwake_isr, IRQF_DISABLED | IRQF_TRIGGER_FALLING, \
+      "bluetooth hostwake", NULL);
 	if (retval < 0) {
 		BT_ERR("Couldn't acquire bt_host_wake IRQ or enable it");
 		goto fail;
@@ -676,15 +686,15 @@ static int __init bluesleep_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	//get bt_wake & bt_host_wake from sys_config.fex
-	type = script_get_item("wifi_para", "ap6xxx_bt_wake", &val);
+	type = script_get_item("bt_para", "bt_wake", &val);
 	if (SCIRPT_ITEM_VALUE_TYPE_PIO!=type) 
-		BT_ERR("get ap6xxx ap6xxx_bt_wake gpio failed\n");
+		BT_ERR("get bt_wake gpio failed\n");
 	else
 		bsi->ext_wake = val.gpio.gpio;	
 	
-	type = script_get_item("wifi_para", "ap6xxx_bt_host_wake", &val);
+	type = script_get_item("bt_para", "bt_host_wake", &val);
 	if (SCIRPT_ITEM_VALUE_TYPE_PIO!=type) 
-		BT_ERR("get ap6xxx ap6xxx_bt_host_wake gpio failed\n");
+		BT_ERR("get bt_host_wake gpio failed\n");
 	else
 		bsi->host_wake = val.gpio.gpio;		
 

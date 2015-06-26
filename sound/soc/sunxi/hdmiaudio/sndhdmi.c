@@ -22,13 +22,17 @@
 #include <sound/initval.h>
 #include <linux/io.h>
 #include <video/drv_hdmi.h>
+#ifdef CONFIG_HAS_EARLYSUSPEND
+#include <linux/earlysuspend.h>
+#endif
 
-#if defined CONFIG_ARCH_SUN9I || CONFIG_ARCH_SUN8IW6
+#if defined CONFIG_ARCH_SUN9I || defined CONFIG_ARCH_SUN8IW6
 #include "sunxi-hdmipcm.h"
 #endif
 #ifdef CONFIG_ARCH_SUN8IW7
 #include "sunxi-hdmitdm.h"
 #endif
+static bool  hdmiaudio_reset_en = false;
 static __audio_hdmi_func 	g_hdmi_func;
 static hdmi_audio_t 		hdmi_para;
 atomic_t pcm_count_num;
@@ -71,7 +75,7 @@ static int sndhdmi_hw_params(struct snd_pcm_substream *substream,
 #ifdef CONFIG_SND_SUNXI_SOC_SUPPORT_AUDIO_RAW
 	hdmi_para.data_raw 		= params_raw(params);
 #else
-	hdmi_para.data_raw 		= 1;
+	hdmi_para.data_raw 		= hdmi_format;
 #endif	
 	switch (params_format(params))
 	{
@@ -132,7 +136,7 @@ static int sndhdmi_perpare(struct snd_pcm_substream *substream,
 #ifdef CONFIG_ARCH_SUN9I
 	int is_play = 0, i = 0;
 #endif
-#if defined CONFIG_ARCH_SUN9I || CONFIG_ARCH_SUN8IW6
+#if defined CONFIG_ARCH_SUN9I || defined CONFIG_ARCH_SUN8IW6
 	/*Global Enable Digital Audio Interface*/
 	reg_val = readl(SUNXI_I2S1_VBASE + SUNXI_I2S1CTL);
 	reg_val |= SUNXI_I2S1CTL_GEN;
@@ -154,7 +158,7 @@ static int sndhdmi_perpare(struct snd_pcm_substream *substream,
 	reg_val |= SUNXI_DAUDIOFCTL_FTX;
 	writel(reg_val, SUNXI_DAUDIO2_VBASE + SUNXI_DAUDIOFCTL);
 #endif
-	if ((hdmi_para.data_raw > 1)||(hdmi_para.sample_bit!=16)||(hdmi_para.channel_num >= 3)) {
+	if ((hdmi_para.data_raw > 1)||(hdmi_para.sample_bit!=16)||(hdmi_para.channel_num != 2)||(hdmi_para.sample_rate != 44100)||( hdmiaudio_reset_en == true)) {
 		atomic_set(&pcm_count_num, 0);
 	} else {
 		atomic_inc(&pcm_count_num);
@@ -163,10 +167,18 @@ static int sndhdmi_perpare(struct snd_pcm_substream *substream,
 	*	set the first pcm param, need set the hdmi audio pcm param
 	*	set the data_raw param, need set the hdmi audio raw param
 	*/
+	if (!g_hdmi_func.hdmi_set_audio_para) {
+		printk(KERN_WARNING "hdmi video isn't insmod, hdmi interface is null\n");
+		return 0;
+	}
+	if (hdmiaudio_reset_en) {
+		pr_err("%s,l:%d,hdmi_para.data_raw:%d, hdmi_para.sample_bit:%d, hdmi_para.channel_num:%d, hdmi_para.sample_rate:%d, hdmiaudio_reset_en:%d\n",\
+			__func__, __LINE__, hdmi_para.data_raw, hdmi_para.sample_bit, hdmi_para.channel_num, hdmi_para.sample_rate, hdmiaudio_reset_en);
+	}
 	if (atomic_read(&pcm_count_num) <= 1) {
 		g_hdmi_func.hdmi_set_audio_para(&hdmi_para);
+		g_hdmi_func.hdmi_audio_enable(1, 1);
 	}
-	g_hdmi_func.hdmi_audio_enable(1, 1);
 #ifdef CONFIG_ARCH_SUN9I
 	is_play = g_hdmi_func.hdmi_is_playback();
 	i = 0;
@@ -209,22 +221,50 @@ static int sndhdmi_trigger(struct snd_pcm_substream *substream,
 	}
 	return ret;
 }
-static int sunxi_sndhdmi_suspend(struct snd_soc_dai *dai)
+static int sunxi_sndhdmi_suspend(struct snd_soc_codec *dai)
 {
 	return 0;
 }
 
-static int sunxi_sndhdmi_resume(struct snd_soc_dai *dai)
+static int sunxi_sndhdmi_resume(struct snd_soc_codec *dai)
 {
 	atomic_set(&pcm_count_num, 0);
 	return 0;
 }
+
 static void sndhdmi_shutdown(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *dai)
 {
-	g_hdmi_func.hdmi_audio_enable(0, 1);
+	if (g_hdmi_func.hdmi_audio_enable) {
+		g_hdmi_func.hdmi_audio_enable(0, 1);
+	}
+}
+#ifdef CONFIG_HAS_EARLYSUSPEND
+void hdmiaudio_early_suspend(struct early_suspend *h) {
+#ifdef CONFIG_ARCH_SUN8IW7
+	if (g_hdmi_func.hdmi_audio_enable) {
+		g_hdmi_func.hdmi_audio_enable(0, 1);
+	}
+#endif
 }
 
+void hdmiaudio_late_resume(struct early_suspend *h) {
+		atomic_set(&pcm_count_num, 0);
+#ifdef CONFIG_ARCH_SUN8IW7
+		if (g_hdmi_func.hdmi_audio_enable) {
+			g_hdmi_func.hdmi_set_audio_para(&hdmi_para);
+			g_hdmi_func.hdmi_audio_enable(1, 1);
+		}
+#endif
+}
+
+ static struct early_suspend hdmiaudio_early_suspend_handler =
+{
+	.level   = EARLY_SUSPEND_LEVEL_BLANK_SCREEN,
+	.suspend = hdmiaudio_early_suspend,
+	.resume = hdmiaudio_late_resume,
+};
+#endif
 /*codec dai operation*/
 static struct snd_soc_dai_ops sndhdmi_dai_ops = {
 	.hw_params 	= sndhdmi_hw_params,
@@ -247,8 +287,6 @@ static struct snd_soc_dai_driver sndhdmi_dai = {
 	},
 	/* pcm operations */
 	.ops 		= &sndhdmi_dai_ops,
-	.suspend 	= sunxi_sndhdmi_suspend,
-	.resume 	= sunxi_sndhdmi_resume,
 };
 EXPORT_SYMBOL(sndhdmi_dai);
 
@@ -290,6 +328,8 @@ static int sndhdmi_soc_remove(struct snd_soc_codec *codec)
 static struct snd_soc_codec_driver soc_codec_dev_sndhdmi = {
 	.probe 	=	sndhdmi_soc_probe,
 	.remove =   sndhdmi_soc_remove,
+	.suspend 	= sunxi_sndhdmi_suspend,
+	.resume 	= sunxi_sndhdmi_resume,
 };
 
 static int __init sndhdmi_codec_probe(struct platform_device *pdev)
@@ -298,6 +338,9 @@ static int __init sndhdmi_codec_probe(struct platform_device *pdev)
 		pr_err("error:%s,line:%d\n", __func__, __LINE__);
 		return -EAGAIN;
 	}
+ #ifdef CONFIG_HAS_EARLYSUSPEND
+	register_early_suspend(&hdmiaudio_early_suspend_handler);
+ #endif
 	return snd_soc_register_codec(&pdev->dev, &soc_codec_dev_sndhdmi, &sndhdmi_dai, 1);	
 }
 
@@ -336,6 +379,7 @@ static int __init sndhdmi_codec_init(void)
 	return 0;
 }
 module_init(sndhdmi_codec_init);
+module_param_named(hdmiaudio_reset_en, hdmiaudio_reset_en, bool, S_IRUGO | S_IWUSR);
 
 static void __exit sndhdmi_codec_exit(void)
 {

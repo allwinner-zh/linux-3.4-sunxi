@@ -152,6 +152,6 @@ struct axp_regulator_info {
 	int	mode_reg;
 	int	freq_reg;
 };
-
+extern int axp_regu_fetch_sysconfig_para(char * pmu_type, struct axp_reg_init *axp_init_data);
 #endif
 

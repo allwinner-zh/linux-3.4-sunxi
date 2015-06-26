@@ -27,15 +27,15 @@
 #if defined CONFIG_ARCH_SUN8IW1P1
 #define ARISC_VERSIONS (100)
 #elif defined CONFIG_ARCH_SUN8IW3P1
-#define ARISC_VERSIONS (150)
+#define ARISC_VERSIONS (101)
 #elif defined CONFIG_ARCH_SUN8IW5P1
-#define ARISC_VERSIONS (160)
+#define ARISC_VERSIONS (102)
 #elif defined CONFIG_ARCH_SUN8IW6P1
-#define ARISC_VERSIONS (170)
+#define ARISC_VERSIONS (103)
 #elif defined CONFIG_ARCH_SUN8IW7P1
-#define ARISC_VERSIONS (180)
+#define ARISC_VERSIONS (104)
 #elif defined CONFIG_ARCH_SUN8IW9P1
-#define ARISC_VERSIONS (190)
+#define ARISC_VERSIONS (105)
 #elif defined CONFIG_ARCH_SUN9IW1P1
 #define ARISC_VERSIONS (200)
 #else
@@ -54,17 +54,16 @@
     (defined CONFIG_ARCH_SUN8IW6P1) || (defined CONFIG_ARCH_SUN8IW9P1)
 	#define ARISC_MESSAGE_POOL_START    (0x13000)
 	#define ARISC_MESSAGE_POOL_END      (0x14000)
+	#define ARISC_PARA_ADDR_OFFSET      (SUNXI_SRAM_A2_SIZE - 4 * 1024)
 #elif  (defined CONFIG_ARCH_SUN8IW7P1)
 	#define ARISC_MESSAGE_POOL_START    (0x0B800)
 	#define ARISC_MESSAGE_POOL_END      (0x0C000)
+	#define ARISC_PARA_ADDR_OFFSET      (SUNXI_SRAM_A2_SIZE - 2 * 1024)
 #elif defined CONFIG_ARCH_SUN9IW1P1
 	#define ARISC_MESSAGE_POOL_START    (0x27000)
 	#define ARISC_MESSAGE_POOL_END      (0x28000)
+	#define ARISC_PARA_ADDR_OFFSET      (SUNXI_SRAM_A2_SIZE - 4 * 1024)
 #endif
-#define ARISC_PARA_ADDR_OFFSET      (SUNXI_SRAM_A2_SIZE - 4 * 1024)
-
-/* spinlock max timeout, base on ms */
-#define ARISC_SPINLOCK_TIMEOUT      (100)
 
 /* send message max timeout, base on ms */
 #define ARISC_SEND_MSG_TIMEOUT      (4000)
@@ -79,5 +78,7 @@
 
 /* dvfs config */
 #define ARISC_DVFS_VF_TABLE_MAX         (16)
+/* ir config */
+#define ARISC_IR_KEY_SUP_NUM            (8)     /* the number of IR remote support */
 
 #endif /* __ARISC_CFGS_H */

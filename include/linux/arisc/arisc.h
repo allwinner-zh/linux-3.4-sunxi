@@ -249,13 +249,13 @@ typedef struct nmi_isr
 extern nmi_isr_t nmi_isr_node[2];
 
 /*
- * @flags: 0x01-clean pendings, 0x10-enter cupidle.
- * @resume_addr: resume address for cpu0 out of idle.
+ * @flags: bit1:dram enter self-refresh, bit16:C1/C2 state.
+ * @mpidr: cpu info.
  */
-typedef struct sunxi_enter_idle_para{
+typedef struct sunxi_cpuidle_para{
 	unsigned long flags;
-	void *resume_addr;
-}sunxi_enter_idle_para_t;
+	unsigned long mpidr;
+}sunxi_cpuidle_para_t;
 
 /* ====================================dvfs interface==================================== */
 /*
@@ -279,7 +279,10 @@ int arisc_dvfs_set_cpufreq(unsigned int freq, unsigned int pll, unsigned long mo
  *
  * return: result, 0 - enter cpuidle successed, !0 - failed;
  */
-extern int arisc_enter_cpuidle(arisc_cb_t cb, void *cb_arg, struct sunxi_enter_idle_para *para);
+extern int arisc_enter_cpuidle(arisc_cb_t cb, void *cb_arg, \
+                               struct sunxi_cpuidle_para *para);
+extern int arisc_config_cpuidle(arisc_cb_t cb, void *cb_arg, \
+                                struct sunxi_cpuidle_para *para);
 
 /* ====================================standby interface==================================== */
 /**
@@ -335,11 +338,11 @@ extern int arisc_query_standby_power_cfg(struct standby_info_para *para);
  * return: result, 0 - query successed,
  *                !0 - query failed;
  */
-int arisc_query_dram_crc_result(unsigned long *perror, unsigned long *ptotal_count,
-	unsigned long *perror_count);
+int arisc_query_dram_crc_result(unsigned int *perror, unsigned int *ptotal_count,
+	unsigned int *perror_count);
 
-int arisc_set_dram_crc_result(unsigned long error, unsigned long total_count,
-	unsigned long error_count);
+int arisc_set_dram_crc_result(unsigned int error, unsigned int total_count,
+	unsigned int error_count);
 
 /**
  * notify arisc cpux restored.
@@ -386,6 +389,10 @@ int arisc_axp_get_chip_id(unsigned char *chip_id);
 #if (defined CONFIG_ARCH_SUN8IW5P1)
 int arisc_adjust_pmu_chgcur(unsigned int max_chgcur, unsigned int chg_ic_temp);
 #endif
+
+int arisc_set_led_bln(unsigned long led_rgb, unsigned long led_onms,  \
+                      unsigned long led_offms, unsigned long led_darkms);
+
 /* ====================================audio interface==================================== */
 /**
  * start audio play or capture.
@@ -604,5 +611,6 @@ unsigned int arisc_pmu_get_voltage(u32 type);
 
 /* ====================================debug interface==================================== */
 int arisc_message_loopback(void);
+int arisc_config_ir_paras(u32 ir_code, u32 ir_addr);
 
 #endif	/* __ASM_ARCH_A100_H */

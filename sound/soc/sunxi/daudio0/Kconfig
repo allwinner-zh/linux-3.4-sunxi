@@ -9,25 +9,29 @@ config SND_SUNXI_SOC_DAUDIO0_INTERFACE
 	  the SUNXI DAUDIO TDM interface. You will also need
 	  to select the audio interfaces to support below.
 
-
-
-
 config SND_SUNXI_SOC_DAUDIO0_PUBLIC_MACHINE
 	tristate "Public Machine for SUNXI chips"
-	depends on ARCH_SUN9IW1 || ARCH_SUN8IW6|| ARCH_SUN8IW7 || ARCH_SUN8IW8
+	depends on (ARCH_SUN9IW1 || ARCH_SUN8IW6|| ARCH_SUN8IW7 || ARCH_SUN8IW8) && MFD_AC200=n
 	default n
 	help
 	  Say Y or M if you want to add sun8iw1 audiocodec support
 	 
 config SND_SUNXI_SOC_SUN8IW6_AC100
 	tristate "Machine for A83 AC100"
-	depends on ARCH_SUN8IW6
+	depends on ARCH_SUN8IW6 && MFD_AC100 && SND_SOC_AC100DAPM_CODEC
 	default n
 	help
-	  Say Y or M if you want to add sun8iw1 audiocodec support
+	  Say Y or M if you want to add sun8iw6 codec support
+
+config SND_SUNXI_SOC_SUN8IW6_AC200
+	tristate "Machine for A83 AC200"
+	depends on ARCH_SUN8IW6 && MFD_AC200
+	help
+	  Say Y or M if you want to add sun8iw6 codec support
+
 config SND_VIRBB_DAI
 	tristate "virtual bb interface"
-	depends on ARCH_SUN8IW6
+	depends on ARCH_SUN8IW6 && MFD_AC100=y
 	default n
 	help
 	  Say Y or M if you want to add sun8iw1 audiocodec support

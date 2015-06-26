@@ -532,7 +532,9 @@ power_attr(scene_lock);
 power_attr(scene_unlock);
 power_attr(scene_state);
 power_attr(wakeup_src);
+#if (defined CONFIG_AW_AXP)
 power_attr(sys_pwr_dm_mask);
+#endif
 #endif
 
 static struct attribute * g[] = {
@@ -556,7 +558,9 @@ static struct attribute * g[] = {
 	&scene_unlock_attr.attr,
 	&scene_state_attr.attr,
 	&wakeup_src_attr.attr,
+#if (defined CONFIG_AW_AXP)
 	&sys_pwr_dm_mask_attr.attr,
+#endif
 #endif
 #ifdef CONFIG_PM_DEBUG
 	&pm_test_attr.attr,

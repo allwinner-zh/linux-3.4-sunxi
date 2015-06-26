@@ -317,6 +317,8 @@ extern unsigned long get_safe_page(gfp_t gfp_mask);
 extern void hibernation_set_ops(const struct platform_hibernation_ops *ops);
 extern int hibernate(void);
 extern bool system_entering_hibernation(void);
+asmlinkage int swsusp_save(void);
+extern struct pbe *restore_pblist;
 #else /* CONFIG_HIBERNATION */
 static inline void register_nosave_region(unsigned long b, unsigned long e) {}
 static inline void register_nosave_region_late(unsigned long b, unsigned long e) {}
@@ -342,6 +344,10 @@ extern struct mutex pm_mutex;
 #ifdef CONFIG_PM_SLEEP
 void save_processor_state(void);
 void restore_processor_state(void);
+#ifdef CONFIG_ARCH_SUNXI
+void hibernate_save_processor_state(void);
+void hibernate_restore_processor_state(void);
+#endif
 
 /* kernel/power/main.c */
 extern int register_pm_notifier(struct notifier_block *nb);

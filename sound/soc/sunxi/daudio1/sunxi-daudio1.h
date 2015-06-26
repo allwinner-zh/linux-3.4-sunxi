@@ -220,7 +220,6 @@ struct sunxi_daudio_info1 {
 };
 
 extern struct sunxi_daudio_info sunxi_daudio;
-extern int sunxi_daudio_set_rate(int freq);
 extern int r_i2s_rx_disable(void);
 extern int r_i2s_tx_disable(void);
 

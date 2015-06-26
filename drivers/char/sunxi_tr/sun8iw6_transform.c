@@ -94,6 +94,12 @@ static int de_tr_clk_enable(void)
 	unsigned int reg_val = 0;
 	unsigned int offset = 3;//bit 3
 
+	/* clk div */
+	reg_val = tr_readl(base + 0xc);
+	reg_val &= ~(0xf << 12);
+	reg_val |= (0x1 << 12);
+	tr_writel(reg_val, base + 0xc);
+
 	/* reset */
 	reg_val = tr_readl(base + 0x8);
 	reg_val |= (1<<offset);
@@ -175,15 +181,28 @@ int de_tr_reset(void)
 
 	tr_readl(tr_base - TR_OFFSET);
 
+	reg_val = tr_readl(tr_base + TR_CTL);
+	reg_val |= 0x1;//enable bit
+	tr_writel(reg_val,tr_base + TR_CTL);
+
 	/* assert */
 	reg_val = tr_readl(base + 0x8);
 	reg_val &= ~(1<<offset);
 	tr_writel(reg_val, base + 0x8);
 
+	udelay(10);//wait for reset finish
+
 	/* de-assert */
 	reg_val = tr_readl(base + 0x8);
 	reg_val |= (1<<offset);
 	tr_writel(reg_val, base + 0x8);
+
+	return 0;
+}
+
+int de_tr_exception(void)
+{
+	mdelay(100);//wait to finish
 
 	return 0;
 }

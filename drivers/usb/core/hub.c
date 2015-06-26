@@ -38,6 +38,11 @@
 #endif
 #endif
 
+#if defined (CONFIG_ARCH_SUN9IW1) && defined (CONFIG_USB_XHCI_ENHANCE)
+int sunxi_usb_get_udev_connect(void);
+void sunxi_usb3_connect(void);
+void sunxi_usb3_disconnect(void);
+#endif
 struct usb_hub {
 	struct device		*intfdev;	/* the "interface" device */
 	struct usb_device	*hdev;
@@ -157,6 +162,17 @@ EXPORT_SYMBOL_GPL(ehci_cf_port_reset_rwsem);
 
 
 static int usb_reset_and_verify_device(struct usb_device *udev);
+#if defined (CONFIG_ARCH_SUN9IW1) && defined (CONFIG_USB_XHCI_ENHANCE)
+int is_sunxi_xhci(struct usb_device *udev)
+{
+	struct usb_hcd *hcd = bus_to_hcd(udev->bus);
+	int is_xhci = 0;
+
+	is_xhci = !strncmp(hcd->driver->product_desc, "sunxi xhci hcd", strlen("sunxi xhci hcd"));
+
+	return is_xhci;
+}
+#endif
 
 static inline char *portspeed(struct usb_hub *hub, int portstatus)
 {
@@ -3477,8 +3493,26 @@ static void hub_port_connect_change(struct usb_hub *hub, int port1,
 	}
 
 	/* Disconnect any existing devices under this port */
-	if (udev)
+	if (udev){
+
+#if defined (CONFIG_ARCH_SUN9IW1) && defined (CONFIG_USB_XHCI_ENHANCE)
+		int is_last = 0;
+		if(is_sunxi_xhci(udev)){
+			is_last = (udev->parent == udev->bus->root_hub);
+		}
+
+#endif
 		usb_disconnect(&hdev->children[port1-1]);
+
+#if defined (CONFIG_ARCH_SUN9IW1) && defined (CONFIG_USB_XHCI_ENHANCE)
+
+		if(is_last){
+			sunxi_usb3_disconnect();
+
+		}
+#endif
+
+	}
 	clear_bit(port1, hub->change_bits);
 
 	/* We can forget about a "removed" device when there's a physical
@@ -3612,8 +3646,15 @@ static void hub_port_connect_change(struct usb_hub *hub, int port1,
 
 		/* Run it through the hoops (find a driver, etc) */
 		if (!status) {
+#if defined (CONFIG_ARCH_SUN9IW1) && defined (CONFIG_USB_XHCI_ENHANCE)
+			if(is_sunxi_xhci(udev) && !sunxi_usb_get_udev_connect())
+			{
+				sunxi_usb3_connect();
+			}
+#endif
 			status = usb_new_device(udev);
 			if (status) {
+				printk("+++add new usb device failed, status=%d\n", status);
 				spin_lock_irq(&device_state_lock);
 				hdev->children[port1-1] = NULL;
 				spin_unlock_irq(&device_state_lock);

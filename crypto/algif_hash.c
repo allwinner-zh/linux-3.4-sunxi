@@ -81,8 +81,12 @@ static int hash_sendmsg(struct kiocb *unused, struct socket *sock,
 			else
 				len = SHA512_BLOCK_SIZE;
 
-			if (newlen%len)
-				copy_from_user(ctx->req.result, &from[newlen - newlen%len], newlen%len);
+			if (newlen%len) {
+				err = copy_from_user(ctx->req.result, &from[newlen - newlen%len],
+						newlen%len);
+				if (err)
+					goto unlock;
+			}
 #else
 			ahash_request_set_crypt(&ctx->req, ctx->sgl.sg, NULL, newlen);
 #endif

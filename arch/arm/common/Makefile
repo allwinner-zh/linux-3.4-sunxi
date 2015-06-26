@@ -1,7 +1,7 @@
 #
 # Makefile for the linux kernel.
 #
-ifndef CONFIG_SUNXI_GIC_ACCESS_SS
+ifndef CONFIG_ARCH_SUN8IW6
 obj-$(CONFIG_ARM_GIC)		+= gic.o
 endif
 obj-$(CONFIG_ARM_VIC)		+= vic.o

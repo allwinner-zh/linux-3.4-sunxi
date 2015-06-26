@@ -222,6 +222,7 @@
  * prcm
  */
 #define SUNXI_CPU_PWROFF_REG             0x100
+#define SUNXI_CPUX_PWR_CLAMP(x)         (0x140 + (x)*0x04)
 
 /*
  * uart reg off

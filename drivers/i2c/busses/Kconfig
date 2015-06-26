@@ -686,6 +686,14 @@ config I2C_SUNXI
 	  This driver can also be built as a module. If so, the module
 	  will be called i2c-sunxi.
 
+config SUNXI_S_TWI
+	tristate "SUNXI S_TWI Support"
+	depends on I2C_SUNXI && ARCH_SUN8IW6P1
+	default n
+	help
+	  If you say yes to this option, support to use s_twi for the
+	  I2C interface from Allwinner Technology SUNXI platform.
+
 config TWI_CHAN_NUM
 	int "The TWI channel number in FPGA board."
 	depends on I2C_SUNXI && (FPGA_V4_PLATFORM || FPGA_V7_PLATFORM)

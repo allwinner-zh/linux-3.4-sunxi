@@ -111,7 +111,11 @@ static void parse_extended(struct parsed_partitions *state,
 	struct partition *p;
 	Sector sect;
 	unsigned char *data;
+#ifndef CONFIG_PART_FOR_MSDOS
 	sector_t this_sector, this_size;
+#else
+  volatile sector_t this_sector, this_size;
+#endif
 	sector_t sector_size = bdev_logical_block_size(state->bdev) / 512;
 	int loopct = 0;		/* number of links followed
 				   without finding a data partition */
@@ -186,7 +190,12 @@ static void parse_extended(struct parsed_partitions *state,
 		if (i == 4)
 			goto done;	 /* nothing left to do */
 
+#ifndef CONFIG_PART_FOR_MSDOS
 		this_sector = first_sector + start_sect(p) * sector_size;
+#else
+		this_sector =  start_sect(p) * sector_size;
+		this_sector += first_sector;
+#endif
 		this_size = nr_sects(p) * sector_size;
 		put_dev_sector(sect);
 	}

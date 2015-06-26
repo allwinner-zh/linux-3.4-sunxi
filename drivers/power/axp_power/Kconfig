@@ -39,12 +39,40 @@ config AW_AXP15
 	---help---
 	AXP15 driver
 
+if AW_AXP15
+config AXP15_IRQ
+	tristate "AXP15 irq driver"
+	default n
+	depends on AW_AXP15
+	---help---
+	The irq driver for AXP808,
+	When use AXP808 as the primary power manage IC,
+	Need to enable.
+endif
+
 config AW_AXP20
 	bool "AXP20 driver"
 	depends on I2C
 	depends on AXP_TWI_USED
 	---help---
 	AXP20 driver
+	
+if AW_AXP20
+choice
+	prompt "AXP calculate type:"
+	default AW_AXP20_COU
+
+	config AW_AXP20_COU
+		bool "COULOMB"
+		---help---
+			AXP driver for coulomb
+	config AW_AXP20_OCV
+		bool "OCV"
+		---help---
+			AXP driver for ocv
+
+endchoice
+endif # !AW_AXP20
 	
 config AXP_CHARGEINIT
 	bool "AXP initial charging environment set"

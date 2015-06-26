@@ -69,7 +69,7 @@ extern "C" {
 /* 4k page size definition */
 #define PVRSRV_4K_PAGE_SIZE		4096UL
 
-#define PVRSRV_MAX_CMD_SIZE		2048/*!< max size in bytes of a command */
+#define PVRSRV_MAX_CMD_SIZE		1024/*!< max size in bytes of a command */
 
 #define PVRSRV_MAX_DEVICES		16	/*!< Largest supported number of devices on the system */
 
@@ -194,11 +194,11 @@ extern "C" {
 	Flags for PVRSRVModifySyncOps
 	WO_INC		-	Used to increment "WriteOpsPending/complete of sync info"
 	RO_INC		-	Used to increment "ReadOpsPending/complete of sync info"
-        RO2_INC         -       Used to increment "ReadOps2Pending/complete of sync info"
+	RO2_INC		-	Used to increment "ReadOps2Pending/complete of sync info"
 */
-#define PVRSRV_MODIFYSYNCOPS_FLAGS_WO_INC                              (1U<<0)
-#define PVRSRV_MODIFYSYNCOPS_FLAGS_RO_INC                              (1U<<1)
-#define PVRSRV_MODIFYSYNCOPS_FLAGS_RO2_INC                             (1U<<2)
+#define PVRSRV_MODIFYSYNCOPS_FLAGS_WO_INC				(1U<<0)
+#define PVRSRV_MODIFYSYNCOPS_FLAGS_RO_INC				(1U<<1)
+#define PVRSRV_MODIFYSYNCOPS_FLAGS_RO2_INC				(1U<<2)
 
 /*
 	Flags for Services connection.

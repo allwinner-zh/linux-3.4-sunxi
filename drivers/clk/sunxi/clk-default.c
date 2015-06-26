@@ -178,7 +178,10 @@ static char *init_clks[] = {"pll3", "pll4","pll6","pll8","pll9","pll10"};
 #elif defined (CONFIG_ARCH_SUN8IW6)
 static char *init_clks[] = {"pll_video1", "pll_ve","pll_periph","pll_gpu","pll_hsic","pll_de"};
 #elif defined (CONFIG_ARCH_SUN8IW8)
-static char *init_clks[] = {"pll_video", "pll_ve","pll_periph0","pll_de"};
+static char *init_clks[] = {"pll_isp", "pll_video", "pll_ve","pll_periph0","pll_de"};
+//add pll_isp for camera.
+#elif defined (CONFIG_ARCH_SUN8IW7)
+static char *init_clks[] = {"pll_video","pll_de","pll_ve"};
 #else
 static char *init_clks[] = {"pll3", "pll4","pll6","pll7","pll8","pll9","pll10"};
 #endif

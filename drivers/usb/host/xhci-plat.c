@@ -41,7 +41,7 @@ static int xhci_plat_setup(struct usb_hcd *hcd)
 
 static const struct hc_driver xhci_plat_xhci_driver = {
 	.description =		"xhci-hcd",
-	.product_desc =		"xHCI Host Controller",
+	.product_desc =		"sunxi xhci hcd",
 	.hcd_priv_size =	sizeof(struct xhci_hcd *),
 
 	/*
@@ -166,6 +166,7 @@ static int xhci_plat_remove(struct platform_device *dev)
 	struct xhci_hcd	*xhci = NULL;
 	struct usb_device *hdev = NULL;
 	struct usb_device *rhdev = NULL;
+	int cnt = 10;
 
 	hcd = platform_get_drvdata(dev);
 	if(hcd == NULL){
@@ -186,11 +187,13 @@ static int xhci_plat_remove(struct platform_device *dev)
 	}
 
 	hdev = rhdev->children[rhdev->descriptor.bNumConfigurations -1];
-	while(hdev != NULL){
+	while((hdev != NULL) && cnt){
 		dev_info(&hdev->dev, "device number %d is exist when %s and need wait until disconnect, hubportNum:%d\n",
 			hdev->devnum, __func__, rhdev->descriptor.bNumConfigurations);
 		msleep(1000);
 		hdev = rhdev->children[rhdev->descriptor.bNumConfigurations -1];
+
+		cnt--;
 	}
 
 	usb_remove_hcd(xhci->shared_hcd);

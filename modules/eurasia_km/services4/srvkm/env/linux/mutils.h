@@ -64,7 +64,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 	#if defined(__arm__) || defined(__sh__)
 		#define	PGPROT_WC(pv)	pgprot_writecombine(pv)
 	#elif defined(__mips__)
-		#define PGPROT_WC(pv)	pgprot_noncached_wa(pv)
+		#define PGPROT_WC(pv)	pgprot_writecombine(pv)
 	#elif defined(__i386__) || defined(__x86_64)
 		/* PAT support supersedes this */
 		#define	PGPROT_WC(pv)	pgprot_noncached(pv)

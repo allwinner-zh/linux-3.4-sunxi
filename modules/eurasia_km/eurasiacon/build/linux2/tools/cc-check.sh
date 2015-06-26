@@ -93,7 +93,7 @@ done
 ccof=$OUT/cc-sanity-check
 log=${ccof}.log
 
-check_clang
+#check_clang
 
 if [ "x$BIT_CHECK" = "x1" ]; then
 	do_cc $ccof $log ""

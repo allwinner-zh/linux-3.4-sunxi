@@ -522,14 +522,17 @@ void __zram_reset_device(struct zram *zram)
 		if (!handle)
 			continue;
 
-		zs_free(zram->mem_pool, handle);
+		if (zram->mem_pool)
+			zs_free(zram->mem_pool, handle);
 	}
 
 	vfree(zram->table);
 	zram->table = NULL;
 
-	zs_destroy_pool(zram->mem_pool);
-	zram->mem_pool = NULL;
+	if (zram->mem_pool) {
+		zs_destroy_pool(zram->mem_pool);
+		zram->mem_pool = NULL;
+	}
 
 	/* Reset stats */
 	memset(&zram->stats, 0, sizeof(zram->stats));

@@ -309,7 +309,7 @@ _mali_osk_errcode_t mali_mem_os_get_table_page(u32 *phys, mali_io_address *mappi
 	spin_unlock(&mali_mem_page_table_page_pool.lock);
 
 	if (_MALI_OSK_ERR_OK != ret) {
-		*mapping = dma_alloc_writecombine(&mali_platform_device->dev, _MALI_OSK_MALI_PAGE_SIZE, phys, GFP_KERNEL);
+		*mapping = dma_alloc_writecombine(&mali_platform_device->dev, _MALI_OSK_MALI_PAGE_SIZE, phys, GFP_ATOMIC);
 		if (NULL != *mapping) {
 			ret = _MALI_OSK_ERR_OK;
 		}

@@ -38,35 +38,23 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ### ###########################################################################
 
-ANDROID_ROOT = $(ANDROID_BUILD_TOP)
-TARGET_PRODUCT = octopus
-TARGET_DEVICE = $(TARGET_PRODUCT)
-DISCIMAGE =$(ANDROID_ROOT)/out/target/product/$(TARGET_PRODUCT)
-LICHEE_KDIR = &(ANDROID_ROOT)/../lichee
 KERNELDIR = $(LICHEE_KDIR)
-TOOLCHAIN = $(LICHEE_KDIR)/buildroot/output/external-toolchain/
-CROSS_COMPILE := arm-linux-gnueabi-
-KERNEL_CROSS_COMPILE :=arm-linux-gnueabi-
-ARCH=arm
 BUILD := release
-TOP = $(KERNELDIR)/modules/eurasia_km/
 
 # If a TARGET_PRODUCT is specified but not a TARGET_DEVICE, try to
 # derive the TARGET_DEVICE from TARGET_PRODUCT.
 #
-#ifeq ($(TARGET_DEVICE),)
-#override TARGET_DEVICE := \
-# $(patsubst mini_%,%,$(patsubst full_%,%,$(TARGET_PRODUCT)))
-#ifneq ($(filter fiber_w02 v972v1 v972v2 novo9spark,$(TARGET_DEVICE)),)
-#override TARGET_DEVICE := sun6i
-#endif
-#endif
+ifeq ($(TARGET_DEVICE),)
+override TARGET_DEVICE := \
+ $(patsubst mini_%,%,$(patsubst full_%,%,$(TARGET_PRODUCT)))
+ifneq ($(filter fiber_w02 v972v1 v972v2 novo9spark,$(TARGET_DEVICE)),)
+override TARGET_DEVICE := sun6i
+endif
+endif
 
-#ifeq ($(TARGET_DEVICE),)
-#override TARGET_DEVICE := sun6i
-#endif
-
+ifeq ($(TARGET_DEVICE),)
 override TARGET_DEVICE := sun8i
+endif
 
 SGXCORE := 544
 SGX_CORE_REV := 115
@@ -96,6 +84,8 @@ ION_DEFAULT_HEAP_MASK := ION_HEAP_CARVEOUT_MASK
 PVRSRV_NEED_PVR_DPF =: 1
 PVRSRV_NEW_PVR_DPF =: 1
 
+SUPPORT_PVRSRV_DEVICE_CLASS = 0
+
 # We have more memory on the sun6i platform, so we can spare to make
 # the pool larger, and have higher resolutions which benefit from it.
 #
@@ -105,7 +95,7 @@ SGX_DYNAMIC_TIMING_INFO := 1
 
 SUPPORT_PVRSRV_ANDROID_SYSTRACE := 0
 
-KERNEL_CROSS_COMPILE ?= arm-eabi-
+#KERNEL_CROSS_COMPILE ?= arm-eabi-
 
 include ../common/android/paths.mk
 include ../common/android/armv7-a.mk

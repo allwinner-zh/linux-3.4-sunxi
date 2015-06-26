@@ -416,7 +416,7 @@ static struct periph_init_data sunxi_periphs_init[] = {
     {"usbotgphy", 0,       			  hosc_parents,     ARRAY_SIZE(hosc_parents),     &sunxi_clk_periph_usbotgphy},
     {"usbhci",   0,       			  ahb0mod_parents,  ARRAY_SIZE(ahb0mod_parents),  &sunxi_clk_periph_usbhci},
     {"sdr0",     0,       			  sdr_parents,      ARRAY_SIZE(sdr_parents),      &sunxi_clk_periph_sdr0},
-    {"de",       CLK_IGNORE_AUTORESET,de_parents,       ARRAY_SIZE(de_parents),       &sunxi_clk_periph_de},
+    {"de",       0,                               de_parents,       ARRAY_SIZE(de_parents),       &sunxi_clk_periph_de},
     {"edp",      0,       			  hosc_parents,     ARRAY_SIZE(hosc_parents),     &sunxi_clk_periph_edp},
     {"mp",       0,       			  mp_parents,       ARRAY_SIZE(mp_parents),       &sunxi_clk_periph_mp},
     {"lcd0",     0,       			  display_parents,  ARRAY_SIZE(display_parents),  &sunxi_clk_periph_lcd0},

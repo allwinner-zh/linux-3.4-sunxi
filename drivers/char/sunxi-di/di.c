@@ -46,9 +46,9 @@ unsigned int di_get_reg_base(void)
 //description: set di module default register to ready de-interlace
 //parameters:
 //return   :
-int di_set_init(void)
+int di_set_init(__s32 mode)
 {
-	DI_Init();
+	DI_Init(mode);
 
 	return 0;
 }
@@ -162,6 +162,8 @@ int di_set_para(__di_para_t *para, unsigned int in_flag_add, unsigned int out_fl
 
 	pre_addr.ch0_addr = (unsigned int )DI_VAtoPA((void*)(para->pre_fb.addr[0]));
 	pre_addr.ch1_addr = (unsigned int )DI_VAtoPA((void*)(para->pre_fb.addr[1]));
+
+	DI_Module_Enable();
 
 	DI_Config_Src(&in_addr,&in_size,&in_type);
 	DI_Set_Scaling_Factor(&in_size, &out_size);

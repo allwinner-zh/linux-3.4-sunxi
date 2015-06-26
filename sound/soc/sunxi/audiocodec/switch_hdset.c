@@ -545,7 +545,7 @@ static void switch_resume_events(struct work_struct *work)
 	tmp = hmic_rdreg(SUNXI_HMIC_DATA);
 	tmp1 =(tmp&0x1f);
 	switch_data->mode = HEADPHONE_IDLE;
-	switch_data->sdev.state 		= 0;
+	switch_data->sdev.state 		= -1;
 	switch_data->check_three_count = 0;
 	switch_data->check_four_count = 0;
 	switch_data->check_plugout_count 	= 0;
@@ -686,8 +686,11 @@ static int gpio_switch_probe(struct platform_device *pdev)
 	if (ret < 0) {
 		goto err_switch_dev_register;
 	}
-
+	#ifdef CONFIG_ARCH_SUN8IW5
 	ret = request_irq(78, audio_hmic_irq, 0, "audio_hmic_irq", switch_data);
+	#else
+	ret = request_irq(SUNXI_IRQ_CODEC, audio_hmic_irq, 0, "audio_hmic_irq", switch_data);
+	#endif
 	if (ret < 0) {
 		pr_err("request irq err\n");
 		ret = -EINVAL;
@@ -778,7 +781,9 @@ static int switch_suspend(struct platform_device *pdev,pm_message_t state)
 	hmic_wr_prcm_control(PAEN_HP_CTRL, 0x1, HPPAEN, 0x0);
 	hmic_wr_prcm_control(MIC1G_MICBIAS_CTRL, 0x1, HMICBIASEN, 0x0);
 	msleep(350);
-
+	#ifdef CONFIG_ARCH_SUN8IW8
+        disable_irq(SUNXI_IRQ_CODEC);
+        #endif
 	return 0;
 }
 
@@ -799,6 +804,9 @@ static int switch_resume(struct platform_device *pdev)
 		hmic_wr_control(SUNXI_HMIC_CTL, 0x1f, HMIC_TH2_KEY, 0x0);				/*0xf should be get from hw_debug 8*/
 		hmic_wr_control(SUNXI_HMIC_CTL, 0x1f, HMIC_TH1_EARPHONE, 0x1);			/*0x1 should be get from hw_debug 0*/
 	}
+      	#ifdef CONFIG_ARCH_SUN8IW8
+        enable_irq(SUNXI_IRQ_CODEC);
+        #endif
 	switch_data = (struct gpio_switch_data *)platform_get_drvdata(pdev);
 
 	if (switch_data != NULL) {

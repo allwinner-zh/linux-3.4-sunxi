@@ -65,9 +65,9 @@ static int timer_used=0;
 static struct ir_raw_buffer	ir_rawbuf;
 static char ir_dev_name[] = "s_cir0";
 
-static u32 debug_mask = 0;
+static u32 debug_mask = 0x00;
 #define dprintk(level_mask, fmt, arg...)	if (unlikely(debug_mask & level_mask)) \
-	pr_debug(fmt , ## arg)
+	printk(fmt , ## arg)
 
 static inline void ir_reset_rawbuffer(void)
 {
@@ -159,43 +159,23 @@ static void ir_clk_uncfg(void)
 	}
 	return;
 }
-static void ir_sys_cfg(void)
+static int ir_sys_cfg(void)
 {
-	int ret = -1;
-
 	if (input_fetch_sysconfig_para(&(ir_info.input_type))) {
 		pr_err("%s: ir_rx_fetch_sysconfig_para err.\n", __func__);
-		return;
+		return -1;
 	}
 	if (ir_info.ir_used == 0) {
 		pr_err("*** ir_used set to 0 !\n");
-		return;
+		return -1;
 	}
 
-	ir_dev->dev.init_name = &ir_dev_name[0];
-	ir_info.dev = &(ir_dev->dev);
-	ret = input_init_platform_resource(&(ir_info.input_type));
-        if(0 != ret) {
-		pr_err("%s:ctp_ops.init_platform_resource err. \n", __func__);
-		goto end;
-        }
-
-	ir_clk_cfg();
-
-	return;
-
-end:
-	input_free_platform_resource(&(ir_info.input_type));
-	return;
-
+	return 0;
 }
 
-static void ir_sys_uncfg(void)
+static void ir_setup_destroy(void)
 {
-	input_free_platform_resource(&(ir_info.input_type));
-
 	ir_clk_uncfg();
-
 	return;
 }
 
@@ -315,11 +295,10 @@ static void ir_setup(void)
 	ir_code = 0;
 	timer_used = 0;
 	ir_reset_rawbuffer();
-	ir_sys_cfg();
+	ir_clk_cfg();
 	ir_reg_cfg();
 
 	dprintk(DEBUG_INIT, "ir_rx_setup: ir setup end!!\n");
-
 	return;
 }
 
@@ -675,13 +654,17 @@ static int sunxi_ir_resume(struct device *dev)
 static int __init ir_rx_init(void)
 {
 	int i,ret;
-	int err =0;
 
+	if (ir_sys_cfg()!=0) {
+		pr_err("ir_rx_init: sys_config exception, exit\n");
+		return -EBUSY;
+	}
+
+	/* register input device for ir */
 	ir_dev = input_allocate_device();
 	if (!ir_dev) {
 		pr_err("ir_dev: not enough memory for input device\n");
-		err = -ENOMEM;
-		goto fail1;
+		return -ENOMEM;
 	}
 
 	ir_dev->name = "sunxi-ir";
@@ -699,28 +682,42 @@ static int __init ir_rx_init(void)
 	for (i = 0; i < 256; i++)
 		set_bit(ir_keycodes[i], ir_dev->keybit);
 
-	if (request_irq(IR_IRQNO, ir_irq_service, 0, "RemoteIR_RX",
-			ir_dev)) {
-		err = -EBUSY;
-		goto fail2;
+	ret = input_register_device(ir_dev);
+	if (ret) {
+		input_free_device(ir_dev);
+		pr_err("ir_rx_init: register input device exception, exit\n");
+		return -EBUSY;
 	}
 
+	/* pin and register config */
+	ir_dev->dev.init_name = &ir_dev_name[0];
+	ir_info.dev = &(ir_dev->dev);
+	ret = input_init_platform_resource(&(ir_info.input_type));
+	if (0 != ret) {
+		pr_err("%s: config ir rx pin err.\n", __func__);
+		goto err_pinctrl_get;
+	}
 	ir_setup();
 
 	s_timer = kmalloc(sizeof(struct timer_list), GFP_KERNEL);
 	if (!s_timer) {
 		ret =  - ENOMEM;
-		pr_err(" IR FAIL TO  Request Time\n");
-		goto fail3;
+		pr_err(" IR FAIL TO  Request Timer\n");
+		goto err_alloc_timer;
 	}
 	init_timer(s_timer);
 	s_timer->function = &ir_timer_handle;
 
+	if (request_irq(IR_IRQNO, ir_irq_service, 0, "RemoteIR_RX", ir_dev)) {
+		ret = -EBUSY;
+		goto err_request_irq;
+	}
+
 #ifdef CONFIG_HAS_EARLYSUSPEND
-	dprintk(DEBUG_INIT, "==register_early_suspend =\n");
+	dprintk(DEBUG_INIT, "register_early_suspend\n");
 	ir_data = kzalloc(sizeof(*ir_data), GFP_KERNEL);
 	if (ir_data == NULL) {
-		err = -ENOMEM;
+		ret = -ENOMEM;
 		goto err_alloc_data_failed;
 	}
 
@@ -732,7 +729,7 @@ static int __init ir_rx_init(void)
 #ifdef CONFIG_PM
 	ir_data = kzalloc(sizeof(*ir_data), GFP_KERNEL);
 	if (ir_data == NULL) {
-		err = -ENOMEM;
+		ret = -ENOMEM;
 		goto err_alloc_data_failed;
 	}
 	ir_data->ir_pm_domain.ops.suspend = sunxi_ir_suspend;
@@ -741,24 +738,21 @@ static int __init ir_rx_init(void)
 #endif
 #endif
 
-	err = input_register_device(ir_dev);
-	if (err)
-		goto fail4;
-
 	dprintk(DEBUG_INIT, "ir_rx_init end\n");
-
 	return 0;
+
 #if defined(CONFIG_HAS_EARLYSUSPEND) || defined(CONFIG_PM)
 err_alloc_data_failed:
 #endif
-fail4:
-	kfree(s_timer);
-fail3:
 	free_irq(IR_IRQNO, ir_dev);
-fail2:
-	input_free_device(ir_dev);
-fail1:
-	return err;
+err_request_irq:
+	kfree(s_timer);
+err_alloc_timer:
+	ir_setup_destroy();
+	input_free_platform_resource(&(ir_info.input_type));
+err_pinctrl_get:
+	input_unregister_device(ir_dev);
+	return ret;
 }
 
 static void __exit ir_rx_exit(void)
@@ -768,9 +762,10 @@ static void __exit ir_rx_exit(void)
 #endif
 
 	free_irq(IR_IRQNO, ir_dev);
-	input_unregister_device(ir_dev);
-	ir_sys_uncfg();
 	kfree(s_timer);
+	ir_setup_destroy();
+	input_free_platform_resource(&(ir_info.input_type));
+	input_unregister_device(ir_dev);
 }
 
 module_init(ir_rx_init);

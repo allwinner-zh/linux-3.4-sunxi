@@ -1,0 +1,16 @@
+#---------------------------------------------
+#- softwinner SUNXI USB300 Dual Role Controller Driver.
+#---------------------------------------------
+source "drivers/usb/sunxi_usb/usb3/Kconfig"
+
+
+#---------------------------------------------
+#- softwinner SUNXI USB200 Dual Role Controller Driver.
+#---------------------------------------------
+source "drivers/usb/sunxi_usb/udc/Kconfig"
+
+
+#---------------------------------------------
+#- config USB Dual Role Manager.
+#---------------------------------------------
+source "drivers/usb/sunxi_usb/manager/Kconfig"

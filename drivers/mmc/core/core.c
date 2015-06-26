@@ -1597,6 +1597,8 @@ static int mmc_do_erase(struct mmc_card *card, unsigned int from,
 		to <<= 9;
 	}
 
+	pr_info("%s:%s: erase from %d to %d arg 0x%08x\n",
+		mmc_hostname(card->host), __func__, from, to, arg);
 	if (mmc_card_sd(card))
 		cmd.opcode = SD_ERASE_WR_BLK_START;
 	else
@@ -1695,12 +1697,13 @@ int mmc_erase(struct mmc_card *card, unsigned int from, unsigned int nr,
 	    !(card->ext_csd.sec_feature_support & EXT_CSD_SEC_GB_CL_EN))
 		return -EOPNOTSUPP;
 
+/*
 	if (arg == MMC_SECURE_ERASE_ARG) {
 		if (from % card->erase_size || nr % card->erase_size)
 			return -EINVAL;
 	}
-
-	if (arg == MMC_ERASE_ARG) {
+*/
+	if (arg == MMC_ERASE_ARG || arg == MMC_SECURE_ERASE_ARG) {
 		rem = from % card->erase_size;
 		if (rem) {
 			rem = card->erase_size - rem;

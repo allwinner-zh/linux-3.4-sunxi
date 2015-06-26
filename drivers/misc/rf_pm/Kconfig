@@ -1,0 +1,9 @@
+#
+# Allwinner rf module pm driver.
+#
+config AW_RF_PM
+  bool "Allwinner rf module pm driver"
+  depends on WIRELESS || RFKILL
+  help
+    allwinner rf module pm driver
+

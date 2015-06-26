@@ -112,11 +112,11 @@ static int tr_check_timeout(void)
 
 	spin_lock_irqsave(&gsunxi_dev->slock, flags);
 	timeout = tr->start_time + msecs_to_jiffies(tr->timeout);
-	if (time_after_eq(jiffies, timeout)) {
+	if (tr->busy && time_after_eq(jiffies, timeout)) {
 		tr->busy = false;
 		tr->error = true;
 		spin_unlock_irqrestore(&gsunxi_dev->slock, flags);
-		de_tr_reset();
+		de_tr_exception();
 		pr_warn("%s, timeout(%d ms)\n", __func__, jiffies_to_msecs(jiffies - tr->start_time));
 		sunxi_tr_finish_procss();
 	} else {
@@ -281,7 +281,7 @@ int sunxi_tr_request(void)
 
 	return (int)tr;
 }
-
+EXPORT_SYMBOL_GPL(sunxi_tr_request);
 /*
  * sunxi_tr_release - release transform channel
  * @hdl: transform handle which return by sunxi_tr_request
@@ -319,7 +319,7 @@ int sunxi_tr_release(int hdl)
 
 	return 0;
 }
-
+EXPORT_SYMBOL_GPL(sunxi_tr_release);
 /*
  * sunxi_tr_commit - commit an transform request
  * @hdl: transform handle which return by sunxi_tr_request
@@ -367,7 +367,7 @@ int sunxi_tr_commit(int hdl, tr_info *info)
 
 	return fd;
 }
-
+EXPORT_SYMBOL_GPL(sunxi_tr_commit);
 /*
  * sunxi_tr_query - query transform status
  * @hdl: transform handle which return by sunxi_tr_request
@@ -408,7 +408,7 @@ int sunxi_tr_query(int hdl)
 	return (tr->busy?1:0);
 #endif
 }
-
+EXPORT_SYMBOL_GPL(sunxi_tr_query);
 /*
  * sunxi_tr_set_timeout - set transform timeout(ms)
  * @hdl: transform hdl

@@ -136,6 +136,7 @@
 #define SUNXI_SRAMCTRL_VBASE             IO_ADDRESS(SUNXI_SRAMCTRL_PBASE     )
 #define SUNXI_DMA_VBASE                  IO_ADDRESS(SUNXI_DMA_PBASE          )
 #define SUNXI_NANDFLASHC0_VBASE          IO_ADDRESS(SUNXI_NANDFLASHC0_PBASE  )
+#define SUNXI_NFC0_VBASE                 IO_ADDRESS(SUNXI_NFC0_PBASE         )
 #define SUNXI_LCD0_VBASE                 IO_ADDRESS(SUNXI_LCD0_PBASE         )
 #define SUNXI_LCD1_VBASE                 IO_ADDRESS(SUNXI_LCD1_PBASE         )
 #define SUNXI_VE_VBASE                   IO_ADDRESS(SUNXI_VE_PBASE           )
@@ -208,6 +209,7 @@
  */
 #define PRIVATE_REG0                        0x01a4
 #define PRIVATE_REG1                        0x01a8
+#define BOOT_CPU_HOTPLUG_REG                0x01ac
 #define SUNXI_CPUSCFG_C0CPUX_RESET          0x30
 #define SUNXI_CPUSCFG_C1CPUX_RESET          0x34
 #define SUNXI_CLUSTER_PWRON_RESET(cluster)  (0x30 + (cluster) * 0x4)

@@ -1149,6 +1149,22 @@ static void sunxi_uart_sysfs(struct platform_device *_pdev)
 }
 
 #ifdef CONFIG_SERIAL_SUNXI_CONSOLE
+static struct uart_port *sw_console_get_port(struct console *co)
+{
+	struct uart_port *port = NULL;
+	struct sw_uart_pdata *pdata;
+	int i;
+
+	for (i=0; i<SUNXI_UART_NUM; i++) {
+		pdata = sw_uart_ports[i].pdata;
+		if ((pdata->used) && (pdata->port_no == co->index)) {
+			port = &sw_uart_ports[i].port;
+			break;
+		}
+	}
+	return port;
+}
+
 static void sw_console_putchar(struct uart_port *port, int c)
 {
 	struct sw_uart_port *sw_uport = UART_TO_SPORT(port);
@@ -1165,16 +1181,10 @@ static void sw_console_write(struct console *co, const char *s,
 	unsigned long flags;
 	unsigned int ier;
 	int locked = 1;
-	int i;
 
 	BUG_ON(co->index < 0 || co->index >= SUNXI_UART_NUM);
 
-	for (i=0; i<SUNXI_UART_NUM; i++) {
-		if (sw_uart_ports[i].port.line == co->index) {
-			port = &sw_uart_ports[i].port;
-			break;
-		}
-	}
+	port = sw_console_get_port(co);
 	if (port == NULL)
 		return;
 	sw_uport = UART_TO_SPORT(port);
@@ -1205,17 +1215,11 @@ static int __init sw_console_setup(struct console *co, char *options)
 	int bits = 8;
 	int parity = 'n';
 	int flow = 'n';
-	int i;
 
 	if (unlikely(co->index >= SUNXI_UART_NUM || co->index < 0))
 		return -ENXIO;
 
-	for (i=0; i<SUNXI_UART_NUM; i++) {
-		if (sw_uart_ports[i].port.line  == co->index) {
-			port = &sw_uart_ports[i].port;
-			break;
-		}
-	}
+	port = sw_console_get_port(co);
 	if (port == NULL)
 		return -ENODEV;
 	sw_uport = UART_TO_SPORT(port);

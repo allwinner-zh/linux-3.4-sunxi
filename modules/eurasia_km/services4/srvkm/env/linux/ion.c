@@ -40,6 +40,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */ /**************************************************************************/
 
 #include "ion.h"
+#include <linux/sched.h>
 
 /* Three possible configurations:
  *
@@ -103,14 +104,11 @@ IMG_VOID IonDeinit(IMG_VOID)
 
 /* Real ion with sharing (sunxi) */
 
-//extern struct ion_device *sunxi_ion_device;
 extern struct ion_device *idev;
-
 struct ion_device *gpsIonDev;
 
 PVRSRV_ERROR IonInit(IMG_VOID)
 {
-	//gpsIonDev = sunxi_ion_device;
 	gpsIonDev = idev;
 	return PVRSRV_OK;
 }
@@ -122,9 +120,31 @@ IMG_VOID IonDeinit(IMG_VOID)
 
 #else /* defined(CONFIG_ION_SUNXI) */
 
+#if defined(CONFIG_ION_INCDHAD1)
+
+/* Real ion with sharing (incdhad1) */
+
+extern struct ion_device *incdhad1_ion_device;
+struct ion_device *gpsIonDev;
+
+PVRSRV_ERROR IonInit(IMG_VOID)
+{
+	gpsIonDev = incdhad1_ion_device;
+	return PVRSRV_OK;
+}
+
+
+IMG_VOID IonDeinit(IMG_VOID)
+{
+	gpsIonDev = IMG_NULL;
+}
+
+#else /* defined(CONFIG_ION_INCDHAD1) */
+
 /* "Reference" ion implementation */
 
-#include "../drivers/gpu/ion/ion_priv.h"
+#include SUPPORT_ION_PRIV_HEADER
+#include <linux/version.h>
 
 static struct ion_heap **gapsIonHeaps;
 struct ion_device *gpsIonDev;
@@ -141,6 +161,9 @@ static struct ion_platform_data gsGenericConfig =
 {
 	.nr = 3,
 	.heaps =
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,39))
+	(struct ion_platform_heap [])
+#endif
 	{
 		{
 			.type = ION_HEAP_TYPE_SYSTEM_CONTIG,
@@ -219,6 +242,8 @@ IMG_VOID IonDeinit(IMG_VOID)
 	ion_device_destroy(gpsIonDev);
 }
 
+#endif /* defined(CONFIG_ION_INCDHAD1) */
+
 #endif /* defined(CONFIG_ION_SUNXI) */
 
 #endif /* defined(CONFIG_ION_S5P) */
@@ -289,8 +314,9 @@ PVRSRV_ERROR IonImportBufferAndAcquirePhysAddr(IMG_HANDLE hIonDev,
 		struct sg_table *psSgTable;
 
 		psImportData->apsIonHandle[i] = ion_import_dma_buf(psIonClient, fd);
-		if (psImportData->apsIonHandle[i] == IMG_NULL)
+		if (IS_ERR_OR_NULL(psImportData->apsIonHandle[i]))
 		{
+            printk(KERN_ERR "%s: ion_import_dma_buf() get an err:%d fd:%d pid:%d  name:%s \n ",__func__,(int)psImportData->apsIonHandle[i],fd,current->tgid,current->comm);
 			eError = PVRSRV_ERROR_BAD_MAPPING;
 			goto exitFailImport;
 		}

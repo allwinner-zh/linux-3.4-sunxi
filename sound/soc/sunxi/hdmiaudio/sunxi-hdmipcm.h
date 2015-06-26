@@ -19,10 +19,14 @@
 #define SUNXI_HDMIBASE 		0x01c16000
 #define SUNXI_HDMIAUDIO_TX	0x400
 #endif
+#ifndef SUNXI_DMA_PARAM
+#define SUNXI_DMA_PARAM
+extern int hdmi_format;
 struct sunxi_dma_params {
 	char *name;
 	dma_addr_t dma_addr;
 };
+#endif
 /*------------------------------------------------------------*/
 /* REGISTER definition */
 #ifdef CONFIG_ARCH_SUN9I
@@ -210,5 +214,11 @@ struct sunxi_i2s1_info {
 };
 
 extern struct sunxi_i2s1_info sunxi_i2s1;
+extern  int sunxi_hdmiaudio_set_fmt(struct snd_soc_dai *cpu_dai, unsigned int fmt);
+extern int sunxi_hdmiaudio_hw_params(struct snd_pcm_substream *substream,
+			struct snd_pcm_hw_params *params,struct snd_soc_dai *dai);
+extern int sunxi_i2s1_set_clkdiv(struct snd_soc_dai *cpu_dai, int div_id, int sample_rate);
+extern void sunxi_snd_txctrl_i2s1(struct snd_pcm_substream *substream, int on,int hub_on);
+extern int sunxi_hdmii2s_set_rate(int freq);
 #endif
 #endif /*SUNXI_HDMIPCM_H_*/

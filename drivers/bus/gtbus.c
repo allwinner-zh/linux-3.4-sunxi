@@ -632,7 +632,7 @@ static unsigned int gt_update_device(struct gt_data *data, gt_pmu_e port)
 
 static unsigned int gt_get_value(struct gt_data *data, unsigned int index, char *buf)
 {
-	unsigned int i;
+	unsigned int i, size = 0;
 	unsigned int value;
 
 	mutex_lock(&data->update_lock);
@@ -642,59 +642,48 @@ static unsigned int gt_get_value(struct gt_data *data, unsigned int index, char 
 			value = readl_relaxed(GT_MST_CFG_REG(i));
 			value >>= GT_QOS_SHIFT;
 			value &= GT_QOS_MAX;
-			snprintf(buf + (i * 15), 15, "master%2d qos:%1d\n", i, value);
-			*(buf + (i * 15) + 14) = 0x0a;
+			size += sprintf(buf + size, "master%2d qos:%1d\n", i, value);
 		}
-		*(buf + (i * 15)) = 0;
 		break;
 	case GT_PORT_THD0:
 		for (i = 0; i <= GT_MAX_PORTS; i++) {
 			value = readl_relaxed(GT_MST_CFG_REG(i));
 			value >>= GT_THD0_SHIFT;
 			value &= GT_THD_MAX;
-			snprintf(buf + (i * 25), 25, \
+			size += sprintf(buf + size, \
 					"master%2d threshold0:%4d\n", i, value);
-			*(buf + (i * 25) + 24) = 0x0a;
 		}
-		*(buf + (i * 25)) = 0;
 		break;
 	case GT_PORT_THD1:
 		for (i = 0; i <= GT_MAX_PORTS; i++) {
 			value = readl_relaxed(GT_MST_CFG_REG(i));
 			value >>= GT_THD1_SHIFT;
 			value &= GT_THD_MAX;
-			snprintf(buf + (i * 25), 25, \
+			size += sprintf(buf + size, \
 					"master%2d threshold1:%4d\n", i, value);
-			*(buf + (i * 25) + 24) = 0x0a;
 		}
-		*(buf + (i * 25)) = 0;
 		break;
 	case GT_PORT_REQN:
 		 for (i = 0; i <= GT_MAX_PORTS; i++) {
 			value = readl_relaxed(GT_MST_CFG_REG(i));
 			value >>= GT_REQN_SHIFT;
 			value &= GT_REQN_MAX;
-			snprintf(buf + (i * 27), 27, "master%2d request number:%2d\n", i, value);
-			*(buf + (i * 27) + 26) = 0x0a;
+			size += sprintf(buf + size, "master%2d request number:%2d\n", i, value);
 		}
-		*(buf + (i * 27)) = 0;
 		break;
 	case GT_PORT_PRI:
 		for (i = 0; i < 32; i++) {
 			value = readl_relaxed(GT_MST_READ_PROI_CFG_REG0);
 			value >>= i;
 			value &= 1;
-			snprintf(buf + (i * 20), 20, "master%2d priority:%1d\n", i, value);
-			*(buf + (i * 20) + 19) = 0x0a;
+			size += sprintf(buf + size, "master%2d priority:%1d\n", i, value);
 		}
 		for(i = 32; i <= GT_MAX_PORTS; i++) {
 			value = readl_relaxed(GT_MST_READ_PROI_CFG_REG1);
 			value >>= (i - 32);
 			value &= 1;
-			snprintf(buf + (i * 20), 20, "master%2d priority:%1d\n", i, value);
-			*(buf + (i * 20) + 19) = 0x0a;
+			size += sprintf(buf + size, "master%2d priority:%1d\n", i, value);
 		}
-		*(buf + (i * 20)) = 0;
 		break;
 	default:
 		/* programmer goofed */
@@ -704,7 +693,7 @@ static unsigned int gt_get_value(struct gt_data *data, unsigned int index, char 
 	}
 	mutex_unlock(&data->update_lock);
 
-	return 0;
+	return size;
 }
 
 static ssize_t gt_show_value(struct device *dev, struct device_attribute *da, char *buf)
@@ -719,8 +708,7 @@ static ssize_t gt_show_value(struct device *dev, struct device_attribute *da, ch
 	return snprintf(buf, PAGE_SIZE, "%d\n", gt_get_value(data, attr->index));
 #endif
 	if (attr->index > GT_MAX_PMU) {
-		gt_get_value(&hw_gt_pmu, attr->index, buf);
-		len = strlen(buf);
+		len = gt_get_value(&hw_gt_pmu, attr->index, buf);
 		len = (len < PAGE_SIZE) ? len : PAGE_SIZE;
 		return len;
 	}
@@ -1056,21 +1044,22 @@ static int __init gt_platform_init(void)
 	ret = platform_device_register(&gt_pmu_device);
 	if (IS_ERR_VALUE(ret)) {
 		dev_err(&gt_pmu_device.dev, "register sunxi gtbus platform device failed\n");
-		goto err_platform_device_register;
+		goto dev_err;
 	}
 
 	ret = platform_driver_register(&gt_pmu_driver);
 	if (IS_ERR_VALUE(ret)) {
 		dev_err(&gt_pmu_device.dev, "register sunxi gtbus platform driver failed\n");
-		goto err_platform_driver_register;
+		goto drv_err;
 	}
 
 	return ret;
 
-err_platform_device_register:
-	platform_device_unregister(&gt_pmu_device);
-err_platform_driver_register:
+drv_err:
 	platform_driver_unregister(&gt_pmu_driver);
+
+dev_err:
+	platform_device_unregister(&gt_pmu_device);
 
 	return -EINVAL;
 }

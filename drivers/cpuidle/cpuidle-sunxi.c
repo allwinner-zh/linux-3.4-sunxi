@@ -27,7 +27,6 @@
 #include <linux/hrtimer.h>
 #include <linux/tick.h>
 #include <linux/arisc/arisc.h>
-
 #include <asm/smp_plat.h>
 #include <asm/delay.h>
 #include <asm/cp15.h>
@@ -35,6 +34,156 @@
 #include <asm/cacheflush.h>
 #include <asm/hardware/gic.h>
 #include <mach/cpuidle-sunxi.h>
+#include <linux/clk.h>
+#include <linux/clk-private.h>
+#include <mach/sun9i/platsmp.h>
+
+#ifdef CONFIG_ARCH_SUN9IW1P1
+#include <linux/clk/clk-sun9iw1.h>
+#endif
+#ifdef CONFIG_HAS_EARLYSUSPEND
+#include <linux/earlysuspend.h>
+static struct early_suspend cpuidle_early_suspend;
+static int cpuidle_early_suspend_flag = 0;
+#endif
+#ifdef CONFIG_DRAM_SELFREFLASH_IN_CPUIDLE
+static struct clk *usb_hci_clk;
+static struct clk *usb_otg_clk;
+static struct clk *usb_otgphy_clk;
+static struct clk *sdmmc_clk0;
+static struct clk *sdmmc_clk1;
+static struct clk *sdmmc_clk2;
+static struct clk *sdmmc_clk3;
+static struct clk *nand_clk0;
+static struct clk *nand_clk1;
+static struct clk *dma_clk;
+/* usb */
+#define ECHI_PROT_STAT	(0x54)
+#define OCHI_PORT_STAT	(0x454)
+#define USB_OTG_VBASE	(0xf0900000)
+#define	OTG_PORT_STAT	(0x430)
+/* sdmmc */
+#define SDC_DMAC_STAT	(0x88)
+/* dma */
+#define DMAC_CHAN_STAT	(0x30)
+/* ndfc */
+#define NAND_STAT	(0x4)
+
+#define ENCNT(__clkp) (__clkp->enable_count)
+
+static int dram_master_clk_get(void)
+{
+	usb_hci_clk = clk_get(NULL, USBHCI_CLK);
+	if (!usb_hci_clk || IS_ERR(usb_hci_clk)) {
+		pr_err("%s:try to get usb_hci_clk failed!\n",__func__);
+		return -1;
+	}
+
+	usb_otg_clk = clk_get(NULL, USBOTG_CLK);
+	if (!usb_otg_clk || IS_ERR(usb_otg_clk)) {
+		pr_err("%s:try to get usb_otg_clk failed!\n",__func__);
+		return -1 ;
+	}
+
+	usb_otgphy_clk = clk_get(NULL, USBOTGPHY_CLK);
+	if (!usb_otgphy_clk || IS_ERR(usb_otgphy_clk)) {
+		pr_err("%s:try to get usb_otgphy_clk failed!\n",__func__);
+		return -1;
+	}
+
+	sdmmc_clk0 = clk_get(NULL, SDMMC0_CLK);
+	if (!sdmmc_clk0 || IS_ERR(sdmmc_clk0)) {
+		pr_err("%s:try to get sdmmc_clk0 failed!\n",__func__);
+		return -1;
+	}
+	sdmmc_clk1 = clk_get(NULL, SDMMC1_CLK);
+	if (!sdmmc_clk1 || IS_ERR(sdmmc_clk1)) {
+		pr_err("%s:try to get sdmmc_clk1 failed!\n",__func__);
+		return -1;
+	}
+	sdmmc_clk2 = clk_get(NULL, SDMMC2_CLK);
+	if (!sdmmc_clk2 || IS_ERR(sdmmc_clk2)) {
+		pr_err("%s:try to get sdmmc_clk2 failed!\n",__func__);
+		return -1;
+	}
+	sdmmc_clk3 = clk_get(NULL, SDMMC3_CLK);
+	if (!sdmmc_clk3 || IS_ERR(sdmmc_clk3)) {
+		pr_err("%s:try to get sdmmc_clk3 failed!\n",__func__);
+		return -1;
+	}
+	nand_clk0 = clk_get(NULL, NAND0_0_CLK);
+	if (!nand_clk0 || IS_ERR(nand_clk0)) {
+		pr_err("%s:try to get nand_clk0 failed!\n",__func__);
+		return -1;
+	}
+	nand_clk1 = clk_get(NULL, NAND0_1_CLK);
+	if (!nand_clk1 || IS_ERR(nand_clk1)) {
+		pr_err("%s:try to get nand_clk1 failed!\n",__func__);
+		return -1;
+	}
+	dma_clk = clk_get(NULL, DMA_CLK);
+	if (!dma_clk || IS_ERR(dma_clk)) {
+		pr_err("%s:try to get dma_clk failed!\n",__func__);
+		return -1;
+	}
+	return 0;
+}
+
+static int dram_master_check(void)
+{
+	unsigned int reg_val=0;
+	if(ENCNT(nand_clk0) && ENCNT(nand_clk1)){
+		reg_val |= readl(SUNXI_NFC0_VBASE + NAND_STAT) & (0x1<<4);
+		if(reg_val)
+			return -1;
+	}
+	if(ENCNT(usb_hci_clk)){
+		reg_val |= readl(SUNXI_USB_HCI0_VBASE + ECHI_PROT_STAT) & (0x1<<0);
+		reg_val |= readl(SUNXI_USB_HCI1_VBASE + ECHI_PROT_STAT) & (0x1<<0);
+		reg_val |= readl(SUNXI_USB_HCI2_VBASE + ECHI_PROT_STAT) & (0x1<<0);
+		reg_val |= readl(SUNXI_USB_HCI0_VBASE + OCHI_PORT_STAT) & (0x1<<0);
+		reg_val |= readl(SUNXI_USB_HCI1_VBASE + OCHI_PORT_STAT) & (0x1<<0);
+		reg_val |= readl(SUNXI_USB_HCI2_VBASE + OCHI_PORT_STAT) & (0x1<<0);
+		if(reg_val)
+			return -2;
+	}
+	if(ENCNT(usb_otg_clk) && ENCNT(usb_otgphy_clk)){
+		reg_val |= readl(USB_OTG_VBASE + OTG_PORT_STAT) & (0x1<<17);
+		if(reg_val)
+			return -3;
+	}
+	if(ENCNT(sdmmc_clk0))
+		reg_val |= readl(SUNXI_SDMMC0_VBASE + SDC_DMAC_STAT) & (0xf<<13);
+	if(ENCNT(sdmmc_clk1))
+		reg_val |= readl(SUNXI_SDMMC1_VBASE + SDC_DMAC_STAT) & (0xf<<13);
+	if(ENCNT(sdmmc_clk2))
+		reg_val |= readl(SUNXI_SDMMC2_VBASE + SDC_DMAC_STAT) & (0xf<<13);
+	if(ENCNT(sdmmc_clk3))
+		reg_val |= readl(SUNXI_SDMMC3_VBASE + SDC_DMAC_STAT) & (0xf<<13);
+	if(reg_val)
+		return -4;
+	if(ENCNT(dma_clk))
+		reg_val |= readl(SUNXI_DMA_VBASE + DMAC_CHAN_STAT) & (0x1<<4);
+	return reg_val;
+}
+#endif
+
+#define DRAM_SELFREFLASH		0x1
+#define DRAM_NOT_SELFREFLASH		0x0
+
+#ifdef CONFIG_IDLE_FETCH
+#include <linux/debugfs.h>
+#include <asm/uaccess.h>
+static struct dentry *my_idle_root;
+static unsigned int cpu0_idle_time_c0 = 0;
+static unsigned int cpu0_idle_count_c0 = 0;
+static unsigned int cpu0_idle_time_c1 = 0;
+static unsigned int cpu0_idle_count_c1 = 0;
+static unsigned int cpu0_idle_time_c2 = 0;
+static unsigned int cpu0_idle_count_c2 = 0;
+static unsigned int cpu0_poweroff_time = 0;
+static unsigned int cpu0_poweroff_count = 0;
+#endif
 
 /*mask for c1 state*/
 struct cpumask sunxi_cpu_try_enter_idle_mask;
@@ -68,6 +217,12 @@ static int sunxi_enter_c0state(struct cpuidle_device *dev,
 				(after.tv_usec - before.tv_usec);
 
 	dev->last_residency = idle_time < 0? 0 : idle_time;
+#ifdef CONFIG_IDLE_FETCH
+	if(dev->cpu == 0){
+		cpu0_idle_time_c0 += dev->last_residency;
+		cpu0_idle_count_c0++;
+	}
+#endif
 	return index;
 }
 
@@ -197,6 +352,12 @@ static int sunxi_enter_c1state(struct cpuidle_device *dev,
 	idle_time = (after.tv_sec - before.tv_sec) * USEC_PER_SEC +
 				(after.tv_usec - before.tv_usec);
 	dev->last_residency = idle_time;
+#ifdef CONFIG_IDLE_FETCH
+	if(dev->cpu == 0){
+		cpu0_idle_time_c1 += dev->last_residency;
+		cpu0_idle_count_c1++;
+	}
+#endif
 
 	return index;
 }
@@ -205,7 +366,7 @@ static int sunxi_sleep_all_core_finish(unsigned long val)
 {
 	unsigned int cpu;
 	struct cpumask tmp;
-	struct sunxi_enter_idle_para sunxi_enter_idle_para_info;
+	struct sunxi_cpuidle_para sunxi_enter_idle_para_info;
 	cpu = get_logical_index(read_cpuid_mpidr()&0xFFFF);
 
 	raw_spin_lock(&sunxi_cpu_idle_c2_lock);
@@ -222,10 +383,15 @@ static int sunxi_sleep_all_core_finish(unsigned long val)
 				/*set cpu0 entry address*/
 				mcpm_set_entry_vector(0, 0, cpu_resume);
 				/*call cpus interface to clear its irq pending*/
-				sunxi_enter_idle_para_info.flags = 0x10;
-				sunxi_enter_idle_para_info.resume_addr = (void *)(virt_to_phys(mcpm_entry_point));
 
-				arisc_enter_cpuidle(NULL,NULL,(struct sunxi_enter_idle_para *)(&sunxi_enter_idle_para_info));
+#ifdef CONFIG_DRAM_SELFREFLASH_IN_CPUIDLE
+				if(cpuidle_early_suspend_flag
+						&& !dram_master_check()){
+					sunxi_enter_idle_para_info.flags = DRAM_SELFREFLASH;
+				}else
+#endif
+					sunxi_enter_idle_para_info.flags = DRAM_NOT_SELFREFLASH;
+				arisc_enter_cpuidle(NULL,NULL,(struct sunxi_cpuidle_para *)(&sunxi_enter_idle_para_info));
 				sunxi_idle_cluster_die(A7_CLUSTER);
 			}else{
 				asm("wfi");
@@ -263,6 +429,9 @@ static int sunxi_enter_c2state(struct cpuidle_device *dev,
 	struct timeval before, after;
 	int idle_time;
 	unsigned int cpu_id;
+#ifdef CONFIG_IDLE_FETCH
+	int power_off_flag = 0;
+#endif
 
 	local_irq_disable();
 	do_gettimeofday(&before);
@@ -278,6 +447,9 @@ static int sunxi_enter_c2state(struct cpuidle_device *dev,
 		if(dev->cpu == 0){
 			if(cpumask_equal(&sunxi_core_in_c2state_mask, &cpu_power_up_state_mask)){
 				raw_spin_unlock(&sunxi_cpu_idle_c2_lock);
+#ifdef CONFIG_IDLE_FETCH
+				power_off_flag = 1;
+#endif
 				sunxi_all_cpu_power_down_in_c2state(dev,drv,index);
 			}else{
 				raw_spin_unlock(&sunxi_cpu_idle_c2_lock);
@@ -297,8 +469,31 @@ static int sunxi_enter_c2state(struct cpuidle_device *dev,
 				(after.tv_usec - before.tv_usec);
 
 	dev->last_residency = idle_time < 0? 0 : idle_time;
+#ifdef CONFIG_IDLE_FETCH
+	if(dev->cpu == 0){
+		cpu0_idle_time_c2 += dev->last_residency;
+		cpu0_idle_count_c2++;
+	}
+	if(power_off_flag){
+		cpu0_poweroff_time += dev->last_residency;
+		cpu0_poweroff_count++;
+	}
+#endif
 	return index;
 }
+#ifdef CONFIG_HAS_EARLYSUSPEND
+static void sunxi_cpuidle_earlysuspend(struct early_suspend *h)
+{
+	pr_debug("%s:enter\n",__func__);
+	cpuidle_early_suspend_flag = 1;
+}
+
+static void sunxi_cpuidle_lateresume(struct early_suspend *h)
+{
+	pr_debug("%s:resume\n",__func__);
+	cpuidle_early_suspend_flag = 0;
+}
+#endif
 
 /**
  * @enter: low power process function
@@ -343,11 +538,42 @@ static struct cpuidle_driver sunxi_idle_driver = {
 	.name		= "sunxi_idle",
 	.owner		= THIS_MODULE,
 };
+#ifdef CONFIG_IDLE_FETCH
+static ssize_t sunxi_read_idle(struct file *file, char __user *buf, size_t count, loff_t *ppos)
+{
+	char temp[128];
+	int len;
+	sprintf(temp, "\nc0 :%u count:%u\nc1 :%u count:%u\nc2 :%u count:%u\noff:%u count:%u\n",
+		cpu0_idle_time_c0,cpu0_idle_count_c0,cpu0_idle_time_c1,cpu0_idle_count_c1,
+		cpu0_idle_time_c2,cpu0_idle_count_c2,cpu0_poweroff_time,cpu0_poweroff_count);
+	len = strlen(temp);
+	if(len){
+		if(*ppos >=len)
+			return 0;
+		if(count >=len)
+			count = len;
+		if(count > (len - *ppos))
+			count = (len - *ppos);
+		copy_to_user((void __user *)buf,(const void *)temp,(unsigned long)len);
+		*ppos += count;
+	}
+	else
+		count = 0;
+	return count;
+}
+
+static const struct file_operations idle_ops = {
+    .read        = sunxi_read_idle,
+};
+#endif
 
 static int __init sunxi_init_cpuidle(void)
 {
 	int i, max_cpuidle_state, cpu;
 	struct cpuidle_device *device;
+
+	sunxi_set_bootcpu_hotplugflg();
+	sunxi_set_secondary_entry((void *)(virt_to_phys(mcpm_entry_point)));
 
 	cpumask_clear(&sunxi_cpu_try_enter_idle_mask);
 	cpumask_clear(&sunxi_cpu_idle_mask);
@@ -374,6 +600,22 @@ static int __init sunxi_init_cpuidle(void)
 			return -EIO;
 		}
 	}
+#ifdef CONFIG_DRAM_SELFREFLASH_IN_CPUIDLE
+	if(dram_master_clk_get()){
+			printk(KERN_ERR "CPUidle get module clk failed\n,");
+			return -EIO;
+		}
+#endif
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	cpuidle_early_suspend.suspend = sunxi_cpuidle_earlysuspend;
+	cpuidle_early_suspend.resume = sunxi_cpuidle_lateresume;
+	cpuidle_early_suspend.level = EARLY_SUSPEND_LEVEL_DISABLE_FB + 300;
+	register_early_suspend(&cpuidle_early_suspend);
+#endif
+#ifdef CONFIG_IDLE_FETCH
+		my_idle_root = debugfs_create_dir("idle_fetch", NULL);
+		debugfs_create_file("fetch", 0644, my_idle_root, NULL,&idle_ops);
+#endif
 	return 0;
 }
 device_initcall(sunxi_init_cpuidle);

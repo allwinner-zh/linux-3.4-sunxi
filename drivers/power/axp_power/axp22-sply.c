@@ -2090,6 +2090,10 @@ static int axp_battery_probe(struct platform_device *pdev)
 	power_supply_changed(&charger->usb);
 	schedule_delayed_work(&usbwork, msecs_to_jiffies(30* 1000));
 	
+#ifdef CONFIG_HAS_WAKELOCK
+	wake_lock_init(&axp_wakeup_lock, WAKE_LOCK_SUSPEND, "axp_wakeup_lock");
+#endif
+
 	charger->nb.notifier_call = axp_battery_event;
 	ret = axp_register_notifier(charger->master, &charger->nb, AXP22_NOTIFIER_ON);
 	if (ret) {
@@ -2123,9 +2127,7 @@ static int axp_battery_probe(struct platform_device *pdev)
 		axp_write(charger->master,0x3C,axp22_config.pmu_charge_ltf*10/128);
 		axp_write(charger->master,0x3D,axp22_config.pmu_charge_htf*10/128);
 	}
-#ifdef CONFIG_HAS_WAKELOCK
-	wake_lock_init(&axp_wakeup_lock, WAKE_LOCK_SUSPEND, "axp_wakeup_lock");
-#endif
+
 	return ret;
 
 err_notifier:
@@ -2142,14 +2144,17 @@ static int axp_battery_remove(struct platform_device *dev)
 {
 	struct axp_charger *charger = platform_get_drvdata(dev);
 	
-#ifdef CONFIG_HAS_WAKELOCK
-	wake_lock_destroy(&axp_wakeup_lock);
-#endif
 	if(main_task){
 		kthread_stop(main_task);
 		main_task = NULL;
 	}
+#ifdef CONFIG_HAS_EARLYSUSPEND
+	unregister_early_suspend(&axp_early_suspend);
+#endif
 	axp_unregister_notifier(charger->master, &charger->nb, AXP22_NOTIFIER_ON);
+#ifdef CONFIG_HAS_WAKELOCK
+	wake_lock_destroy(&axp_wakeup_lock);
+#endif
 	cancel_delayed_work_sync(&(usbwork));
 	del_timer_sync(&(charger->usb_status_timer));
 	cancel_delayed_work_sync(&charger->work);

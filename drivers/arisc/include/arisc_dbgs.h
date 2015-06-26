@@ -26,9 +26,9 @@
 /*
  * debug level define,
  * level 0 : dump debug information--none;
- * level 1 : dump debug information--error;
- * level 2 : dump debug information--error+warning;
- * level 3 : dump debug information--error+warning+information;
+ * level 1 : dump debug information--information;
+ * level 2 : dump debug information--information+warning;
+ * level 3 : dump debug information--information+warning+error;
  * extern void printk(const char *, ...);
  */
 
@@ -40,20 +40,20 @@
 #define DEBUG_LEVEL_ERR    ((u32)1 << 3)
 
 #define ARISC_INF(format, args...)                          \
-	if(DEBUG_LEVEL_INF & (0xf0 >> (arisc_debug_level +1)))  \
-		pr_debug("[ARISC] :"format, ##args);
+	do {if(DEBUG_LEVEL_INF & (0xf0 >> (arisc_debug_level +1)))  \
+		pr_debug("[ARISC] :"format, ##args);}while (0)
 
 #define ARISC_LOG(format, args...)                                      \
-	if(DEBUG_LEVEL_LOG & (0xf0 >> (arisc_debug_level +1)))	\
-		printk(KERN_NOTICE "[ARISC] :"format, ##args);
+	do {if(DEBUG_LEVEL_LOG & (0xf0 >> (arisc_debug_level +1)))	\
+		printk(KERN_NOTICE "[ARISC] :"format, ##args);}while (0)
 
 #define ARISC_WRN(format, args...)                          \
-	if(DEBUG_LEVEL_WRN & (0xf0 >> (arisc_debug_level +1)))  \
-		printk(KERN_WARNING "[ARISC WARING] :"format, ##args);
+	do {if(DEBUG_LEVEL_WRN & (0xf0 >> (arisc_debug_level +1)))  \
+		printk(KERN_WARNING "[ARISC WARING] :"format, ##args);}while (0)
 
 #define ARISC_ERR(format, args...)                          \
-	if(DEBUG_LEVEL_ERR & (0xf0 >> (arisc_debug_level +1)))  \
-		printk(KERN_ERR "[ARISC ERROR] :"format, ##args);
+	do {if(DEBUG_LEVEL_ERR & (0xf0 >> (arisc_debug_level +1)))  \
+		printk(KERN_ERR "[ARISC ERROR] :"format, ##args);}while (0)
 
 #else /* ARISC_DEBUG_ON */
 #define ARISC_INF(...)

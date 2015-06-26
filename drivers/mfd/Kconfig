@@ -568,16 +568,101 @@ config MFD_WM8994
 	  core support for the WM8994, in order to use the actual
 	  functionaltiy of the device other drivers must be enabled.
 
+menuconfig ALLWINNERTECH_MODULE_CHIP
+	bool "Support Allwinnertech module chip"
+	help
+	  Say yes here if you have ac100 or ac200 chip on your board.
+
+choice
+    prompt "allwinnertech module chip support"
+    depends on ALLWINNERTECH_MODULE_CHIP
+    help
+        allwinnertech module chip slecet.
+
 config MFD_AC100
 	bool "Support Allwinnertech AC100"
 	select MFD_CORE
 	select REGMAP_I2C
-	depends on I2C=y && GENERIC_HARDIRQS
+	depends on I2C=y && GENERIC_HARDIRQS && ALLWINNERTECH_MODULE_CHIP
 	help
 	  Say yes here if you have ac100 chip on your board.
 	  .This driver provides core support for the ac100, 
 	  in order to use the actual functionaltiy of the device
 	  other drivers must be enabled.
+config MFD_AC200
+	bool "Support Allwinnertech AC200"
+	select MFD_CORE
+	select REGMAP_I2C
+	select SUNXI_S_TWI
+	depends on I2C=y && GENERIC_HARDIRQS && ALLWINNERTECH_MODULE_CHIP
+	help
+	  Say yes here if you have ac200 chip on your board.
+	  .This driver provides core support for the ac200,
+	  in order to use the actual functionaltiy of the device
+	  other drivers must be enabled.
+endchoice
+
+menu	AC100_SUB_MODULE
+ depends on MFD_AC100
+
+config SND_SOC_AC100_CODEC
+	tristate "SUNXI AudioCodec AC100"
+	depends on ARCH_SUN9IW1 && SND_SOC
+	default n
+	help
+	  Say Y or M if you want to add support for AC100 audiocodec.
+
+config SND_SOC_AC100DAPM_CODEC
+	tristate "SUNXI AudioCodec AC100 DAPM"
+	depends on ARCH_SUN8IW6 && SND_SOC
+	default n
+	help
+	  Say Y or M if you want to add support for AC100 audiocodec.
+
+config SND_SUNXI_SOC_SUN8IW6_AC100
+	tristate "Machine for A83 AC100"
+	depends on ARCH_SUN8IW6 && SND_SOC_AC100DAPM_CODEC && SND_SOC
+	default n
+	help
+	  Say Y or M if you want to add sun8iw6 codec support
+
+config RTC_DRV_AC100
+	tristate "ac100 rtc driver"
+	depends on RTC_CLASS
+	help
+	  ac100 rtc driver
+endmenu
+
+menu	AC200_SUB_MODULE
+ depends on MFD_AC200
+
+config SND_SOC_AC200DAPM_CODEC
+	tristate "SUNXI AudioCodec AC200 DAPM"
+	depends on SND_SOC
+	help
+	 support for AC200 codec.
+
+config SND_SUNXI_SOC_SUN8IW6_AC200
+	tristate "Machine for A83 AC200"
+	depends on ARCH_SUN8IW6 && MFD_AC200 && SND_SOC
+	help
+	  Say Y or M if you want to add sun8iw6 codec support
+
+config RTC_DRV_AC200
+	tristate "ac200 rtc driver"
+	depends on RTC_CLASS
+	help
+	  ac200 rtc driver
+
+config TV_AC200
+  tristate "AC200 TV module Support(sunxi-disp2)"
+  depends on ((ARCH_SUN8IW6) && DISP2_SUNXI && MFD_AC200)
+  default n
+
+config SUNXI_EPHY
+	tristate "Drivers for Allwinnertech EPHY"
+	depends on PHYLIB
+endmenu
 
 config MFD_PCF50633
 	tristate "Support for NXP PCF50633"

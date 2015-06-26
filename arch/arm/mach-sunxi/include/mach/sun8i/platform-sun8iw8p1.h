@@ -40,7 +40,7 @@
 #define SUNXI_SDMMC0_PBASE            0x01c0f000
 #define SUNXI_SDMMC1_PBASE            0x01c10000
 #define SUNXI_SDMMC2_PBASE            0x01c11000
-#define SUNXI_SID_PBASE               0x01c14000
+#define SUNXI_SID_PBASE               0x01c23800
 #define SUNXI_SS_PBASE                0x01c15000
 #define SUNXI_USB_OTG_PBASE           0x01c19000
 #define SUNXI_USB_HCI0_PBASE          0x01c1a000

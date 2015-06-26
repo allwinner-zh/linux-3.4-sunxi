@@ -40,24 +40,62 @@ static unsigned long dram_crc_error_count = 0;
  * return: result, 0 - super standby successed,
  *                !0 - super standby failed;
  */
-int arisc_enter_cpuidle(arisc_cb_t cb, void *cb_arg, struct sunxi_enter_idle_para *para)
+int arisc_enter_cpuidle(arisc_cb_t cb, void *cb_arg, struct sunxi_cpuidle_para *para)
 {
 	struct arisc_message *pmessage;	/* allocate a message frame */
+
 	pmessage = arisc_message_allocate(0);
 	if (pmessage == NULL) {
-		ARISC_ERR("allocate message for super-standby request failed\n");
+		ARISC_ERR("allocate message for cpuidle request failed\n");
 		return -ENOMEM;
 	}
-	pmessage->type  		= ARISC_CPUIDLE_ENTER_REQ;
-	pmessage->cb.handler	= cb;
-	pmessage->cb.arg		= cb_arg;
-	pmessage->state			= ARISC_MESSAGE_INITIALIZED;
-	pmessage->paras[0]  	= para->flags;
-	pmessage->paras[1]  	= (unsigned long)para->resume_addr;
+
+	/* initialize message */
+	pmessage->type          = ARISC_CPUIDLE_ENTER_REQ;
+	pmessage->cb.handler    = cb;
+	pmessage->cb.arg        = cb_arg;
+	pmessage->state         = ARISC_MESSAGE_INITIALIZED;
+	pmessage->paras[0]      = para->flags;
+	pmessage->paras[1]      = para->mpidr;
 	arisc_hwmsgbox_send_message(pmessage, ARISC_SEND_MSG_TIMEOUT);
+
 	return 0;
 }
 EXPORT_SYMBOL(arisc_enter_cpuidle);
+
+int arisc_config_cpuidle(arisc_cb_t cb, void *cb_arg, struct sunxi_cpuidle_para *para)
+{
+	int result = 0;
+	struct arisc_message *pmessage;
+
+	/* allocate a message frame */
+	pmessage = arisc_message_allocate(ARISC_MESSAGE_ATTR_HARDSYN);
+	if (pmessage == NULL) {
+		ARISC_WRN("allocate message failed\n");
+		return -ENOMEM;
+	}
+
+	/* initialize message */
+	pmessage->type          = ARISC_CPUIDLE_CFG_REQ;
+	pmessage->cb.handler    = cb;
+	pmessage->cb.arg        = cb_arg;
+	pmessage->state         = ARISC_MESSAGE_INITIALIZED;
+	pmessage->paras[0]      = para->flags;
+	pmessage->paras[1]      = para->mpidr;
+
+	/* send request message */
+	arisc_hwmsgbox_send_message(pmessage, ARISC_SEND_MSG_TIMEOUT);
+	if (pmessage->result) {
+		ARISC_WRN("config cpuidle fail!\n");
+		result = -EINVAL;
+	}
+
+	/* free allocated message */
+	arisc_message_free(pmessage);
+
+	return result;
+}
+EXPORT_SYMBOL(arisc_config_cpuidle);
 
 /**
  * enter super standby.
@@ -190,8 +228,8 @@ EXPORT_SYMBOL(arisc_query_set_standby_info);
  * return: result, 0 - query successed,
  *                !0 - query failed;
  */
-int arisc_query_dram_crc_result(unsigned long *perror, unsigned long *ptotal_count,
-	unsigned long *perror_count)
+int arisc_query_dram_crc_result(unsigned int *perror, unsigned int *ptotal_count,
+	unsigned int *perror_count)
 {
 	*perror = dram_crc_error;
 	*ptotal_count = dram_crc_total_count;
@@ -201,8 +239,8 @@ int arisc_query_dram_crc_result(unsigned long *perror, unsigned long *ptotal_cou
 }
 EXPORT_SYMBOL(arisc_query_dram_crc_result);
 
-int arisc_set_dram_crc_result(unsigned long error, unsigned long total_count,
-	unsigned long error_count)
+int arisc_set_dram_crc_result(unsigned int error, unsigned int total_count,
+	unsigned int error_count)
 {
 	dram_crc_error = error;
 	dram_crc_total_count = total_count;
@@ -368,38 +406,10 @@ void arisc_fake_power_off(void)
 EXPORT_SYMBOL(arisc_fake_power_off);
 #endif
 
-static int arisc_get_ir_cfg(char *main, char *sub, u32 *val)
+int arisc_config_ir_paras(u32 ir_code, u32 ir_addr)
 {
-	script_item_u script_val;
-	script_item_value_type_e type;
-	type = script_get_item(main, sub, &script_val);
-	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
-		ARISC_ERR("%s-%s config type err or can not be found!", main, sub);
-		return -EINVAL;
-	}
-	*val = script_val.val;
-	ARISC_INF("arisc ir power key code config [%s] [%s] : %d\n", main, sub, *val);
-	return 0;
-}
-
-int arisc_config_ir_paras(void)
-{
-	u32    ir_power_key_code = 0;
-	u32    ir_addr_code      = 0;
-	int    result = 0;
+	int result = 0;
 	struct arisc_message *pmessage;
-
-	/* parse ir power key code */
-	if (arisc_get_ir_cfg("s_cir0", "ir_power_key_code", &ir_power_key_code)) {
-		ARISC_WRN("parse ir power key code fail\n");
-		return -EINVAL;
-	}
-
-	/* parse ir address code */
-	if (arisc_get_ir_cfg("s_cir0", "ir_addr_code", &ir_addr_code)) {
-		ARISC_WRN("parse ir address code fail\n");
-		return -EINVAL;
-	}
 
 	/* allocate a message frame */
 	pmessage = arisc_message_allocate(ARISC_MESSAGE_ATTR_HARDSYN);
@@ -407,6 +417,92 @@ int arisc_config_ir_paras(void)
 		ARISC_WRN("allocate message failed\n");
 		return -ENOMEM;
 	}
+	/* initialize message */
+	pmessage->type       = ARISC_SET_IR_PARAS;
+	pmessage->paras[0]   = ir_code;
+	pmessage->paras[1]   = ir_addr;
+	pmessage->state      = ARISC_MESSAGE_INITIALIZED;
+	pmessage->cb.handler = NULL;
+	pmessage->cb.arg     = NULL;
+
+	ARISC_INF("ir power key:0x%x, addr:0x%x\n", ir_code, ir_addr);
+
+	/* send request message */
+	arisc_hwmsgbox_send_message(pmessage, ARISC_SEND_MSG_TIMEOUT);
+	if (pmessage->result) {
+		ARISC_WRN("config ir power key code [%d] fail\n", pmessage->paras[0]);
+		result = -EINVAL;
+	}
+
+	/* free allocated message */
+	arisc_message_free(pmessage);
+
+	return result;
+}
+EXPORT_SYMBOL(arisc_config_ir_paras);
+
+int arisc_sysconfig_ir_paras(void)
+{
+	u32    ir_power_key_code = 0;
+	u32    ir_addr_code      = 0;
+	int    result = 0;
+	struct arisc_message *pmessage;
+	script_item_u script_val;
+	script_item_value_type_e type;
+#if (defined CONFIG_ARCH_SUN8IW7P1)
+	int i;
+	char key_buf[32] = "ir_power_key_code";
+	char add_buf[32] = "ir_addr_code";
+#endif
+
+	/* allocate a message frame */
+	pmessage = arisc_message_allocate(ARISC_MESSAGE_ATTR_HARDSYN);
+	if (pmessage == NULL) {
+		ARISC_WRN("allocate message failed\n");
+		return -ENOMEM;
+	}
+
+#if (defined CONFIG_ARCH_SUN8IW7P1)
+	for (i = 0; i < ARISC_IR_KEY_SUP_NUM; i++) {
+		sprintf(key_buf + 17, "%d", i);
+		sprintf(add_buf + 12, "%d", i);
+
+		type = script_get_item("s_cir0", key_buf, &script_val);
+		if (SCIRPT_ITEM_VALUE_TYPE_INT != type)
+			break;
+		ir_power_key_code = script_val.val;
+
+		type = script_get_item("s_cir0", add_buf, &script_val);
+		if (SCIRPT_ITEM_VALUE_TYPE_INT != type)
+			break;
+		ir_addr_code = script_val.val;
+
+		pmessage->type	     = ARISC_SET_IR_PARAS;
+		pmessage->paras[0]   = ir_power_key_code;
+		pmessage->paras[1]   = ir_addr_code;
+		pmessage->state      = ARISC_MESSAGE_INITIALIZED;
+		pmessage->cb.handler = NULL;
+		pmessage->cb.arg     = NULL;
+		ARISC_INF("ir power key:0x%x, addr:0x%x\n", ir_power_key_code, ir_addr_code);
+
+		arisc_hwmsgbox_send_message(pmessage, ARISC_SEND_MSG_TIMEOUT);
+	}
+#else
+	/* parse ir power key code */
+	type = script_get_item("s_cir0", "ir_power_key_code", &script_val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+		ARISC_WRN("parse ir power key code fail\n");
+		return -EINVAL;
+	}
+	ir_power_key_code = script_val.val;
+
+	/* parse ir address code */
+	type = script_get_item("s_cir0", "ir_addr_code", &script_val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+		ARISC_WRN("parse ir address code fail\n");
+		return -EINVAL;
+	}
+	ir_addr_code = script_val.val;
 
 	/* initialize message */
 	pmessage->type       = ARISC_SET_IR_PARAS;
@@ -420,6 +516,7 @@ int arisc_config_ir_paras(void)
 
 	/* send request message */
 	arisc_hwmsgbox_send_message(pmessage, ARISC_SEND_MSG_TIMEOUT);
+#endif
 
 	//check config fail or not
 	if (pmessage->result) {

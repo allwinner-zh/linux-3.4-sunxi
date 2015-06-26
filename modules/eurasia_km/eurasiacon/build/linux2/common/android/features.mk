@@ -249,13 +249,6 @@ PVR_ANDROID_REMAP_HW_ONLY_PIXEL_FORMATS := 1
 endif
 
 ##############################################################################
-# Workaround for texture atlas "double registerBuffer" issue in KK
-#
-ifeq ($(is_at_least_kitkat),1)
-PVR_ANDROID_DONT_ENFORCE_SINGLE_REGISTER := 1
-endif
-
-##############################################################################
 # Support newer HWC features in KK
 #
 ifeq ($(is_at_least_kitkat),1)
@@ -281,6 +274,14 @@ endif
 #
 ifeq ($(is_at_least_kitkat),1)
 PVR_ANDROID_CAMERA_ACTIVE_ARRAY_SIZE_HAS_XMIN_YMIN := 1
+endif
+
+##############################################################################
+# KitKat added a new memory tracking HAL. This enables gralloc support for
+# the GRAPHICS/GL memtrack types.
+#
+ifeq ($(is_at_least_kitkat),1)
+SUPPORT_ANDROID_MEMTRACK_HAL := 1
 endif
 
 # Placeholder for future version handling

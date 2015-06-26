@@ -161,7 +161,7 @@ static int dmaengine_pcm_prepare_and_submit(struct snd_pcm_substream *substream)
 		flags |= DMA_PREP_INTERRUPT;
 
 	prtd->pos = 0;
-#if defined CONFIG_ARCH_SUN9IW1 || defined (CONFIG_ARCH_SUN8IW6)
+#if defined CONFIG_ARCH_SUN9IW1 || defined (CONFIG_ARCH_SUN8IW6) || defined CONFIG_ARCH_SUN8IW7
 		if (!strcmp(substream->pcm->card->id, "sndhdmiraw")) {
 			desc = dmaengine_prep_dma_cyclic(chan,
 				substream->runtime->dma_addr,

@@ -31,4 +31,7 @@ typedef struct
 }__audio_hdmi_func;
 
 void audio_set_hdmi_func(__audio_hdmi_func *hdmi_func);
+#if defined (CONFIG_SND_SUNXI_SOC_AUDIOHUB_INTERFACE)
+void audio_set_muti_hdmi_func(__audio_hdmi_func *hdmi_func);
+#endif
 #endif

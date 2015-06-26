@@ -28,7 +28,7 @@
 #include <mach/hardware.h>
 #include <sound/dmaengine_pcm.h>
 #include <linux/dma/sunxi-dma.h>
-#if defined CONFIG_ARCH_SUN9I || CONFIG_ARCH_SUN8IW6
+#if defined CONFIG_ARCH_SUN9I || defined CONFIG_ARCH_SUN8IW6
 #include "sunxi-hdmipcm.h"
 #endif
 #ifdef CONFIG_ARCH_SUN8IW7
@@ -108,7 +108,7 @@ static const struct snd_pcm_hardware sunxi_pcm_hardware = {
 	.fifo_size			= 128,
 };
 
-int hdmi_transfer_format_61937(int *out,short* temp, int samples)
+int hdmi_transfer_format_61937_to_60958(int *out,short* temp, int samples)
 {
 	int ret =0;
 	int i;
@@ -178,7 +178,7 @@ static int sunxi_pcm_hw_params(struct snd_pcm_substream *substream,
 #ifdef CONFIG_SND_SUNXI_SOC_SUPPORT_AUDIO_RAW
 	raw_flag = params_raw(params);
 #else
-	raw_flag = 1;
+	raw_flag = hdmi_format;
 #endif
 	dmap = snd_soc_dai_get_dma_data(rtd->cpu_dai, substream);
 
@@ -191,8 +191,13 @@ static int sunxi_pcm_hw_params(struct snd_pcm_substream *substream,
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		slave_config.dst_addr = dmap->dma_addr;
+#ifdef CONFIG_ARCH_SUN8IW6
+		slave_config.dst_maxburst = 8;
+		slave_config.src_maxburst = 8;
+#else
 		slave_config.dst_maxburst = 4;
 		slave_config.src_maxburst = 4;
+#endif
 #ifdef CONFIG_ARCH_SUN8IW1
 		slave_config.dst_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
 		slave_config.src_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
@@ -230,8 +235,13 @@ static int sunxi_pcm_hw_params(struct snd_pcm_substream *substream,
 		slave_config.dst_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
 		slave_config.src_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
 		slave_config.src_addr = dmap->dma_addr;
+		#ifdef CONFIG_ARCH_SUN8IW6
+		slave_config.src_maxburst = 8;
+		slave_config.dst_maxburst = 8;
+		#else
 		slave_config.src_maxburst = 2;
 		slave_config.dst_maxburst = 2;
+		#endif
 #ifdef CONFIG_ARCH_SUN8IW1
 		slave_config.slave_id = sunxi_slave_id(DRQDST_SDRAM, DRQSRC_HDMI_AUDIO);
 #endif
@@ -342,7 +352,7 @@ static int sunxi_pcm_copy(struct snd_pcm_substream *substream, int a,
 		}
 		if (raw_flag > 1) {
 			char* hdmihw_area = hdmiraw_dma_area + 2*frames_to_bytes(runtime, hwoff);
-			hdmi_transfer_format_61937((int*)hdmihw_area, (short*)hwbuf, frames_to_bytes(runtime, frames));
+			hdmi_transfer_format_61937_to_60958((int*)hdmihw_area, (short*)hwbuf, frames_to_bytes(runtime, frames));
 		}
 #ifdef AUDIO_KARAOKE
 		do_gettimeofday(&tv_cur);
@@ -375,11 +385,11 @@ static struct snd_pcm_ops sunxi_pcm_ops = {
 	.hw_free		= sunxi_pcm_hw_free,
 	.trigger		= sunxi_pcm_trigger,
 
-	#if defined CONFIG_SND_SUNXI_SOC_SUPPORT_AUDIO_RAW || defined AUDIO_KARAOKE
+//	#if defined CONFIG_SND_SUNXI_SOC_SUPPORT_AUDIO_RAW || defined AUDIO_KARAOKE
 	.pointer		= snd_dmaengine_pcm_pointer_no_residue,
-	#else
-	.pointer		= snd_dmaengine_pcm_pointer,
-	#endif
+//	#else
+//	.pointer		= snd_dmaengine_pcm_pointer,
+//	#endif
 	.mmap			= sunxi_pcm_mmap,
 	.copy			= sunxi_pcm_copy,
 };

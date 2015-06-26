@@ -299,6 +299,45 @@ static int sunxi_i2s0_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct sunxi_dma_params *dma_data;
+	u32 reg_val = 0;
+
+	switch (params_format(params))
+	{
+		case SNDRV_PCM_FORMAT_S16_LE:
+		sample_resolution = 16;
+		break;
+	case SNDRV_PCM_FORMAT_S20_3LE:
+		sample_resolution = 24;
+		break;
+	case SNDRV_PCM_FORMAT_S24_LE:
+		sample_resolution = 24;
+		break;
+	case SNDRV_PCM_FORMAT_S32_LE:
+		sample_resolution = 24;
+		break;
+	default:
+		return -EINVAL;
+	}
+	reg_val = readl(sunxi_i2s0.regs + SUNXI_I2S0FAT0);
+	sunxi_i2s0.samp_res = sample_resolution;
+	reg_val &= ~SUNXI_I2S0FAT0_SR_RVD;
+	if(sunxi_i2s0.samp_res == 16)
+		reg_val |= SUNXI_I2S0FAT0_SR_16BIT;
+       else if(sunxi_i2s0.samp_res == 20)
+		reg_val |= SUNXI_I2S0FAT0_SR_20BIT;
+	else
+		reg_val |= SUNXI_I2S0FAT0_SR_24BIT;
+	writel(reg_val, sunxi_i2s0.regs + SUNXI_I2S0FAT0);
+
+	if (sample_resolution == 24) {
+		reg_val = readl(sunxi_i2s0.regs + SUNXI_I2S0FCTL);
+		reg_val &= ~(0x1<<2);
+		writel(reg_val, sunxi_i2s0.regs + SUNXI_I2S0FCTL);
+	} else {
+		reg_val = readl(sunxi_i2s0.regs + SUNXI_I2S0FCTL);
+		reg_val |= SUNXI_I2S0FCTL_TXIM_MOD1;
+		writel(reg_val, sunxi_i2s0.regs + SUNXI_I2S0FCTL);
+	}
 
 	/* play or record */
 	if(substream->stream == SNDRV_PCM_STREAM_PLAYBACK)

@@ -10,17 +10,12 @@
  * warranty of any kind, whether express or implied.
  */
 
-#include <linux/init.h>
-#include <linux/module.h>
 #include <linux/spinlock.h>
-#include <linux/errno.h>
-#include <linux/clk.h>
-#include <linux/slab.h>
 #include <linux/platform_device.h>
-#include <crypto/md5.h>
-#include <crypto/des.h>
+#include <asm/highmem.h>
 #include <crypto/internal/hash.h>
 #include <crypto/internal/rng.h>
+#include <crypto/des.h>
 
 #include <linux/clk/sunxi_name.h>
 
@@ -35,39 +30,14 @@ void ss_task_desc_init(ce_task_desc_t *task, u32 flow)
 	task->comm_ctl |= CE_COMM_CTL_TASK_INT_MASK; 
 }
 
-static int ss_sg_cnt(struct scatterlist *sg, int total)
-{
-	int cnt = 0;
-	int nbyte = 0;
-	struct scatterlist *cur = sg;
-	struct scatterlist *prev = sg;
-
-	while (cur != NULL) {
-		cnt++;
-		prev = cur;
-		SS_DBG("cnt: %d, cur: %p, len: %d, is_last: %ld\n", cnt, cur,
-				sg_dma_len(cur), sg_is_last(cur));
-		nbyte += sg_dma_len(cur);
-		if (nbyte >= total)
-			break;
-
-		cur = sg_next(cur);
-	}
-
-	if (!sg_is_last(prev))
-		sg_mark_end(prev);
-	return cnt;
-}
-
 static int ss_sg_len(struct scatterlist *sg, int total)
 {
 	int nbyte = 0;
 	struct scatterlist *cur = sg;
 
 	while (cur != NULL) {
-		SS_DBG("cur: %p, len: %d, is_last: %ld\n", cur,
-				sg_dma_len(cur), sg_is_last(cur));
-		nbyte += sg_dma_len(cur);
+		SS_DBG("cur: %p, len: %d, is_last: %ld\n", cur,	cur->length, sg_is_last(cur));
+		nbyte += cur->length;
 
 		cur = sg_next(cur);
 	}
@@ -80,8 +50,44 @@ static int ss_aes_align_size(int type, int mode)
 	if ((type == SS_METHOD_ECC) || (type == SS_METHOD_HMAC_SHA1)
 		|| (CE_METHOD_IS_AES(type) && (mode == SS_AES_MODE_CTS)))
 		return 4;
+	else if ((type == SS_METHOD_DES) || (type == SS_METHOD_3DES))
+		return DES_BLOCK_SIZE;
 	else
 		return AES_BLOCK_SIZE;
+}
+
+static int ss_copy_from_user(void *to, struct scatterlist *from, u32 size)
+{
+	void *vaddr = NULL;
+	struct page *ppage = sg_page(from);
+
+	vaddr = kmap(ppage);
+	if (vaddr == NULL) {
+		WARN(1, "Failed to map the last sg addr: 0x%p (%d). \n", from, size);
+		return -1;
+	}
+
+	SS_DBG("vaddr = %p, sg_addr = 0x%p, size = %d\n", vaddr, from, size);
+	memcpy(to, vaddr + from->offset, size);
+	kunmap(ppage);
+	return 0;
+}
+
+static int ss_copy_to_user(struct scatterlist *to, void *from, u32 size)
+{
+	void *vaddr = NULL;
+	struct page *ppage = sg_page(to);
+
+	vaddr = kmap(ppage);
+	if (vaddr == NULL) {
+		WARN(1, "Failed to map the last sg addr: 0x%p (%d). \n", to, size);
+		return -1;
+	}
+
+	SS_DBG("vaddr = %p, sg_addr = 0x%p, size = %d\n", vaddr, to, size);
+	memcpy(vaddr+to->offset, from, size);
+	kunmap(ppage);
+	return 0;
 }
 
 static int ss_sg_config(ce_scatter_t *scatter, ss_dma_info_t *info, int type, int mode, int tail)
@@ -92,15 +98,15 @@ static int ss_sg_config(ce_scatter_t *scatter, ss_dma_info_t *info, int type, in
 
 	while (cur != NULL) {
 		if (cnt >= CE_SCATTERS_PER_TASK) {
-			WARN(1, "have too many scatter.\n");
+			WARN(1, "Too many scatter: %d\n", cnt);
 			return -1;
 		}
 		
 		scatter[cnt].addr = sg_dma_address(cur);
 		scatter[cnt].len = sg_dma_len(cur)/4;
-			
+		info->last_sg = cur;
 		last_sg_len = sg_dma_len(cur);
-		SS_DBG("%d cur: 0x%p, scatter: addr 0x%08x, len %d (%d)\n",
+		SS_DBG("%d cur: 0x%p, scatter: addr 0x%x, len %d (%d)\n",
 				cnt, cur, scatter[cnt].addr, scatter[cnt].len, sg_dma_len(cur));
 		cnt++;
 		cur = sg_next(cur);
@@ -125,11 +131,10 @@ static int ss_sg_config(ce_scatter_t *scatter, ss_dma_info_t *info, int type, in
 		SS_ERR("Failed to kmalloc(%d)! \n", last_sg_len);
 		return -ENOMEM;
 	}
-	SS_DBG("AES(%d)-%d padding: 0x%p, tail = %d/%d\n", type, mode, info->padding, tail, last_sg_len);
+	SS_DBG("AES(%d)-%d padding: 0x%p, tail = %d/%d, cnt = %d\n", type, mode, info->padding, tail, last_sg_len, cnt);
 
-	info->original = scatter[cnt-1].addr;
 	scatter[cnt-1].addr = virt_to_phys(info->padding);
-	memcpy(info->padding, (char *)phys_to_virt(info->original), last_sg_len - ss_aes_align_size(0, mode) + tail);
+	ss_copy_from_user(info->padding, info->last_sg, last_sg_len - ss_aes_align_size(0, mode) + tail);
 	scatter[cnt-1].len = last_sg_len/4;
 
 	info->has_padding = 1;
@@ -148,7 +153,7 @@ static void ss_aes_unpadding(ce_scatter_t *scatter, ss_dma_info_t *info, int mod
 	if (info->dir == DMA_DEV_TO_MEM) {
 		last_sg_len = scatter[index].len * 4;
 		last_sg_len -= ss_aes_align_size(0, mode) - tail;
-		memcpy((char *)phys_to_virt(info->original), info->padding, last_sg_len);
+		ss_copy_to_user(info->last_sg, info->padding, last_sg_len);
 	}
 
 	kfree(info->padding);
@@ -165,7 +170,7 @@ static void ss_aes_map_padding(ce_scatter_t *scatter, ss_dma_info_t *info, int m
 		return;
 
 	len = scatter[index].len * 4;
-	SS_DBG("AES padding: 0x%08x, len: %d, dir: %d \n", scatter[index].addr, len, dir);
+	SS_DBG("AES padding: 0x%x, len: %d, dir: %d \n", scatter[index].addr, len, dir);
 	dma_map_single(&ss_dev->pdev->dev, phys_to_virt(scatter[index].addr), len, dir);
 	info->dir = dir;
 }
@@ -179,9 +184,70 @@ static void ss_aes_unmap_padding(ce_scatter_t *scatter, ss_dma_info_t *info, int
 		return;
 
 	len = scatter[index].len * 4;
-	SS_DBG("AES padding: 0x%08x, len: %d, dir: %d \n", scatter[index].addr, len, dir);
+	SS_DBG("AES padding: 0x%x, len: %d, dir: %d \n", scatter[index].addr, len, dir);
 	dma_unmap_single(&ss_dev->pdev->dev, scatter[index].addr, len, dir);
 }
+
+void ss_change_clk(int type)
+{
+	if ((type == SS_METHOD_RSA) || (type == SS_METHOD_ECC))
+		ss_clk_set(SS_RSA_CLK_RATE);
+	else
+		ss_clk_set(SS_CLK_RATE);
+}
+
+#ifdef SS_RSA_ENABLE
+/* If the data of sg is all zero. Return: 1, Yes; 0, No. */
+static u32 ss_sg_is_zero(struct scatterlist *sg)
+{
+	s32 i;
+	u32 ret = 1;
+	u32 *vaddr = NULL;
+	struct page *ppage = sg_page(sg);
+
+	vaddr = (u32 *)kmap(ppage);
+	if (vaddr == NULL) {
+		WARN(1, "Failed to map the sg addr: 0x%p (%d). \n", sg, sg->length);
+		return 0;
+	}
+	SS_DBG("vaddr = %p, sg_addr = 0x%p, size = %d\n", vaddr, sg, sg->length);
+	ss_print_hex((s8 *)vaddr, sg->length, vaddr);
+
+	for (i=0; i<sg->length/4; i++) {
+		if (vaddr[i] != 0) {
+			ret = 0;
+			break;
+		}
+	}
+
+	kunmap(ppage);
+	return ret;
+}
+
+s32 ss_check_rsa_result(ss_dma_info_t *dst, ss_dma_info_t *src)
+{
+	s32 i;
+
+	/* First, check the dst data. */
+	for (i=0; i<dst->nents; i++) {
+		/* If the dst data isn't all zero, we need not do check. */
+		if (ss_sg_is_zero(&dst->sg[i]) == 0)
+			return 0;
+	}
+
+	/* Second, if the dst data is all zero, so check the src data. */
+	for (i=0; i<src->nents; i++) {
+		/* If the src data isn't all zero, we consider that the bug happned. */
+		if (ss_sg_is_zero(&src->sg[i]) == 0) {
+			SS_ERR("BUG: The result data is all zero. \n");
+			return -1;
+		}
+	}
+
+	/* If the dst and src data are all zero, it's right. */
+	return 0;
+}
+#endif
 
 static int ss_aes_start(ss_aes_ctx_t *ctx, ss_aes_req_ctx_t *req_ctx, int len)
 {
@@ -191,6 +257,7 @@ static int ss_aes_start(ss_aes_ctx_t *ctx, ss_aes_req_ctx_t *req_ctx, int len)
 	u32 flow = ctx->comm.flow;
 	ce_task_desc_t *task = &ss_dev->flows[flow].task;
 
+	ss_change_clk(req_ctx->type);
 	ss_task_desc_init(task, flow);
 
 	ss_pending_clear(flow);
@@ -198,7 +265,10 @@ static int ss_aes_start(ss_aes_ctx_t *ctx, ss_aes_req_ctx_t *req_ctx, int len)
 	
 	ss_method_set(req_ctx->dir, req_ctx->type, task);
 	if ((req_ctx->type == SS_METHOD_RSA) || (req_ctx->type == SS_METHOD_DH)) {
-		ss_rsa_width_set(ctx->key_size, task);
+		if (req_ctx->mode == CE_RSA_OP_M_MUL)
+			ss_rsa_width_set(ctx->iv_size, task);
+		else
+			ss_rsa_width_set(ctx->key_size, task);
 		ss_rsa_op_mode_set(req_ctx->mode, task);
 	}
 	else if (req_ctx->type == SS_METHOD_ECC) {
@@ -210,26 +280,36 @@ static int ss_aes_start(ss_aes_ctx_t *ctx, ss_aes_req_ctx_t *req_ctx, int len)
 	else
 		ss_aes_mode_set(req_ctx->mode, task);
 
+#ifdef SS_CFB_MODE_ENABLE
 	if (CE_METHOD_IS_AES(req_ctx->type) && (req_ctx->mode == SS_AES_MODE_CFB))
 		ss_cfb_bitwidth_set(req_ctx->bitwidth, task);
+#endif
 
 	SS_DBG("Flow: %d, Dir: %d, Method: %d, Mode: %d, len: %d \n", flow, req_ctx->dir,
 			req_ctx->type, req_ctx->mode, len);
 
+	SS_DBG("ctx->key addr, vir = 0x%p, phy = 0x%x\n", ctx->key, virt_to_phys(ctx->key));
+	SS_DBG("Task addr, vir = 0x%p, phy = 0x%x\n", task, virt_to_phys(task));
+
 	ss_key_set(ctx->key, ctx->key_size, task);
 	dma_map_single(&ss_dev->pdev->dev, ctx->key, ctx->key_size, DMA_MEM_TO_DEV);
 
-	ss_iv_set(ctx->iv, ctx->iv_size, task);
-	dma_map_single(&ss_dev->pdev->dev, ctx->iv, ctx->iv_size, DMA_MEM_TO_DEV);
+	if (ctx->iv_size > 0) {
+		SS_DBG("ctx->iv addr, vir = 0x%p, phy = 0x%x\n", ctx->iv, virt_to_phys(ctx->iv));
+		ss_iv_set(ctx->iv, ctx->iv_size, task);
+		dma_map_single(&ss_dev->pdev->dev, ctx->iv, ctx->iv_size, DMA_MEM_TO_DEV);
 
-	ss_cnt_set(ctx->next_iv, ctx->iv_size, task);
-	dma_map_single(&ss_dev->pdev->dev, ctx->next_iv, ctx->iv_size, DMA_DEV_TO_MEM);
+		SS_DBG("ctx->next_iv addr, vir = 0x%p, phy = 0x%x\n", ctx->next_iv, virt_to_phys(ctx->next_iv));
+		ss_cnt_set(ctx->next_iv, ctx->iv_size, task);
+		dma_map_single(&ss_dev->pdev->dev, ctx->next_iv, ctx->iv_size, DMA_DEV_TO_MEM);
+	}
 	
 	align_size = ss_aes_align_size(req_ctx->type, req_ctx->mode);
 
 	/* Prepare the src scatterlist */
 	req_ctx->dma_src.nents = ss_sg_cnt(req_ctx->dma_src.sg, src_len);
-	if ((req_ctx->type == SS_METHOD_ECC) || (req_ctx->type == SS_METHOD_HMAC_SHA1))
+	if ((req_ctx->type == SS_METHOD_ECC) || (req_ctx->type == SS_METHOD_HMAC_SHA1)
+		|| ((req_ctx->type == SS_METHOD_RSA) && (req_ctx->mode == CE_RSA_OP_M_MUL)))
 		src_len = ss_sg_len(req_ctx->dma_src.sg, len);
 	dma_map_sg(&ss_dev->pdev->dev, req_ctx->dma_src.sg, req_ctx->dma_src.nents, DMA_MEM_TO_DEV);
 	ss_sg_config(task->src, &req_ctx->dma_src, req_ctx->type, req_ctx->mode, src_len%align_size);
@@ -276,8 +356,10 @@ static int ss_aes_start(ss_aes_ctx_t *ctx, ss_aes_req_ctx_t *req_ctx, int len)
 	ss_aes_unmap_padding(task->src, &req_ctx->dma_src, req_ctx->mode, DMA_MEM_TO_DEV);
 	dma_unmap_sg(&ss_dev->pdev->dev, req_ctx->dma_src.sg, req_ctx->dma_src.nents, DMA_MEM_TO_DEV);
 
-	dma_unmap_single(&ss_dev->pdev->dev, virt_to_phys(ctx->iv), ctx->iv_size, DMA_MEM_TO_DEV);
-	dma_unmap_single(&ss_dev->pdev->dev, virt_to_phys(ctx->next_iv), ctx->iv_size, DMA_DEV_TO_MEM);
+	if (ctx->iv_size > 0) {
+		dma_unmap_single(&ss_dev->pdev->dev, virt_to_phys(ctx->iv), ctx->iv_size, DMA_MEM_TO_DEV);
+		dma_unmap_single(&ss_dev->pdev->dev, virt_to_phys(ctx->next_iv), ctx->iv_size, DMA_DEV_TO_MEM);
+	}
 	/* Backup the next IV from ctr_descriptor, except CBC/CTS mode. */
 	if (CE_METHOD_IS_AES(req_ctx->type) && (req_ctx->mode != SS_AES_MODE_CBC)
 										&& (req_ctx->mode != SS_AES_MODE_CTS))
@@ -290,6 +372,12 @@ static int ss_aes_start(ss_aes_ctx_t *ctx, ss_aes_req_ctx_t *req_ctx, int len)
 		SS_ERR("CE return error: %d \n", ss_flow_err(flow));
 		return -EINVAL;
 	}
+
+#ifdef SS_RSA_ENABLE
+	if (req_ctx->type == SS_METHOD_RSA)
+		if (ss_check_rsa_result(&req_ctx->dma_dst, &req_ctx->dma_src))
+			return -ERANGE;
+#endif
 
 	return 0;
 }
@@ -306,30 +394,33 @@ int ss_aes_key_valid(struct crypto_ablkcipher *tfm, int len)
 	return 0;
 }
 
-int ss_aes_crypt(struct ablkcipher_request *req, int dir, int method, int mode)
+#ifdef SS_RSA_PREPROCESS_ENABLE
+static void ss_rsa_preprocess(ss_aes_ctx_t *ctx, ss_aes_req_ctx_t *req_ctx, int len)
 {
-	int err = 0;
-	unsigned long flags = 0;
-	ss_aes_req_ctx_t *req_ctx = ablkcipher_request_ctx(req);
+	struct scatterlist sg = {0};
+	ss_aes_req_ctx_t *tmp_req_ctx = NULL;
 
-	SS_DBG("nbytes: %d, dec: %d, method: %d, mode: %d\n", req->nbytes, dir, method, mode);
-	if (ss_dev->suspend) {
-		SS_ERR("SS has already suspend. \n");
-		return -EAGAIN;
+	if (!((req_ctx->type == SS_METHOD_RSA) && (req_ctx->mode != CE_RSA_OP_M_MUL)))
+		return;
+
+	tmp_req_ctx = kmalloc(sizeof(ss_aes_req_ctx_t), GFP_KERNEL);
+	if (tmp_req_ctx == NULL) {
+		SS_ERR("Failed to malloc(%d)\n", sizeof(ss_aes_req_ctx_t));
+		return;
 	}
 
-	req_ctx->dir  = dir;
-	req_ctx->type = method;
-	req_ctx->mode = mode;
-	req->base.flags |= SS_FLAG_AES;
+	memcpy(tmp_req_ctx, req_ctx, sizeof(ss_aes_req_ctx_t));
+	tmp_req_ctx->mode = CE_RSA_OP_M_MUL;
 
-	spin_lock_irqsave(&ss_dev->lock, flags);
-	err = ablkcipher_enqueue_request(&ss_dev->queue, req);
-	spin_unlock_irqrestore(&ss_dev->lock, flags);
+	sg_init_one(&sg, ctx->key, ctx->iv_size*2);
+	tmp_req_ctx->dma_src.sg = &sg;
 
-	queue_work(ss_dev->workqueue, &ss_dev->work);
-	return err;
+	ss_aes_start(ctx, tmp_req_ctx, len);
+
+	SS_DBG("The preporcess of RSA complete!\n\n");
+	kfree(tmp_req_ctx);
 }
+#endif
 
 static int ss_rng_start(ss_aes_ctx_t *ctx, u8 *rdata, unsigned int dlen)
 {
@@ -343,11 +434,18 @@ static int ss_rng_start(ss_aes_ctx_t *ctx, u8 *rdata, unsigned int dlen)
 	char *buf = NULL;
 	ce_task_desc_t *task = &ss_dev->flows[flow].task;
 
+	if (rng_len > SS_RNG_MAX_LEN) {
+		SS_ERR("The RNG length is too large: %d\n", rng_len);
+		rng_len = SS_RNG_MAX_LEN;
+	}
+
 	buf = kmalloc(rng_len, GFP_KERNEL);
 	if (buf == NULL) {
 		SS_ERR("Failed to malloc(%d) \n", rng_len);
 		return -ENOMEM;
 	}
+
+	ss_change_clk(SS_METHOD_PRNG);
 
 	ss_task_desc_init(task, flow);
 
@@ -355,10 +453,8 @@ static int ss_rng_start(ss_aes_ctx_t *ctx, u8 *rdata, unsigned int dlen)
 	ss_irq_enable(flow);
 
 #ifdef SS_TRNG_ENABLE
-	if (ctx->comm.flags & SS_FLAG_TRNG) {
+	if (ctx->comm.flags & SS_FLAG_TRNG)
 		ss_method_set(SS_DIR_ENCRYPT, SS_METHOD_TRNG, task);
-		ss_trng_osc_enable();
-	}
 	else
 #endif
 		ss_method_set(SS_DIR_ENCRYPT, SS_METHOD_PRNG, task);
@@ -405,45 +501,48 @@ static int ss_rng_start(ss_aes_ctx_t *ctx, u8 *rdata, unsigned int dlen)
 	ss_irq_disable(flow);
 	ret = dlen;
 
-#ifdef SS_TRNG_ENABLE
-	if (ctx->comm.flags & SS_FLAG_TRNG)
-		ss_trng_osc_disable();
-#endif
-
 	return ret;
 }
 
 int ss_rng_get_random(struct crypto_rng *tfm, u8 *rdata, unsigned int dlen)
 {
 	int ret = 0;
+	u8 *data = rdata;
+	u32 len = dlen;
 	ss_aes_ctx_t *ctx = crypto_rng_ctx(tfm);
 
-	SS_DBG("flow = %d, rdata = %p, len = %d \n", ctx->comm.flow, rdata, dlen);
+	SS_DBG("flow = %d, data = %p, len = %d \n", ctx->comm.flow, data, len);
 	if (ss_dev->suspend) {
 		SS_ERR("SS has already suspend. \n");
 		return -EAGAIN;
 	}
 
+#ifdef SS_TRNG_POSTPROCESS_ENABLE
+	len = DIV_ROUND_UP(dlen, SHA256_DIGEST_SIZE) * SHA256_BLOCK_SIZE;
+	data = kzalloc(len, GFP_KERNEL);
+	if (data == NULL) {
+		SS_ERR("Failed to malloc(%d)\n", len);
+		return -ENOMEM;
+	}
+	SS_DBG("In fact, flow = %d, data = %p, len = %d \n", ctx->comm.flow, data, len);
+#endif
+
 	ss_dev_lock();
-	ret = ss_rng_start(ctx, rdata, dlen);
+	ret = ss_rng_start(ctx, data, len);
 	ss_dev_unlock();
 
 	SS_DBG("Get %d byte random. \n", ret);
 
+#ifdef SS_TRNG_POSTPROCESS_ENABLE
+	ss_trng_postprocess(rdata, dlen, data, len);
+	ret = dlen;
+	kfree(data);
+#endif
+
 	return ret;
 }
 
-#ifdef SS_TRNG_ENABLE
-int ss_trng_get_random(struct crypto_rng *tfm, u8 *rdata, unsigned int dlen)
-{
-	ss_aes_ctx_t *ctx = crypto_rng_ctx(tfm);
-
-	ctx->comm.flags |= SS_FLAG_TRNG;
-	return ss_rng_get_random(tfm, rdata, dlen);
-}
-#endif
-
-static int ss_hash_start(ss_hash_ctx_t *ctx, ss_aes_req_ctx_t *req_ctx, int len)
+int ss_hash_start(ss_hash_ctx_t *ctx, ss_aes_req_ctx_t *req_ctx, int len)
 {
 	int ret = 0;
 	int flow = ctx->comm.flow;
@@ -455,8 +554,9 @@ static int ss_hash_start(ss_hash_ctx_t *ctx, ss_aes_req_ctx_t *req_ctx, int len)
 		ctx->cnt += len;
 		return 0;
 	}
+	ss_change_clk(req_ctx->type);
 
-	digest = (char *)kmalloc(SHA512_DIGEST_SIZE, GFP_KERNEL);
+	digest = (char *)kzalloc(SHA512_DIGEST_SIZE, GFP_KERNEL);
 	if (digest == NULL) {
 		SS_ERR("Failed to kmalloc(%d) \n", SHA512_DIGEST_SIZE);
 		return -ENOMEM;
@@ -472,6 +572,7 @@ static int ss_hash_start(ss_hash_ctx_t *ctx, ss_aes_req_ctx_t *req_ctx, int len)
 	SS_DBG("Flow: %d, Dir: %d, Method: %d, Mode: %d, len: %d / %d \n", flow,
 			req_ctx->dir, req_ctx->type, req_ctx->mode, len, ctx->cnt);
 	SS_DBG("IV address = 0x%p, size = %d\n", ctx->md, ctx->md_size);
+	SS_DBG("Task addr, vir = 0x%p, phy = 0x%x\n", task, virt_to_phys(task));
 
 	ss_iv_set(ctx->md, ctx->md_size, task);
 	ss_iv_mode_set(CE_HASH_IV_INPUT, task);
@@ -488,6 +589,7 @@ static int ss_hash_start(ss_hash_ctx_t *ctx, ss_aes_req_ctx_t *req_ctx, int len)
 	task->dst[0].addr = virt_to_phys(digest);
 	task->dst[0].len  = ctx->md_size/4;
 	dma_map_single(&ss_dev->pdev->dev, digest, SHA512_DIGEST_SIZE, DMA_DEV_TO_MEM);
+	SS_DBG("digest addr, vir = 0x%p, phy = 0x%x\n", digest, virt_to_phys(digest));
 
 	/* Start CE controller. */
 	init_completion(&ss_dev->flows[flow].done);
@@ -511,7 +613,7 @@ static int ss_hash_start(ss_hash_ctx_t *ctx, ss_aes_req_ctx_t *req_ctx, int len)
 
 	SS_DBG("After CE, TSR: 0x%08x, ERR: 0x%08x\n", ss_reg_rd(CE_REG_TSR), ss_reg_rd(CE_REG_ERR));
 	SS_DBG("After CE, dst data: \n");
-	print_hex(digest, SHA512_DIGEST_SIZE, (int)digest);
+	ss_print_hex(digest, SHA512_DIGEST_SIZE, digest);
 
 	if (ss_flow_err(flow)) {
 		SS_ERR("CE return error: %d \n", ss_flow_err(flow));
@@ -527,77 +629,6 @@ static int ss_hash_start(ss_hash_ctx_t *ctx, ss_aes_req_ctx_t *req_ctx, int len)
 	return 0;
 }
 
-int ss_hash_update(struct ahash_request *req)
-{
-	int err = 0;
-	unsigned long flags = 0;
-
-	if (!req->nbytes) {
-		SS_ERR("Invalid length: %d. \n", req->nbytes);
-		return 0;
-	}
-
-	SS_DBG("Flags: %#x, len = %d \n", req->base.flags, req->nbytes);
-	if (ss_dev->suspend) {
-		SS_ERR("SS has already suspend. \n");
-		return -EAGAIN;
-	}
-
-	req->base.flags |= SS_FLAG_HASH;
-
-	spin_lock_irqsave(&ss_dev->lock, flags);
-	err = ahash_enqueue_request(&ss_dev->queue, req);
-	spin_unlock_irqrestore(&ss_dev->lock, flags);
-
-	queue_work(ss_dev->workqueue, &ss_dev->work);
-	return err;
-}
-
-int ss_hash_final(struct ahash_request *req)
-{
-	int pad_len = 0;
-	ss_aes_req_ctx_t *req_ctx = ahash_request_ctx(req);
-	ss_hash_ctx_t *ctx = crypto_ahash_ctx(crypto_ahash_reqtfm(req));
-	struct scatterlist last = {0}; /* make a sg struct for padding data. */
-
-	SS_ENTER();
-
-	if (req->result == NULL) {
-		SS_ERR("Invalid result porinter. \n");
-		return -EINVAL;
-	}
-	SS_DBG("Method: %d, cnt: %d\n", req_ctx->type, ctx->cnt);
-	if (ss_dev->suspend) {
-		SS_ERR("SS has already suspend. \n");
-		return -EAGAIN;
-	}
-
-	/* Process the padding data. */
-	pad_len = ss_hash_padding(ctx, req_ctx->type);
-	SS_DBG("Pad len: %d \n", pad_len);
-	
-	req_ctx->dma_src.sg = &last;
-	sg_init_table(&last, 1);
-	sg_set_buf(&last, ctx->pad, pad_len);
-	SS_DBG("Padding data: \n");
-	print_hex(ctx->pad, 128, (int)ctx->pad);
-
-	ss_dev_lock();
-	ss_hash_start(ctx, req_ctx, pad_len);
-
-	SS_DBG("Method: %d, cnt: %d\n", req_ctx->type, ctx->cnt);
-
-	memcpy(req->result, ctx->md, ctx->md_size);
-	ss_dev_unlock();
-
-	return 0;
-}
-
-int ss_hash_finup(struct ahash_request *req)
-{
-	ss_hash_update(req);
-	return ss_hash_final(req);
-}
 
 void ss_load_iv(ss_aes_ctx_t *ctx, ss_aes_req_ctx_t *req_ctx, char *buf, int size)
 {
@@ -618,10 +649,10 @@ void ss_load_iv(ss_aes_ctx_t *ctx, ss_aes_req_ctx_t *req_ctx, char *buf, int siz
 	}
 
 	SS_DBG("The current IV: \n");
-	print_hex(ctx->iv, ctx->iv_size, (int)ctx->iv);
+	ss_print_hex(ctx->iv, ctx->iv_size, ctx->iv);
 }
 
-static int ss_aes_one_req(sunxi_ss_t *sss, struct ablkcipher_request *req)
+int ss_aes_one_req(sunxi_ss_t *sss, struct ablkcipher_request *req)
 {
 	int ret = 0;
 	struct crypto_ablkcipher *tfm = NULL;
@@ -645,6 +676,10 @@ static int ss_aes_one_req(sunxi_ss_t *sss, struct ablkcipher_request *req)
 	req_ctx->dma_src.sg = req->src;
 	req_ctx->dma_dst.sg = req->dst;
 
+#ifdef SS_RSA_PREPROCESS_ENABLE
+	ss_rsa_preprocess(ctx, req_ctx, req->nbytes);
+#endif
+
 	ret = ss_aes_start(ctx, req_ctx, req->nbytes);
 	if (ret < 0)
 		SS_ERR("ss_aes_start fail(%d)\n", ret);
@@ -663,68 +698,6 @@ static int ss_aes_one_req(sunxi_ss_t *sss, struct ablkcipher_request *req)
 		req->base.complete(&req->base, ret);
 
 	return ret;
-}
-
-static int ss_hash_one_req(sunxi_ss_t *sss, struct ahash_request *req)
-{
-	int ret = 0;
-	ss_aes_req_ctx_t *req_ctx = NULL;
-	ss_hash_ctx_t *ctx = crypto_ahash_ctx(crypto_ahash_reqtfm(req));
-
-	SS_ENTER();
-	if (!req->src) {
-		SS_ERR("Invalid sg: src = %p\n", req->src);
-		return -EINVAL;
-	}
-
-	ss_dev_lock();
-
-	req_ctx = ahash_request_ctx(req);
-	req_ctx->dma_src.sg = req->src;
-	
-	ss_hash_padding_data_prepare(ctx, req->result, req->nbytes%ss_hash_blk_size(req_ctx->type));
-
-	ret = ss_hash_start(ctx, req_ctx, req->nbytes);
-	if (ret < 0)
-		SS_ERR("ss_hash_start fail(%d)\n", ret);
-
-	ss_dev_unlock();
-
-	if (req->base.complete)
-		req->base.complete(&req->base, ret);
-
-	return ret;
-}
-
-void sunxi_ss_work(struct work_struct *work)
-{
-	int ret = 0;
-    unsigned long flags = 0;
-	sunxi_ss_t *sss = container_of(work, sunxi_ss_t, work);
-	struct crypto_async_request *async_req = NULL;
-	struct crypto_async_request *backlog = NULL;
-
-	/* empty the crypto queue and then return */
-	do {
-		spin_lock_irqsave(&sss->lock, flags);
-		backlog = crypto_get_backlog(&sss->queue);
-		async_req = crypto_dequeue_request(&sss->queue);
-		spin_unlock_irqrestore(&sss->lock, flags);
-
-		if (!async_req) {
-			SS_DBG("async_req is NULL! \n");
-			break;
-		}
-
-		if (backlog)
-			backlog->complete(backlog, -EINPROGRESS);
-
-		SS_DBG("async_req->flags = %#x \n", async_req->flags);
-		if (async_req->flags & SS_FLAG_AES)
-			ret = ss_aes_one_req(sss, ablkcipher_request_cast(async_req));
-		else if (async_req->flags & SS_FLAG_HASH)
-			ret = ss_hash_one_req(sss, ahash_request_cast(async_req));
-	} while (!ret);
 }
 
 irqreturn_t sunxi_ss_irq_handler(int irq, void *dev_id)

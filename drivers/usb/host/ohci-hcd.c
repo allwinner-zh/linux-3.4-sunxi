@@ -271,6 +271,14 @@ static int ohci_urb_dequeue(struct usb_hcd *hcd, struct urb *urb, int status)
 
 	spin_lock_irqsave (&ohci->lock, flags);
 	rc = usb_hcd_check_unlink_urb(hcd, urb, status);
+
+#ifdef CONFIG_USB_HCD_ENHANCE
+	if((ohci_readl (ohci, &ohci->regs->control) == 0x0)){
+		rc = 0;
+		ohci->rh_state = 0;
+	}
+#endif
+
 	if (rc) {
 		;	/* Do nothing */
 	} else if (ohci->rh_state == OHCI_RH_RUNNING) {

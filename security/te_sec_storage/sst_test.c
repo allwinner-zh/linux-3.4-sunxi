@@ -186,6 +186,8 @@ static int sst_daemon_kthread(void *data)
 	
 	int ret ;
 	if( (ret =_sst_user_init(path)) <0){
+		kfree(src);
+		kfree(dst);
 		printk("open fail\n");
 		return -1 ;
 	}
@@ -193,6 +195,8 @@ static int sst_daemon_kthread(void *data)
 	memset(dst,0x34,len);
 	if( (ret = _sst_user_read(path, dst, len , 1)) <0){
 		printk("read fail\n");
+		kfree(src);
+		kfree(dst);
 		return -1 ;
 	}else
 		printk("read pass\n");
@@ -205,12 +209,16 @@ static int sst_daemon_kthread(void *data)
 	memset(dst,0x34,len);	
 	if( (ret = _sst_user_write(path, src, len , 1)) <0){
 		printk("write fail\n");
+		kfree(src);
+		kfree(dst);
 		return -1 ;
 	}else
 		printk("write pass\n");	
 		
 	if( (ret = _sst_user_read(path, dst, len , 1)) <0){
 		printk("read fail\n");
+		kfree(src);
+		kfree(dst);
 		return -1 ;
 	}else
 		printk("read pass\n");
@@ -221,9 +229,13 @@ static int sst_daemon_kthread(void *data)
 				src, len);
 		print_hex_dump_bytes( "dst:", DUMP_PREFIX_OFFSET,
 				dst, len);
+		kfree(src);
+		kfree(dst);
 		return -1;
 	}
 	printk("cmp pass!!!\n");
+	kfree(src);
+	kfree(dst);
 	
 }
 

@@ -696,6 +696,8 @@ static int test_pinctrl_scripts_api(struct sunxi_pinctrl_test_class *sunxi_pinct
 
 #if defined CONFIG_ARCH_SUN8IW6P1
 	strcpy(str_cmp, "perf3_v1_0");
+#elif defined CONFIG_ARCH_SUN8IW7
+	strcpy(str_cmp, "perf");
 #else
 	strcpy(str_cmp, "evb");
 

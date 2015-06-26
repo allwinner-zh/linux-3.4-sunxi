@@ -8,6 +8,9 @@
 #include <linux/scatterlist.h>
 #include <linux/mutex.h>
 
+#include <linux/fs.h>
+#include <asm/uaccess.h>
+
 #include <linux/usb.h>
 
 
@@ -26,6 +29,11 @@ struct usbtest_param {
 	struct timeval		duration;
 };
 #define USBTEST_REQUEST	_IOWR('U', 100, struct usbtest_param)
+
+/*-------------------------------------------------------------------------*/
+
+#define CTRL_DATA_MOD	256
+#define ISO_WRITE_DATA	0x3C
 
 /*-------------------------------------------------------------------------*/
 
@@ -57,6 +65,8 @@ struct usbtest_info {
  * and data generated deterministically.
  */
 struct usbtest_dev {
+	struct usb_device *udev;
+
 	struct usb_interface	*intf;
 	struct usbtest_info	*info;
 	int			in_pipe;
@@ -65,6 +75,7 @@ struct usbtest_dev {
 	int			out_iso_pipe;
 	struct usb_endpoint_descriptor	*iso_in, *iso_out;
 	struct mutex		lock;
+	int open_count;		/* count the number of openers */
 
 #define TBUF_SIZE	256
 	u8			*buf;
@@ -1369,9 +1380,11 @@ static int test_halt(struct usbtest_dev *tdev, int ep, struct urb *urb)
 		ERROR(tdev, "ep %02x couldn't set halt, %d\n", ep, retval);
 		return retval;
 	}
+	/*
 	retval = verify_halted(tdev, ep, urb);
 	if (retval < 0)
 		return retval;
+	*/
 
 	/* clear halt (tests API + protocol), verify it worked */
 	retval = usb_clear_halt(urb->dev, urb->pipe);
@@ -1457,7 +1470,7 @@ static int ctrl_out(struct usbtest_dev *dev,
 	for (i = 0; i < count; i++) {
 		/* write patterned data */
 		for (j = 0; j < len; j++)
-			buf[j] = i + j;
+			buf[j] = (i + j) % CTRL_DATA_MOD;
 		retval = usb_control_msg(udev, usb_sndctrlpipe(udev, 0),
 				0x5b, USB_DIR_OUT|USB_TYPE_VENDOR,
 				0, 0, buf, len, USB_CTRL_SET_TIMEOUT);
@@ -1470,6 +1483,7 @@ static int ctrl_out(struct usbtest_dev *dev,
 			}
 			break;
 		}
+		msleep(5000); /*wait for device userspace read data*/
 
 		/* read it back -- assuming nothing intervened!!  */
 		retval = usb_control_msg(udev, usb_rcvctrlpipe(udev, 0),
@@ -1622,7 +1636,7 @@ static struct urb *iso_alloc_urb(
 	/* For inbound transfers use guard byte so that test fails if
 		data not correctly copied */
 	memset(urb->transfer_buffer,
-			usb_pipein(urb->pipe) ? GUARD_BYTE : 0,
+			usb_pipein(urb->pipe) ? GUARD_BYTE : ISO_WRITE_DATA,
 			bytes);
 
 	for (i = 0; i < packets; i++) {
@@ -2219,6 +2233,135 @@ module_param(product, ushort, 0);
 MODULE_PARM_DESC(product, "product code (from vendor)");
 #endif
 
+static struct usb_driver usbtest_driver;
+
+static int usbtest_fopen(struct inode *inode, struct file *file)
+{
+	struct usbtest_dev	*dev;
+	struct usb_interface *intf;
+	int subminor;
+	int retval = 0;
+
+	//printk("%s:%d\n", __func__, __LINE__);
+	subminor = iminor(inode);
+
+	intf = usb_find_interface(&usbtest_driver, subminor);
+	if (!intf) {
+		printk("%s - error, can't find device for minor %d",
+		     __func__, subminor);
+		retval = -ENODEV;
+		goto exit;
+	}
+	dev = usb_get_intfdata(intf);
+	if (!dev) {
+		retval = -ENODEV;
+		goto exit;
+	}
+
+	/* lock the device to allow correctly handling errors
+	* in resumption */
+	mutex_lock(&dev->lock);
+	if (!dev->open_count++) {
+		retval = usb_autopm_get_interface(intf);
+		if (retval) {
+		    dev->open_count--;
+		    mutex_unlock(&dev->lock);
+		    goto exit;
+		}
+	}
+	/* save our object in the file's private structure */
+	file->private_data = dev;
+	mutex_unlock(&dev->lock);
+exit:
+	return retval;
+}
+
+static int usbtest_frelease(struct inode *inode, struct file *file)
+{
+	struct usbtest_dev *dev;
+
+	dev = file->private_data;
+	if (dev == NULL) {
+	    printk("err: usbtest_release, dev == NULL\n");
+		return -ENODEV;
+	}
+
+	/* allow the device to be autosuspended */
+	mutex_lock(&dev->lock);
+	if (!--dev->open_count && dev->intf)
+		usb_autopm_put_interface(dev->intf);
+	mutex_unlock(&dev->lock);
+
+	return 0;
+}
+
+static ssize_t usbtest_read(struct file *file, char *buffer, size_t count, loff_t *ppos)
+{
+	struct usbtest_dev *dev;
+
+	dev = file->private_data;
+	if (dev == NULL) {
+	    printk("err: usbtest_release, dev == NULL\n");
+		return -ENODEV;
+	}
+
+	if(copy_to_user(buffer, &dev->intf->cur_altsetting->desc, count)){
+		printk("err: usbtest_fioctl, copy_from_user failed\n");
+		return -EFAULT;
+	}
+
+	return count;
+}
+
+static long usbtest_fioctl(struct file *fp, unsigned code, unsigned long value)
+{
+	struct usbtest_dev *dev = NULL;
+	struct usbtest_param param_tmp;
+
+	if(fp == NULL){
+		printk("err: usbtest_fioctl, invalid argment\n");
+		return -EINVAL;
+	}
+
+	dev = fp->private_data;
+	if(dev == NULL){
+		printk("err: usbtest_fioctl, dev == NULL\n");
+		return -EINVAL;
+	}
+
+	memset(&param_tmp, 0, sizeof(struct usbtest_param));
+	if (copy_from_user(&param_tmp, (void __user *)value, sizeof(param_tmp))) {
+		printk("err: usbtest_fioctl, copy_from_user failed\n");
+		return -EFAULT;
+	}
+	/*
+	    printk("code        = %d\n", code);
+	    printk("test_num    = %d\n", param_tmp.test_num);
+	    printk("iterations  = %d\n", param_tmp.iterations);
+	    printk("length      = %d\n", param_tmp.length);
+	    printk("vary        = %d\n", param_tmp.vary);
+	    printk("sglen       = %d\n", param_tmp.sglen);
+	*/
+	return usbtest_ioctl(dev->intf, code, &param_tmp);
+}
+
+static const struct file_operations usbtest_fops = {
+	.owner          = THIS_MODULE,
+	.open           = usbtest_fopen,
+	.release        = usbtest_frelease,
+	.read           = usbtest_read,
+	.unlocked_ioctl = usbtest_fioctl,
+};
+
+/* Get a minor range for your devices from the usb maintainer */
+#define USB_USBTEST_MINOR_BASE	192
+
+static struct usb_class_driver usbtest_class = {
+	.name =		"usbtest%d",
+	.fops =		&usbtest_fops,
+	.minor_base = USB_USBTEST_MINOR_BASE,
+};
+
 static int
 usbtest_probe(struct usb_interface *intf, const struct usb_device_id *id)
 {
@@ -2228,6 +2371,7 @@ usbtest_probe(struct usb_interface *intf, const struct usb_device_id *id)
 	char			*rtest, *wtest;
 	char			*irtest, *iwtest;
 
+	int ret = 0;
 	udev = interface_to_usbdev(intf);
 
 #ifdef	GENERIC
@@ -2252,6 +2396,7 @@ usbtest_probe(struct usb_interface *intf, const struct usb_device_id *id)
 	dev->info = info;
 	mutex_init(&dev->lock);
 
+	dev->udev = udev;
 	dev->intf = intf;
 
 	/* cacheline-aligned scratch for i/o */
@@ -2308,6 +2453,15 @@ usbtest_probe(struct usb_interface *intf, const struct usb_device_id *id)
 	}
 
 	usb_set_intfdata(intf, dev);
+
+	/* we can register the device now, as it is ready */
+	ret = usb_register_dev(intf, &usbtest_class);
+	if (ret != 0) {
+		/* something prevented us from registering this driver */
+		printk("[usb_test]:Not able to get a minor for this device.");
+		usb_set_intfdata(intf, NULL);
+		goto error;
+	}
 	dev_info(&intf->dev, "%s\n", info->name);
 	dev_info(&intf->dev, "%s {control%s%s%s%s%s} tests%s\n",
 			usb_speed_string(udev->speed),
@@ -2316,6 +2470,18 @@ usbtest_probe(struct usb_interface *intf, const struct usb_device_id *id)
 			irtest, iwtest,
 			info->alt >= 0 ? " (+alt)" : "");
 	return 0;
+
+error:
+    if(dev){
+        if(dev->buf){
+            kfree(dev->buf);
+            dev->buf = NULL;
+        }
+        kfree(dev);
+        dev = NULL;
+    }
+
+    return -1;
 }
 
 static int usbtest_suspend(struct usb_interface *intf, pm_message_t message)
@@ -2334,6 +2500,9 @@ static void usbtest_disconnect(struct usb_interface *intf)
 	struct usbtest_dev	*dev = usb_get_intfdata(intf);
 
 	usb_set_intfdata(intf, NULL);
+
+	usb_deregister_dev(intf, &usbtest_class);
+
 	dev_dbg(&intf->dev, "disconnect\n");
 	kfree(dev);
 }
@@ -2392,6 +2561,7 @@ static struct usbtest_info gz_info = {
 static struct usbtest_info um_info = {
 	.name		= "Linux user mode test driver",
 	.autoconf	= 1,
+	.ctrl_out	= 1,
 	.alt		= -1,
 };
 

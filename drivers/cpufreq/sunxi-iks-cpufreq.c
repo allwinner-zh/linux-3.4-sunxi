@@ -662,11 +662,13 @@ static int sunxi_cpufreq_cpu_init(struct cpufreq_policy *policy)
         /* HMP use the per-cluster freq table */
         if (cur_cluster == A7_CLUSTER) {
             policy->min = policy->cpuinfo.min_freq = l_freq_min;
-            policy->max = policy->cpuinfo.max_freq = l_freq_ext;
+            policy->cpuinfo.max_freq = l_freq_ext;
+            policy->max = l_freq_max;
             policy->cpuinfo.boot_freq  = l_freq_boot;
         } else if (cur_cluster == A15_CLUSTER) {
             policy->min = policy->cpuinfo.min_freq = b_freq_min;
-            policy->max = policy->cpuinfo.max_freq = b_freq_ext;
+            policy->cpuinfo.max_freq = b_freq_ext;
+            policy->max = b_freq_max;
             policy->cpuinfo.boot_freq  = b_freq_boot;
         }
     }

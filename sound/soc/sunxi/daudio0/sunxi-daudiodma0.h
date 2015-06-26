@@ -22,10 +22,12 @@
 #else
     #define DAUDIO_DBG(...)    
 #endif
-
+#ifndef SUNXI_DMA_PARAM
+#define SUNXI_DMA_PARAM
 struct sunxi_dma_params {
 	char *name;		
 	dma_addr_t dma_addr;
 };
+#endif
 
 #endif

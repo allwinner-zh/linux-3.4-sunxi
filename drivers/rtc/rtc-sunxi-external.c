@@ -148,7 +148,7 @@ int actual_year_to_reg_year(int actual_year)
 	if (actual_year < YEAR_SUPPORT_MIN || actual_year > YEAR_SUPPORT_MAX) {
 		pr_err("%s(%d) err: we only support (%d ~ %d), but input %d\n", __func__, __LINE__,
 			YEAR_SUPPORT_MIN, YEAR_SUPPORT_MAX, actual_year);
-		return -EINVAL;
+			actual_year = YEAR_SUPPORT_MAX -1;
 	}
 	return actual_year - YEAR_SUPPORT_MIN;
 }
@@ -187,7 +187,7 @@ bool time_valid(struct rtc_time *tm)
 	if(actual_year > YEAR_SUPPORT_MAX || actual_year < YEAR_SUPPORT_MIN) {
 		pr_err("%s(%d) err: rtc only supports (%d~%d) years, but to set is %d\n", __func__, __LINE__,
 			YEAR_SUPPORT_MIN, YEAR_SUPPORT_MAX, actual_year);
-		return false;
+			actual_year = YEAR_SUPPORT_MAX -1;
 	}
 
 	switch(actual_month) {
@@ -480,14 +480,48 @@ static int alarm_gettime(struct sunxi_rtc *rtc_dev, struct rtc_time *tm)
 
 void alarm_enable(struct sunxi_rtc *rtc_dev)
 {
+#ifdef CONFIG_ARCH_SUN8IW6P1
+	int reg_val = 0;
+#endif
 	/* enable alarm irq */
 	rtc_write_reg(rtc_dev->ac100, ALM_INT_ENA_OFF, 1);
+
+#ifdef CONFIG_ARCH_SUN8IW6P1
+	/*
+	 * shutdown alarm need alarm interrupt enable info when system startup, but
+	 * the info be cleared in u-boot boot process for a problem. so store the
+	 * info to RTC_GP_REG_N_OFF reg.
+	 * */
+	reg_val = rtc_read_reg(rtc_dev->ac100, RTC_GP_REG_N_OFF);
+	reg_val |= 0x1;
+	rtc_write_reg(rtc_dev->ac100, RTC_GP_REG_N_OFF, reg_val);
+#endif
 }
 
 void alarm_disable(struct sunxi_rtc *rtc_dev)
 {
+	int reg_val = 0;
 	/* disable alarm irq */
 	rtc_write_reg(rtc_dev->ac100, ALM_INT_ENA_OFF, 0);
+
+	/* clear alarm irq pending */
+	reg_val = rtc_read_reg(rtc_dev->ac100, ALM_INT_STA_REG_OFF);
+	if (reg_val & 1) {
+		pr_err("%s(%d) maybe err: alarm irq pending is set, clear it! reg is 0x%x\n",
+			__func__, __LINE__, reg_val);
+		rtc_write_reg(rtc_dev->ac100, ALM_INT_STA_REG_OFF, 1);
+	}
+
+#ifdef CONFIG_ARCH_SUN8IW6P1
+	/*
+	 * shutdown alarm need alarm interrupt enable info when system startup, but
+	 * the info be cleared in u-boot boot process for a problem. so store the
+	 * info to RTC_GP_REG_N_OFF reg.
+	 * */
+	reg_val = rtc_read_reg(rtc_dev->ac100, RTC_GP_REG_N_OFF);
+	reg_val &= ~0x1;
+	rtc_write_reg(rtc_dev->ac100, RTC_GP_REG_N_OFF, reg_val);
+#endif
 }
 
 int sunxi_alarm_enable(struct sunxi_rtc *rtc_dev)
@@ -552,6 +586,7 @@ static int sunxi_rtc_getalarm(struct device *dev, struct rtc_wkalrm *alrm)
 	struct platform_device *pdev = to_platform_device(dev);
 	struct sunxi_rtc *rtc_dev = platform_get_drvdata(pdev);
 	int ret = 0;
+	int reg_val = 0;
 
 	mutex_lock(&rtc_dev->mutex);
 	/* get alarm time */
@@ -560,6 +595,10 @@ static int sunxi_rtc_getalarm(struct device *dev, struct rtc_wkalrm *alrm)
 		ret = -EINVAL;
 		goto end;
 	}
+
+	reg_val = rtc_read_reg(rtc_dev->ac100, ALM_INT_ENA_OFF);
+	if (reg_val & 0x1)
+		alrm->enabled = 1;
 
 end:
 	mutex_unlock(&rtc_dev->mutex);
@@ -606,6 +645,7 @@ static int sunxi_rtc_setalarm(struct device *dev, struct rtc_wkalrm *alrm)
 		return -EINVAL;
 	}
 
+	pr_info("%s(%d): alarm->enabled=%d\n", __func__, __LINE__, alrm->enabled);
 	/* enable alarm if flag set */
 	if (alrm->enabled) {
 		arisc_enable_nmi_irq(); /* temperally, but no better way */
@@ -622,11 +662,15 @@ static int sunxi_rtc_alarm_irq_enable(struct device *dev, unsigned int enabled)
 	struct sunxi_rtc *rtc_dev = platform_get_drvdata(pdev);
 	int ret = 0;
 
+	pr_info("%s(%d): enabled=%d\n", __func__, __LINE__, enabled);
 	if (!enabled) {
 		ret = sunxi_alarm_disable(rtc_dev);
 		if (ret < 0)
 			pr_err("%s(%d) err, disable alarm failed!\n", __func__, __LINE__);
+	} else {
+		ret = sunxi_alarm_enable(rtc_dev);
 	}
+
 	return ret;
 }
 #endif
@@ -654,8 +698,8 @@ void sunxi_rtc_hw_init(struct sunxi_rtc *rtc_dev)
 	/* set 24h mode */
 	rtc_write_reg(rtc_dev->ac100, RTC_CTRL_REG_OFF, RTC_12H_24H_MODE);
 
-	/* disable alarm irq */
-	rtc_write_reg(rtc_dev->ac100, ALM_INT_ENA_OFF, 0);
+	/* disable alarm irq remove to after rtc_device_register() */
+	// rtc_write_reg(rtc_dev->ac100, ALM_INT_ENA_OFF, 0);
 
 	/* clear alarm irq pending */
 	reg_val = rtc_read_reg(rtc_dev->ac100, ALM_INT_STA_REG_OFF);
@@ -667,7 +711,9 @@ static int __init sunxi_rtc_probe(struct platform_device *pdev)
 {
 	struct sunxi_rtc *rtc_dev;
 	int err = 0;
-
+#ifdef CONFIG_ARCH_SUN8IW6P1
+	int reg_val = 0;
+#endif
 	pr_debug("%s,line:%d\n", __func__, __LINE__);
 	rtc_dev = kzalloc(sizeof(struct sunxi_rtc), GFP_KERNEL);
 	if (!rtc_dev)
@@ -685,6 +731,17 @@ static int __init sunxi_rtc_probe(struct platform_device *pdev)
 	mutex_init(&rtc_dev->mutex);
 
 	sunxi_rtc_hw_init(rtc_dev);
+
+#ifdef CONFIG_ARCH_SUN8IW6P1
+	/*
+	 * restore alarm interrupt enable which is cleared by u-boot,
+	 * rtc_device_register() need alarm interrupt enable bit to initialize alarm
+	 * */
+	reg_val = rtc_read_reg(rtc_dev->ac100, RTC_GP_REG_N_OFF);
+	if (reg_val & 0x1) {
+		rtc_write_reg(rtc_dev->ac100, ALM_INT_ENA_OFF, 1);
+	}
+#endif
 
 	rtc_dev->rtc = rtc_device_register(RTC_NAME, &pdev->dev, &sunxi_rtc_ops, THIS_MODULE);
 	if (IS_ERR(rtc_dev->rtc)) {
@@ -725,8 +782,29 @@ static int __exit sunxi_rtc_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static void sunxi_rtc_shutdown(struct platform_device *pdev)
+{
+	#ifdef CONFIG_ARCH_SUN8IW6
+	struct sunxi_rtc *rtc_dev = platform_get_drvdata(pdev);
+	int reg_val;
+	reg_val = rtc_read_reg(rtc_dev->ac100, CK32K_OUT_CTRL1_OFF);
+	reg_val &= ~(0x1<<0);
+	rtc_write_reg(rtc_dev->ac100, CK32K_OUT_CTRL1_OFF, reg_val);
+
+	reg_val = rtc_read_reg(rtc_dev->ac100, CK32K_OUT_CTRL2_OFF);
+	reg_val &= ~(0x1<<0);
+	rtc_write_reg(rtc_dev->ac100, CK32K_OUT_CTRL2_OFF, reg_val);
+
+	reg_val = rtc_read_reg(rtc_dev->ac100, CK32K_OUT_CTRL3_OFF);
+	reg_val &= ~(0x1<<0);
+	rtc_write_reg(rtc_dev->ac100, CK32K_OUT_CTRL3_OFF, reg_val);
+	#endif
+}
+
+
 static struct platform_driver sunxi_rtc_driver = {
 	.probe		= sunxi_rtc_probe,
+	.shutdown	= sunxi_rtc_shutdown,
 	.remove		= __exit_p(sunxi_rtc_remove),
 	.driver		= {
 		.name	= RTC_NAME,

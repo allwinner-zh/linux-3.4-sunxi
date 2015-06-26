@@ -35,6 +35,11 @@
 
 /* Some 0.95 hardware can't handle the chain bit on a Link TRB being cleared */
 static int link_quirk;
+
+#ifdef CONFIG_USB_XHCI_ENHANCE
+extern atomic_t xhci_thread_suspend_flag;
+#endif
+
 module_param(link_quirk, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(link_quirk, "Don't clear the chain bit on a link TRB");
 
@@ -883,6 +888,11 @@ int xhci_suspend(struct xhci_hcd *xhci)
 
 	/* Don't poll the roothubs on bus suspend. */
 	xhci_dbg(xhci, "%s: stopping port polling.\n", __func__);
+
+#ifdef CONFIG_USB_XHCI_ENHANCE
+	atomic_set(&xhci_thread_suspend_flag, 1);
+#endif
+
 	clear_bit(HCD_FLAG_POLL_RH, &hcd->flags);
 	del_timer_sync(&hcd->rh_timer);
 
@@ -897,7 +907,7 @@ int xhci_suspend(struct xhci_hcd *xhci)
 	command &= ~CMD_RUN;
 	xhci_writel(xhci, command, &xhci->op_regs->command);
 	if (handshake(xhci, &xhci->op_regs->status,
-		      STS_HALT, STS_HALT, XHCI_MAX_HALT_USEC)) {
+		      STS_HALT, STS_HALT, (XHCI_MAX_HALT_USEC * 10))) {
 		xhci_warn(xhci, "WARN: xHC CMD_RUN timeout\n");
 		spin_unlock_irq(&xhci->lock);
 		return -ETIMEDOUT;
@@ -1074,6 +1084,10 @@ int xhci_resume(struct xhci_hcd *xhci, bool hibernated)
 	xhci_dbg(xhci, "%s: starting port polling.\n", __func__);
 	set_bit(HCD_FLAG_POLL_RH, &hcd->flags);
 	usb_hcd_poll_rh_status(hcd);
+
+#ifdef CONFIG_USB_XHCI_ENHANCE
+	atomic_set(&xhci_thread_suspend_flag, 0);
+#endif
 
 	return retval;
 }
@@ -3498,11 +3512,12 @@ void xhci_free_dev(struct usb_hcd *hcd, struct usb_device *udev)
 		return;
 
 	virt_dev = xhci->devs[udev->slot_id];
-
-	/* Stop any wayward timer functions (which may grab the lock) */
-	for (i = 0; i < 31; ++i) {
-		virt_dev->eps[i].ep_state &= ~EP_HALT_PENDING;
-		del_timer_sync(&virt_dev->eps[i].stop_cmd_timer);
+	if(virt_dev != NULL){
+		/* Stop any wayward timer functions (which may grab the lock) */
+		for (i = 0; i < 31; ++i) {
+			virt_dev->eps[i].ep_state &= ~EP_HALT_PENDING;
+			del_timer_sync(&virt_dev->eps[i].stop_cmd_timer);
+		}
 	}
 
 	if (udev->usb2_hw_lpm_enabled) {

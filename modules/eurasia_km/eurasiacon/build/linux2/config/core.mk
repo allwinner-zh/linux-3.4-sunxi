@@ -340,7 +340,7 @@ PVRSRV_MODNAME ?= pvrsrvkm
 # Normally builds don't touch this, but we use it to influence the components
 # list. Make sure it is defined early enough to make this possible.
 #
-SUPPORT_PVRSRV_DEVICE_CLASS ?= 0
+SUPPORT_PVRSRV_DEVICE_CLASS ?= 1
 
 # The user didn't set CROSS_COMPILE. There's probably nothing wrong
 # with that, but we'll let them know anyway.
@@ -365,7 +365,7 @@ $(foreach _o,SYS_CFLAGS SYS_CXXFLAGS SYS_INCLUDES SYS_EXE_LDFLAGS SYS_LIB_LDFLAG
 # Check for words in EXCLUDED_APIS that aren't understood by the
 # common/apis/*.mk files. This should be kept in sync with all the tests on
 # EXCLUDED_APIS in those files
-_excludable_apis := rscompute opencl opengl opengles1 opengles2 openvg ews unittests xorg xorg_unittests scripts composerhal camerahal
+_excludable_apis := rscompute opencl opengl opengles1 opengles2 openvg ews unittests xorg xorg_unittests scripts composerhal camerahal memtrackhal
 _excluded_apis := $(subst $(comma),$(space),$(EXCLUDED_APIS))
 _unrecognised := $(strip $(filter-out $(_excludable_apis),$(_excluded_apis)))
 ifneq ($(_unrecognised),)

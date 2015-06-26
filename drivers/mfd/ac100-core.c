@@ -23,7 +23,7 @@
 #include <linux/arisc/arisc.h>
 
 #define AUDIO_RSB_BUS
-#define SUNXI_CODEC_NAME	"vir_audio-codec"
+#define SUNXI_CHIP_NAME	"AC100-CHIP"
 static unsigned int twi_id = 0;
 
 struct regmap_config ac100_base_regmap_config = {
@@ -220,7 +220,7 @@ static int ac100_detect(struct i2c_client *client, struct i2c_board_info *info)
 	struct i2c_adapter *adapter = client->adapter;
 
 	if (twi_id == adapter->nr) {
-		strlcpy(info->type, SUNXI_CODEC_NAME, I2C_NAME_SIZE);
+		strlcpy(info->type, SUNXI_CHIP_NAME, I2C_NAME_SIZE);
 		return 0;
 	} else {
 		return -ENODEV;
@@ -230,7 +230,7 @@ static int ac100_detect(struct i2c_client *client, struct i2c_board_info *info)
 static const unsigned short normal_i2c[] = {0x1a, I2C_CLIENT_END};
 
 static const struct i2c_device_id ac100_id[] = {
-	{"vir_audio-codec", 0},
+	{"AC100-CHIP", 0},
 	{}
 };
 
@@ -241,7 +241,7 @@ static struct i2c_driver ac100_i2c_driver = {
 	.remove 	= __devexit_p(ac100_i2c_remove),
 	.driver 	= {
 		.owner 	= THIS_MODULE,
-		.name 	= "vir_audio-codec",
+		.name 	= "AC100-CHIP",
 	},
 	.address_list = normal_i2c,
 };

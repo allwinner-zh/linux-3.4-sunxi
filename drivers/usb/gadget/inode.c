@@ -651,8 +651,8 @@ fail:
 	/* each kiocb is coupled to one usb_request, but we can't
 	 * allocate or submit those if the host disconnected.
 	 */
-	spin_lock_irq(&epdata->dev->lock);
 	if (likely(epdata->ep)) {
+		spin_lock_irq(&epdata->dev->lock);
 		req = usb_ep_alloc_request(epdata->ep, GFP_ATOMIC);
 		if (likely(req)) {
 			priv->req = req;
@@ -660,14 +660,16 @@ fail:
 			req->length = len;
 			req->complete = ep_aio_complete;
 			req->context = iocb;
+			spin_unlock_irq(&epdata->dev->lock);
 			value = usb_ep_queue(epdata->ep, req, GFP_ATOMIC);
 			if (unlikely(0 != value))
 				usb_ep_free_request(epdata->ep, req);
-		} else
+		} else {
 			value = -EAGAIN;
+			spin_unlock_irq(&epdata->dev->lock);
+		}
 	} else
 		value = -ENODEV;
-	spin_unlock_irq(&epdata->dev->lock);
 
 	mutex_unlock(&epdata->lock);
 
@@ -1717,6 +1719,8 @@ gadgetfs_bind (struct usb_gadget *gadget)
 	dev->state = STATE_DEV_UNCONNECTED;
 	spin_unlock_irq(&dev->lock);
 	get_dev (dev);
+	usb_gadget_connect(gadget);
+
 	return 0;
 
 enomem:

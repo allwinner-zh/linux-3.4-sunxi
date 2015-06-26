@@ -283,13 +283,21 @@ static int create_image(int platform_mode)
 		goto Power_up;
 
 	in_suspend = 1;
+#ifdef CONFIG_ARCH_SUNXI
+	hibernate_save_processor_state();
+#else
 	save_processor_state();
+#endif
 	error = swsusp_arch_suspend();
 	if (error)
 		printk(KERN_ERR "PM: Error %d creating hibernation image\n",
 			error);
+#ifdef CONFIG_ARCH_SUNXI
 	/* Restore control flow magically appears here */
+	hibernate_restore_processor_state();
+#else
 	restore_processor_state();
+#endif
 	if (!in_suspend) {
 		events_check_enabled = false;
 		platform_leave(platform_mode);
@@ -429,7 +437,11 @@ static int resume_target_kernel(bool platform_mode)
 	if (error)
 		goto Enable_irqs;
 
+#ifdef CONFIG_ARCH_SUNXI
+	hibernate_save_processor_state();
+#else
 	save_processor_state();
+#endif
 	error = restore_highmem();
 	if (!error) {
 		error = swsusp_arch_resume();
@@ -451,7 +463,11 @@ static int resume_target_kernel(bool platform_mode)
 	 * subsequent failures.
 	 */
 	swsusp_free();
+#ifdef CONFIG_ARCH_SUNXI
+	hibernate_restore_processor_state();
+#else
 	restore_processor_state();
+#endif
 	touch_softlockup_watchdog();
 
 	syscore_resume();

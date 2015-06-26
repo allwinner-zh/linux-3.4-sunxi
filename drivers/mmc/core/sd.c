@@ -966,6 +966,8 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 			return err;
 	}
 
+    mmc_set_clock(host,25000000);
+
 	if (!oldcard) {
 		err = mmc_sd_get_csd(host, card);
 		if (err)

@@ -220,6 +220,15 @@ blkdev_direct_IO(int rw, struct kiocb *iocb, const struct iovec *iov,
 				    nr_segs, blkdev_get_blocks, NULL, NULL, 0);
 }
 
+/**
+  * date : 2013.8.21
+  * modify the __sync_blockdev method
+  * add the __blkdev_driver_ioctl call at the end of __sync_blockdev,
+  * to ensure that after sync system call, all the data will be in the nand
+  * device
+  **/
+
+#ifndef CONFIG_SYNC_FOR_BLKDEV
 int __sync_blockdev(struct block_device *bdev, int wait)
 {
 	if (!bdev)
@@ -228,7 +237,25 @@ int __sync_blockdev(struct block_device *bdev, int wait)
 		return filemap_flush(bdev->bd_inode->i_mapping);
 	return filemap_write_and_wait(bdev->bd_inode->i_mapping);
 }
-
+#else
+int __sync_blockdev(struct block_device *bdev, int wait)
+{
+	int err;
+	if (!bdev)
+		return 0;
+	if (!wait)
+		return filemap_flush(bdev->bd_inode->i_mapping);
+	err = filemap_write_and_wait(bdev->bd_inode->i_mapping);
+	/*
+	 *2013.09.30: fix the bug that system cannot start up when storage
+	 *device is emmc, ioctl chanel only for nand flash
+	 */
+	if(err || MAJOR(bdev->bd_dev) != 93)
+		return err;
+	__blkdev_driver_ioctl(bdev, O_RDONLY, BLKFLSBUF, 0);
+	return err;
+}
+#endif
 /*
  * Write out and wait upon all the dirty data associated with a block
  * device via its mapping.  Does not take the superblock lock.

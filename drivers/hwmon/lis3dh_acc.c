@@ -1483,7 +1483,7 @@ static int lis3dh_acc_probe(struct i2c_client *client,
 	}
 
 
-	err = create_sysfs_interfaces(&acc->input_dev->dev);
+	err = create_sysfs_interfaces(&client->dev);
 	if (err < 0) {
 		printk(KERN_ERR
 		   "device LIS3DE_ACC_DEV_NAME sysfs register failed\n");
@@ -1556,7 +1556,7 @@ err_destoyworkqueue1:
 	if(acc->pdata->gpio_int1 >= 0)
 		destroy_workqueue(acc->irq1_work_queue);
 err_remove_sysfs_int:
-	remove_sysfs_interfaces(&acc->input_dev->dev);
+	remove_sysfs_interfaces(&client->dev);
 err_input_cleanup:
 	lis3dh_acc_input_cleanup(acc);
 err_power_off:
@@ -1598,7 +1598,7 @@ static int lis3dh_acc_remove(struct i2c_client *client)
 
 	lis3dh_acc_input_cleanup(acc);
 	lis3dh_acc_device_power_off(acc);
-	remove_sysfs_interfaces(&acc->input_dev->dev);
+	remove_sysfs_interfaces(&client->dev);
 	i2c_set_clientdata(client, NULL);
 
 	if (acc->pdata->exit)

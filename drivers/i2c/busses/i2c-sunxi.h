@@ -224,6 +224,23 @@ Foscl is clock SCL;standard mode:100KHz or fast mode:400KHz
 #define SUNXI_TWI_IRQ(ch)	    SUNXI_IRQ_TWI0 /* In FPGA, only one IRQ is available. */
 #endif
 
+/* Support to use s_twi */
+#ifdef CONFIG_SUNXI_S_TWI
+#ifdef CONFIG_ARCH_SUN8IW6P1
+#undef SUNXI_TWI_NUM
+#define SUNXI_TWI_NUM			4
+#endif
+#endif
+
+#ifdef CONFIG_SUNXI_S_TWI
+#define SUNXI_S_TWI_DEV_NAME		"s_twi"
+#define SUNXI_S_TWI_MEM_BASE		SUNXI_R_TWI_PBASE
+#define SUNXI_S_TWI_MEM_RANGE		0x400
+#define SUNXI_S_TWI_MEM_START		(SUNXI_S_TWI_MEM_BASE)
+#define SUNXI_S_TWI_MEM_END		(SUNXI_S_TWI_MEM_START + SUNXI_S_TWI_MEM_RANGE - 1)
+#define SUNXI_S_TWI_IRQ 		SUNXI_IRQ_RTWI
+#endif
+
 struct sunxi_i2c_platform_data {
 	int 		 bus_num;
 	unsigned int frequency;

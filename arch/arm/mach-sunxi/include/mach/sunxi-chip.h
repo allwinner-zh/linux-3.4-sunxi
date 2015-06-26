@@ -47,13 +47,16 @@
 #define SUN8IW6P1_REV_B SUNXI_CHIP_REV(SUNXI_CHIP_SUN8IW6P1, 1)
 
 #define SUN8IW7P1_REV_A SUNXI_CHIP_REV(SUNXI_CHIP_SUN8IW7, 0x0000)
+#define SUN8IW7P1_REV_B SUNXI_CHIP_REV(SUNXI_CHIP_SUN8IW7, 0x0001)
 #define SUN8IW7P2_REV_A SUNXI_CHIP_REV(SUNXI_CHIP_SUN8IW7, 0x0100)
+#define SUN8IW7P2_REV_B SUNXI_CHIP_REV(SUNXI_CHIP_SUN8IW7, 0x0101)
 
 #define SUN9IW1P1_REV_A SUNXI_CHIP_REV(SUNXI_CHIP_SUN9IW1P1, 0)
 #define SUN9IW1P1_REV_B SUNXI_CHIP_REV(SUNXI_CHIP_SUN9IW1P1, 1)
 
 extern unsigned int sunxi_get_soc_ver(void);
 extern int sunxi_get_soc_chipid(u8 *chipid);
+extern int sunxi_get_soc_chipid_str(char *chipid);
 extern int sunxi_get_pmu_chipid(u8 *chipid);
 extern int sunxi_get_serial(u8 *serial);
 extern unsigned int sunxi_get_soc_bin(void);

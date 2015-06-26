@@ -18,6 +18,8 @@
 #include <asm/div64.h>
 
 #include <mach/sys_config.h>
+#include <linux/interrupt.h>
+#include <mach/irqs.h>
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
@@ -68,7 +70,7 @@ struct delayed_work usbwork;
 static struct early_suspend axp_early_suspend;
 int early_suspend_flag = 0;
 #endif
-
+extern int axp20_suspend_flag;
 static int Total_Cap = 0;
 static int Cap_Index = 0;
 //static uint8_t coulomb_flag;
@@ -83,6 +85,7 @@ int axp_usbvolflag = 0;
 static int pmu_usb_delayed_work_inited = 0;
 static int axp_power_key = 0;
 static int reg_debug = 0x0;
+static int flag_state_change = 0;
 
 static DEFINE_SPINLOCK(axp_powerkey_lock);
 
@@ -148,12 +151,13 @@ EXPORT_SYMBOL_GPL(axp_usbcur_restore);
 static ssize_t axpdebug_store(struct class *class, 
 			struct class_attribute *attr,	const char *buf, size_t count)
 {
-	if(buf[0] == '1'){
-	   axp_debug = 1; 
-    }
-    else{
-	   axp_debug = 0;         
-    }        
+	int var;
+	var = simple_strtoul(buf, NULL, 16);
+	printk("%s: var=%d\n", __func__, var);
+	if(var)
+		axp_debug = var;
+	else
+		axp_debug = 0;
 	return count;
 }
 
@@ -2122,6 +2126,7 @@ static int axp_battery_probe(struct platform_device *pdev)
   	charger->interval = msecs_to_jiffies(10 * 1000);
   	INIT_DELAYED_WORK(&charger->work, axp_charging_monitor);
   	schedule_delayed_work(&charger->work, charger->interval);
+
   	/* set usb cur-vol limit*/
   	INIT_DELAYED_WORK(&usbwork, axp_usb);
   	pmu_usb_delayed_work_inited = 1;
@@ -2247,10 +2252,10 @@ static int axp_battery_remove(struct platform_device *dev)
 {
     struct axp_charger *charger = platform_get_drvdata(dev);
 
-    if(main_task){
-        kthread_stop(main_task);
-        main_task = NULL;
-    }
+    //if(main_task){
+    //    kthread_stop(main_task);
+    //    main_task = NULL;
+    //}
 
     axp_unregister_notifier(charger->master, &charger->nb, AXP20_NOTIFIER_ON);
     cancel_delayed_work_sync(&charger->work);
@@ -2268,15 +2273,17 @@ static int axp_battery_remove(struct platform_device *dev)
 
 static int axp20_suspend(struct platform_device *dev, pm_message_t state)
 {
+#if 0
     uint8_t irq_w[9];
+#endif
     uint8_t tmp;
 	volatile int val;  
 
     struct axp_charger *charger = platform_get_drvdata(dev);
 
 
-	cancel_delayed_work_sync(&charger->work);
-
+	cancel_delayed_work_sync(&charger->work);//axp_charging_monitor
+#if 0
     /*clear all irqs events*/
     irq_w[0] = 0xff;
     irq_w[1] = POWER20_INTSTS2;
@@ -2291,6 +2298,9 @@ static int axp20_suspend(struct platform_device *dev, pm_message_t state)
 
     /* close all irqs*/
     axp_unregister_notifier(charger->master, &charger->nb, AXP20_NOTIFIER_ON);
+#else
+	axp20_suspend_flag = AXP20_AS_SUSPEND;
+#endif
 
 #if defined (CONFIG_AXP_CHGCHANGE)
 		if(axp20_config.pmu_suspend_chgcur == 0)
@@ -2341,8 +2351,15 @@ static int axp20_resume(struct platform_device *dev)
     uint8_t v[2];
     int rt_rest_vol;
     int Cur_CoulombCounter;
-
+#if 0
     axp_register_notifier(charger->master, &charger->nb, AXP20_NOTIFIER_ON);
+#else
+	if(AXP20_SUSPEND_WITH_IRQ == axp20_suspend_flag){
+		axp20_suspend_flag = AXP20_NOT_SUSPEND;
+		enable_irq(axp20_config.pmu_irq_id);
+	}else
+		axp20_suspend_flag = AXP20_NOT_SUSPEND;
+#endif
 
     axp_charger_update_state(charger);
 

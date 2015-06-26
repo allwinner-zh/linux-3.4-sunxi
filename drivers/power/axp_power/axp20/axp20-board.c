@@ -21,6 +21,7 @@
 #include <linux/apm-emulation.h>
 #include <linux/mfd/axp-mfd.h>
 #include <linux/module.h>
+#include <asm/io.h>
 #include "axp20-mfd.h"
 #include "../axp-regu.h"
 #include "axp20-regu.h"
@@ -28,6 +29,8 @@
 
 struct axp20_config_info axp20_config;
 static struct axp_dev axp20_dev;
+static struct wakeup_source *axp20ws;
+int axp20_suspend_flag = AXP20_NOT_SUSPEND;
 
 static struct power_supply_info battery_data ={
 	.name ="PTI PL336078",
@@ -94,12 +97,34 @@ static struct i2c_board_info __initdata axp_mfd_i2c_board_info[] = {
 		.addr = 0x34,
 	},
 };
+#ifdef CONFIG_ARCH_SUN8IW8P1
 
+#define SYSCTRL_ADDR	(0xf1c00000)
+#define NMI_IRQ_CTRL	(SYSCTRL_ADDR + 0xd0)
+#define NMI_IRQ_EN	(SYSCTRL_ADDR + 0xd4)
+#define NMI_IRQ_STATUS	(SYSCTRL_ADDR + 0xd8)
+
+#define NMI_IRQ_LOW_LEVEL	(0x0)
+#define NMI_IRQ_NE_EDGE		(0x1)
+#define NMI_IRQ_HIGH_LEVEL	(0x2)
+#define NMI_IRQ_PO_EdGE		(0x3)
+
+#define NMI_IRQ_ENABLE		(0x1)
+#define NMI_IRQ_DISABLE		(0x0)
+#endif
 static irqreturn_t axp_mfd_irq_handler(int irq, void *data)
 {
 	struct axp_dev *chip = data;
 	disable_irq_nosync(irq);
-	(void)schedule_work(&chip->irq_work);
+#ifdef CONFIG_ARCH_SUN8IW8P1
+	writel(0x1, (volatile void __iomem *)(NMI_IRQ_STATUS));
+#endif
+	if(AXP20_NOT_SUSPEND == axp20_suspend_flag)
+		(void)schedule_work(&chip->irq_work);
+	else if(AXP20_AS_SUSPEND == axp20_suspend_flag){
+		__pm_wakeup_event(axp20ws, 0);
+		axp20_suspend_flag = AXP20_SUSPEND_WITH_IRQ;
+	}
 
 	return IRQ_HANDLED;
 }
@@ -125,12 +150,17 @@ static int axp_i2c_probe(struct i2c_client *client,
 	}
 
 	ret = request_irq(client->irq, axp_mfd_irq_handler,
-		IRQF_SHARED|IRQF_DISABLED, "axp20", &axp20_dev);
+		IRQF_SHARED|IRQF_DISABLED |IRQF_NO_SUSPEND, "axp20", &axp20_dev);
 	if (ret) {
 		dev_err(&client->dev, "failed to request irq %d\n",
 				client->irq);
 		goto out_free_chip;
 	}
+	axp20ws = wakeup_source_register("axp_wakeup_source");
+#ifdef CONFIG_ARCH_SUN8IW8P1
+	writel(NMI_IRQ_LOW_LEVEL, (volatile void __iomem *)(NMI_IRQ_CTRL));
+	writel(NMI_IRQ_ENABLE, (volatile void __iomem *)(NMI_IRQ_EN));
+#endif
 
 	return ret;
 
@@ -229,7 +259,7 @@ static int __init axp20_board_init(void)
 			return ret;
 		}
 
-		ret = i2c_register_board_info(1, axp_mfd_i2c_board_info, ARRAY_SIZE(axp_mfd_i2c_board_info));
+		ret = i2c_register_board_info(axp20_config.pmu_twi_id, axp_mfd_i2c_board_info, ARRAY_SIZE(axp_mfd_i2c_board_info));
 		if (ret < 0) {
 			printk("axp_i2c_board_info add failed\n");
 			return ret;

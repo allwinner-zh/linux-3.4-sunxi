@@ -859,29 +859,25 @@ static irqreturn_t DeviceISRWrapper(int irq, void *dev_id
 #endif
         )
 {
-    PVRSRV_DEVICE_NODE *psDeviceNode;
+    PVRSRV_DEVICE_NODE *psDeviceNode = (PVRSRV_DEVICE_NODE*)dev_id;
+    SYS_DATA *psSysData = psDeviceNode->psSysData;
+    ENV_DATA *psEnvData = (ENV_DATA *)psSysData->pvEnvSpecificData;
     IMG_BOOL bStatus = IMG_FALSE;
 
     PVR_UNREFERENCED_PARAMETER(irq);
-
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19))
     PVR_UNREFERENCED_PARAMETER(regs);
 #endif	
-    psDeviceNode = (PVRSRV_DEVICE_NODE*)dev_id;
-    if(!psDeviceNode)
+
+    if (psEnvData->bLISRInstalled)
     {
-        PVR_DPF((PVR_DBG_ERROR, "DeviceISRWrapper: invalid params\n"));
-        goto out;
+        bStatus = PVRSRVDeviceLISR(psDeviceNode);
+        if (bStatus)
+        {
+	    OSScheduleMISR((IMG_VOID *)psSysData);
+        }
     }
 
-    bStatus = PVRSRVDeviceLISR(psDeviceNode);
-
-    if (bStatus)
-    {
-		OSScheduleMISR((IMG_VOID *)psDeviceNode->psSysData);
-    }
-
-out:
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0))
     return bStatus ? IRQ_HANDLED : IRQ_NONE;
 #endif
@@ -908,7 +904,8 @@ static irqreturn_t SystemISRWrapper(int irq, void *dev_id
 #endif
         )
 {
-    SYS_DATA *psSysData;
+    SYS_DATA *psSysData = (SYS_DATA *)dev_id;
+    ENV_DATA *psEnvData = (ENV_DATA *)psSysData->pvEnvSpecificData;
     IMG_BOOL bStatus = IMG_FALSE;
 
     PVR_UNREFERENCED_PARAMETER(irq);
@@ -916,21 +913,16 @@ static irqreturn_t SystemISRWrapper(int irq, void *dev_id
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19))
     PVR_UNREFERENCED_PARAMETER(regs);
 #endif
-    psSysData = (SYS_DATA *)dev_id;
-    if(!psSysData)
+
+    if (psEnvData->bLISRInstalled)
     {
-        PVR_DPF((PVR_DBG_ERROR, "SystemISRWrapper: invalid params\n"));
-        goto out;
+        bStatus = PVRSRVSystemLISR(psSysData);
+        if (bStatus)
+        {
+            OSScheduleMISR((IMG_VOID *)psSysData);
+        }
     }
 
-    bStatus = PVRSRVSystemLISR(psSysData);
-
-    if (bStatus)
-    {
-        OSScheduleMISR((IMG_VOID *)psSysData);
-    }
-
-out:
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0))
     return bStatus ? IRQ_HANDLED : IRQ_NONE;
 #endif
@@ -1011,9 +1003,9 @@ PVRSRV_ERROR OSUninstallDeviceLISR(IMG_VOID *pvSysData)
         
     PVR_TRACE(("Uninstalling device LISR on IRQ %d with cookie %p", psEnvData->ui32IRQ,  psEnvData->pvISRCookie));
 
-    free_irq(psEnvData->ui32IRQ, psEnvData->pvISRCookie);
-
     psEnvData->bLISRInstalled = IMG_FALSE;
+
+    free_irq(psEnvData->ui32IRQ, psEnvData->pvISRCookie);
 
     return PVRSRV_OK;
 }
@@ -1091,9 +1083,9 @@ PVRSRV_ERROR OSUninstallSystemLISR(IMG_VOID *pvSysData)
 
     PVR_TRACE(("Uninstalling system LISR on IRQ %d with cookie %p", psEnvData->ui32IRQ, psEnvData->pvISRCookie));
 
-    free_irq(psEnvData->ui32IRQ, psEnvData->pvISRCookie);
-
     psEnvData->bLISRInstalled = IMG_FALSE;
+
+    free_irq(psEnvData->ui32IRQ, psEnvData->pvISRCookie);
 
     return PVRSRV_OK;
 }
@@ -4406,6 +4398,7 @@ IMG_BOOL OSInvalidateCPUCacheRangeKM(IMG_HANDLE hOSMemHandle,
 }
 
 #elif defined(__mips__)
+
 /* 
  * dmac cache functions are supposed to be used for dma 
  * memory which comes from dma-able memory. However examining
@@ -4415,50 +4408,65 @@ IMG_BOOL OSInvalidateCPUCacheRangeKM(IMG_HANDLE hOSMemHandle,
  * 
  */
 
+static inline size_t pvr_dma_range_len(const void *pvStart, const void *pvEnd)
+{
+	return (size_t)((char *)pvEnd - (char *)pvStart);
+}
+
+static void pvr_dma_cache_wback_inv(const void *pvStart, const void *pvEnd)
+{
+	size_t uLength = pvr_dma_range_len(pvStart, pvEnd);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37)
+	dma_cache_sync(NULL, (void *)pvStart, uLength, DMA_BIDIRECTIONAL);
+#else
+	dma_cache_wback_inv((unsigned long)pvStart, uLength);
+#endif
+}
+
+static void pvr_dma_cache_wback(const void *pvStart, const void *pvEnd)
+{
+	size_t uLength = pvr_dma_range_len(pvStart, pvEnd);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37)
+	dma_cache_sync(NULL, (void *)pvStart, uLength, DMA_TO_DEVICE);
+#else
+	dma_cache_wback((unsigned long)pvStart, uLength);
+#endif
+}
+
+static void pvr_dma_cache_inv(const void *pvStart, const void *pvEnd)
+{
+	size_t uLength = pvr_dma_range_len(pvStart, pvEnd);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,37)
+	dma_cache_sync(NULL, (void *)pvStart, uLength, DMA_FROM_DEVICE);
+#else
+	dma_cache_inv((unsigned long)pvStart, uLength);
+#endif
+}
+
 IMG_VOID OSCleanCPUCacheKM(IMG_VOID)
 {
 	/* dmac functions flush full cache if size is larger than
-	 * p-cache size. This is a workaround for the fact that
+	 * {s,d}-cache size. This is a workaround for the fact that
 	 * __flush_cache_all is not an exported symbol. Please
 	 * replace with custom function if available in latest
 	 * version of linux being used.
 	 * Arbitrary large number (1MB) which should be larger than 
-	 * mips p-cache sizes for some time in future.
+	 * mips {s,d}-cache sizes for some time in future.
 	 * */
-	dma_cache_wback(0, 0x100000);
+	pvr_dma_cache_wback(0, (const void *)0x200000);
 }
 
 IMG_VOID OSFlushCPUCacheKM(IMG_VOID)
 {
 	/* dmac functions flush full cache if size is larger than
-	 * p-cache size. This is a workaround for the fact that
+	 * {s,d}-cache size. This is a workaround for the fact that
 	 * __flush_cache_all is not an exported symbol. Please
 	 * replace with custom function if available in latest
 	 * version of linux being used.
 	 * Arbitrary large number (1MB) which should be larger than 
-	 * mips p-cache sizes for some time in future.
+	 * mips {s,d}-cache sizes for some time in future.
 	 * */
-	dma_cache_wback_inv(0, 0x100000);
-}
-
-static inline IMG_UINT32 pvr_dma_range_len(const void *pvStart, const void *pvEnd)
-{
-	return (IMG_UINT32)((char *)pvEnd - (char *)pvStart);
-}
-
-static void pvr_dma_cache_wback_inv(const void *pvStart, const void *pvEnd)
-{
-	dma_cache_wback_inv((IMG_UINTPTR_T)pvStart, pvr_dma_range_len(pvStart, pvEnd));	
-}
-
-static void pvr_dma_cache_wback(const void *pvStart, const void *pvEnd)
-{
-	dma_cache_wback((IMG_UINTPTR_T)pvStart, pvr_dma_range_len(pvStart, pvEnd));
-}
-
-static void pvr_dma_cache_inv(const void *pvStart, const void *pvEnd)
-{
-	dma_cache_inv((IMG_UINTPTR_T)pvStart, pvr_dma_range_len(pvStart, pvEnd));
+	pvr_dma_cache_wback_inv(0, (const void *)0x200000);
 }
 
 IMG_BOOL OSFlushCPUCacheRangeKM(IMG_HANDLE hOSMemHandle,

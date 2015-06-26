@@ -32,6 +32,7 @@
 #include <linux/slab.h>
 #include <linux/seq_file.h>
 #include <linux/uaccess.h>
+#include <linux/vmalloc.h>
 #include <linux/debugfs.h>
 #include <linux/dma-buf.h>
 
@@ -104,13 +105,33 @@ struct ion_handle {
 
 bool ion_buffer_fault_user_mappings(struct ion_buffer *buffer)
 {
-        return ((buffer->flags & ION_FLAG_CACHED) &&
-                !(buffer->flags & ION_FLAG_CACHED_NEEDS_SYNC));
+	return ((buffer->flags & ION_FLAG_CACHED) &&
+		!(buffer->flags & ION_FLAG_CACHED_NEEDS_SYNC));
 }
 
 bool ion_buffer_cached(struct ion_buffer *buffer)
 {
-        return !!(buffer->flags & ION_FLAG_CACHED);
+	return !!(buffer->flags & ION_FLAG_CACHED);
+}
+
+static inline struct page *ion_buffer_page(struct page *page)
+{
+	return (struct page *)((unsigned long)page & ~(1UL));
+}
+
+static inline bool ion_buffer_page_is_dirty(struct page *page)
+{
+	return !!((unsigned long)page & 1UL);
+}
+
+static inline void ion_buffer_page_dirty(struct page **page)
+{
+	*page = (struct page *)((unsigned long)(*page) | 1UL);
+}
+
+static inline void ion_buffer_page_clean(struct page **page)
+{
+	*page = (struct page *)((unsigned long)(*page) & ~(1UL));
 }
 
 /* this function should only be called while dev->lock is held */
@@ -138,8 +159,6 @@ static void ion_buffer_add(struct ion_device *dev,
 	rb_link_node(&buffer->node, parent, p);
 	rb_insert_color(&buffer->node, &dev->buffers);
 }
-
-static int ion_buffer_alloc_dirty(struct ion_buffer *buffer);
 
 /* this function should only be called while dev->lock is held */
 static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
@@ -185,17 +204,23 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 	}
 	buffer->sg_table = table;
 	if (ion_buffer_fault_user_mappings(buffer)) {
-		for_each_sg(buffer->sg_table->sgl, sg, buffer->sg_table->nents,
-			    i) {
-			if (sg_dma_len(sg) == PAGE_SIZE)
-				continue;
-			pr_err("%s: cached mappings that will be faulted in "
-			       "must have pagewise sg_lists\n", __func__);
-			ret = -EINVAL;
-			goto err;
+		int num_pages = PAGE_ALIGN(buffer->size) / PAGE_SIZE;
+		struct scatterlist *sg;
+		int i, j, k = 0;
+
+		buffer->pages = vmalloc(sizeof(struct page *) * num_pages);
+		if (!buffer->pages) {
+			ret = -ENOMEM;
+			goto err1;
 		}
 
-		ret = ion_buffer_alloc_dirty(buffer);
+		for_each_sg(table->sgl, sg, table->nents, i) {
+			struct page *page = sg_page(sg);
+
+			for (j = 0; j < sg_dma_len(sg) / PAGE_SIZE; j++)
+				buffer->pages[k++] = page++;
+		}
+
 		if (ret)
 			goto err;
 	}
@@ -222,6 +247,9 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 err:
 	heap->ops->unmap_dma(heap, buffer);
 	heap->ops->free(buffer);
+err1:
+	if (buffer->pages)
+		vfree(buffer->pages);
 err2:
 	kfree(buffer);
 	return ERR_PTR(ret);
@@ -233,9 +261,8 @@ void ion_buffer_destroy(struct ion_buffer *buffer)
 		buffer->heap->ops->unmap_kernel(buffer->heap, buffer);
 	buffer->heap->ops->unmap_dma(buffer->heap, buffer);
 	buffer->heap->ops->free(buffer);
-	//if (buffer->flags & ION_FLAG_CACHED)
-	if(ion_buffer_fault_user_mappings(buffer)) /* liugang */
-		kfree(buffer->dirty);
+	if (buffer->pages)
+		vfree(buffer->pages);
 	kfree(buffer);
 }
 
@@ -763,17 +790,6 @@ static void ion_unmap_dma_buf(struct dma_buf_attachment *attachment,
 {
 }
 
-static int ion_buffer_alloc_dirty(struct ion_buffer *buffer)
-{
-	unsigned long pages = buffer->sg_table->nents;
-	unsigned long length = (pages + BITS_PER_LONG - 1)/BITS_PER_LONG;
-
-	buffer->dirty = kzalloc(length * sizeof(unsigned long), GFP_KERNEL);
-	if (!buffer->dirty)
-		return -ENOMEM;
-	return 0;
-}
-
 struct ion_vma_list {
 	struct list_head list;
 	struct vm_area_struct *vma;
@@ -783,9 +799,9 @@ static void ion_buffer_sync_for_device(struct ion_buffer *buffer,
 				       struct device *dev,
 				       enum dma_data_direction dir)
 {
-	struct scatterlist *sg;
-	int i;
 	struct ion_vma_list *vma_list;
+	int pages = PAGE_ALIGN(buffer->size) / PAGE_SIZE;
+	int i;
 
 	pr_debug("%s: syncing for device %s\n", __func__,
 		 dev ? dev_name(dev) : "null");
@@ -794,11 +810,14 @@ static void ion_buffer_sync_for_device(struct ion_buffer *buffer,
 		return;
 
 	mutex_lock(&buffer->lock);
-	for_each_sg(buffer->sg_table->sgl, sg, buffer->sg_table->nents, i) {
-		if (!test_bit(i, buffer->dirty))
-			continue;
-		dma_sync_sg_for_device(dev, sg, 1, dir);
-		clear_bit(i, buffer->dirty);
+	for (i = 0; i < pages; i++) {
+		struct page *page = buffer->pages[i];
+
+		if (ion_buffer_page_is_dirty(page))
+			arm_dma_ops.sync_single_for_device(NULL,
+                               pfn_to_dma(NULL, page_to_pfn(page)),
+                               PAGE_SIZE, dir);
+		ion_buffer_page_clean(buffer->pages + i);
 	}
 	list_for_each_entry(vma_list, &buffer->vmas, list) {
 		struct vm_area_struct *vma = vma_list->vma;
@@ -812,21 +831,18 @@ static void ion_buffer_sync_for_device(struct ion_buffer *buffer,
 int ion_vm_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 {
 	struct ion_buffer *buffer = vma->vm_private_data;
-	struct scatterlist *sg;
-	int i;
+	int ret;
 
 	mutex_lock(&buffer->lock);
-	set_bit(vmf->pgoff, buffer->dirty);
+	ion_buffer_page_dirty(buffer->pages + vmf->pgoff);
 
-	for_each_sg(buffer->sg_table->sgl, sg, buffer->sg_table->nents, i) {
-		if (i != vmf->pgoff)
-			continue;
-		dma_sync_sg_for_cpu(NULL, sg, 1, DMA_BIDIRECTIONAL);
-		vm_insert_page(vma, (unsigned long)vmf->virtual_address,
-			       sg_page(sg));
-		break;
-	}
+	BUG_ON(!buffer->pages || !buffer->pages[vmf->pgoff]);
+	ret = vm_insert_page(vma, (unsigned long)vmf->virtual_address,
+			     ion_buffer_page(buffer->pages[vmf->pgoff]));
 	mutex_unlock(&buffer->lock);
+	if (ret)
+		return VM_FAULT_ERROR;
+
 	return VM_FAULT_NOPAGE;
 }
 
@@ -1081,13 +1097,17 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	{
 		struct ion_allocation_data data;
 
-		if (copy_from_user(&data, (void __user *)arg, sizeof(data)))
-			return -EFAULT;
+		if (copy_from_user(&data, (void __user *)arg, sizeof(data))) {
+			printk("%s(%d) err: copy_from_user failed\n", __func__, __LINE__);
+ 			return -EFAULT;
+		}
 
 #ifdef CONFIG_ARCH_SUNXI /* auto select CARVEOUT or CMA heap */
                if (data.heap_id_mask & (ION_HEAP_TYPE_DMA_MASK | ION_HEAP_CARVEOUT_MASK)) {
                        data.heap_id_mask &= ~(ION_HEAP_TYPE_DMA_MASK | ION_HEAP_CARVEOUT_MASK);
 #ifdef CONFIG_CMA
+                       if(data.heap_id_mask & ION_HEAP_CARVEOUT_MASK)
+                            data.heap_id_mask &= ~ION_HEAP_CARVEOUT_MASK;
                        data.heap_id_mask |= ION_HEAP_TYPE_DMA_MASK;
 #else
                        data.heap_id_mask |= ION_HEAP_CARVEOUT_MASK;
@@ -1097,11 +1117,15 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		data.handle = ion_alloc(client, data.len, data.align,
 					     data.heap_id_mask, data.flags);
 
-		if (IS_ERR(data.handle))
-			return PTR_ERR(data.handle);
+		if (IS_ERR(data.handle)) {
+			printk("%s(%d) err: ion alloc failed, size 0x%x, head_id_mask 0x%x\n", __func__, __LINE__, data.len,
+				data.heap_id_mask);
+ 			return PTR_ERR(data.handle);
+		}
 
 		if (copy_to_user((void __user *)arg, &data, sizeof(data))) {
 			ion_free(client, data.handle);
+            printk("%s(%d) err: copy_to_user failed\n", __func__, __LINE__);            
 			return -EFAULT;
 		}
 		break;
@@ -1112,13 +1136,17 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		bool valid;
 
 		if (copy_from_user(&data, (void __user *)arg,
-				   sizeof(struct ion_handle_data)))
+				   sizeof(struct ion_handle_data))) {
+			printk("%s(%d) err: copy_from_user failed\n", __func__, __LINE__);
 			return -EFAULT;
+		}
 		mutex_lock(&client->lock);
 		valid = ion_handle_validate(client, data.handle);
 		mutex_unlock(&client->lock);
-		if (!valid)
+		if (!valid) {
+			printk("%s(%d) err: ion_handle_validate failed\n", __func__, __LINE__);
 			return -EINVAL;
+		}
 		ion_free(client, data.handle);
 		break;
 	}
@@ -1127,13 +1155,19 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	{
 		struct ion_fd_data data;
 
-		if (copy_from_user(&data, (void __user *)arg, sizeof(data)))
+		if (copy_from_user(&data, (void __user *)arg, sizeof(data))) {
+			printk("%s(%d) err: copy_from_user failed\n", __func__, __LINE__);
 			return -EFAULT;
+		}
 		data.fd = ion_share_dma_buf_fd(client, data.handle);
-		if (copy_to_user((void __user *)arg, &data, sizeof(data)))
+		if (copy_to_user((void __user *)arg, &data, sizeof(data))) {
+			printk("%s(%d) err: copy_to_user failed\n", __func__, __LINE__);
 			return -EFAULT;
-		if (data.fd < 0)
+		}
+		if (data.fd < 0) {
+			printk("%s(%d) err: data.fd %d\n", __func__, __LINE__, data.fd);
 			return data.fd;
+		}
 		break;
 	}
 	case ION_IOC_IMPORT:
@@ -1141,26 +1175,35 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		struct ion_fd_data data;
 		int ret = 0;
 		if (copy_from_user(&data, (void __user *)arg,
-				   sizeof(struct ion_fd_data)))
+				   sizeof(struct ion_fd_data))) {
+			printk("%s(%d) err: copy_from_user failed\n", __func__, __LINE__);
 			return -EFAULT;
+		}
 		data.handle = ion_import_dma_buf(client, data.fd);
 		if (IS_ERR(data.handle)) {
 			ret = PTR_ERR(data.handle);
 			data.handle = NULL;
+			printk("%s(%d) err: ion_import_dma_buf failed\n", __func__, __LINE__);
 		}
 		if (copy_to_user((void __user *)arg, &data,
-				 sizeof(struct ion_fd_data)))
+				 sizeof(struct ion_fd_data))) {
+			printk("%s(%d) err: copy_to_user failed\n", __func__, __LINE__);
 			return -EFAULT;
-		if (ret < 0)
+		}
+		if (ret < 0) {
+			printk("%s(%d) err: ret 0x%x\n", __func__, __LINE__, ret);
 			return ret;
+		}
 		break;
 	}
 	case ION_IOC_SYNC:
 	{
 		struct ion_fd_data data;
 		if (copy_from_user(&data, (void __user *)arg,
-				   sizeof(struct ion_fd_data)))
+				   sizeof(struct ion_fd_data))) {
+			printk("%s(%d) err: copy_from_user failed\n", __func__, __LINE__);
 			return -EFAULT;
+		}
 		ion_sync_for_device(client, data.fd);
 		break;
 	}
@@ -1169,14 +1212,19 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		struct ion_device *dev = client->dev;
 		struct ion_custom_data data;
 
-		if (!dev->custom_ioctl)
+		if (!dev->custom_ioctl) {
+			printk("%s(%d) err!\n", __func__, __LINE__);
 			return -ENOTTY;
+		}
 		if (copy_from_user(&data, (void __user *)arg,
-				sizeof(struct ion_custom_data)))
+				sizeof(struct ion_custom_data))) {
+			printk("%s(%d) err: copy_from_user failed\n", __func__, __LINE__);
 			return -EFAULT;
+		}
 		return dev->custom_ioctl(client, data.cmd, data.arg);
 	}
 	default:
+		printk("%s(%d) err: unknow cmd 0x%x\n", __func__, __LINE__, cmd);
 		return -ENOTTY;
 	}
 	return 0;
@@ -1410,7 +1458,7 @@ int dma_copy_buf(dma_buf_group *pbuf_group)
 	else
 		return __signle_dma_copy(pbuf_group);
 }
-
+extern int sunxi_ion_dump_mem(void);
 long sunxi_ion_ioctl(struct ion_client *client, unsigned int cmd, unsigned long arg)
 {
 	long ret = 0;
@@ -1529,6 +1577,45 @@ static size_t ion_debug_heap_total(struct ion_client *client,
 	mutex_unlock(&client->lock);
 	return size;
 }
+#ifdef CONFIG_ARCH_SUNXI
+void __dump_carveout_area(struct seq_file *s);
+
+#ifdef CONFIG_CMA
+#include <asm/dma-contiguous.h>
+
+struct cma {
+	unsigned long	base_pfn;
+	unsigned long	count;
+	unsigned long	*bitmap;
+};
+
+static void __dump_cma_area(struct seq_file *s)
+{
+#define DUMP_UNIT	SZ_16K
+	struct cma *cma = dev_get_cma_area(NULL);
+	int tmp = 0, busy = 0, free_cnt = 0, busy_cnt = 0;
+	int bits_per_unit = DUMP_UNIT >> PAGE_SHIFT;
+	int i = 0, index, offset;
+
+	seq_printf(s, "%s(%d): memory 0x%08x~0x%08x, layout(+: free, -: busy, unit: 0x%08xbytes):\n",
+		__func__, __LINE__, (int)(cma->base_pfn<<PAGE_SHIFT),
+		(int)((cma->base_pfn + cma->count)<<PAGE_SHIFT), DUMP_UNIT);
+
+	for (i = 0; i < cma->count; i++) {
+		index = i >> 5;
+		offset = i & 31;
+		if (!busy && (cma->bitmap[index] & (1<<offset)))
+			busy = 1;
+		if (++tmp == bits_per_unit) {
+			busy ? (seq_printf(s, "-"), busy_cnt++) : (seq_printf(s, "+"), free_cnt++);
+			busy = 0;
+			tmp = 0;
+		}
+	}
+	seq_printf(s, "\n%s: free: 0x%08x bytes, busy: 0x%08x bytes\n", __func__, free_cnt*DUMP_UNIT, busy_cnt*DUMP_UNIT);
+}
+#endif
+#endif
 
 static int ion_debug_heap_show(struct seq_file *s, void *unused)
 {
@@ -1584,7 +1671,15 @@ static int ion_debug_heap_show(struct seq_file *s, void *unused)
 
 	if (heap->debug_show)
 		heap->debug_show(heap, s, unused);
-
+#ifdef CONFIG_ARCH_SUNXI
+#ifdef CONFIG_CMA
+    if (heap->type == ION_HEAP_TYPE_DMA)
+        __dump_cma_area(s);
+#else
+	if (heap->type == ION_HEAP_TYPE_CARVEOUT)
+		__dump_carveout_area(s);
+#endif
+#endif
 	return 0;
 }
 

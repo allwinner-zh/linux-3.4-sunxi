@@ -33,8 +33,8 @@
 #include "sst.h"
 #include "sst_debug.h"
 
-int debug_mask  = 0; /*Disable debug info as default 0*/
-int polling_freq = 500 ;
+int sst_debug_mask  = 0; /*Disable debug info as default 0*/
+
 char *ext_class= NULL ;
 
 extern int sst_rpc_register(void *handle);
@@ -540,7 +540,6 @@ static int __init aw_sst_init(void)
 
 	sst->tsk= kthread_create(sst_daemon_kthread, sst, "sst_daemon"); 
 	if(!IS_ERR(sst->tsk)){
-		kthread_bind(sst->tsk, 0);
 		wake_up_process(sst->tsk);
 	}else{
 		derr("Tsk request fail!\n");
@@ -635,8 +634,8 @@ static void __exit aw_sst_exit(void)
 module_init(aw_sst_init);
 module_exit(aw_sst_exit);
 
-module_param(debug_mask, int, S_IRUGO | S_IWUSR);
-MODULE_PARM_DESC(debug_mask, "Secure storage Enable debug");
+module_param(sst_debug_mask, int, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(sst_debug_mask, "Secure storage Enable debug");
 
 module_param(ext_class, charp, S_IRUGO | S_IWUSR );
 MODULE_PARM_DESC(ext_class, "Secure storage extension oem class");

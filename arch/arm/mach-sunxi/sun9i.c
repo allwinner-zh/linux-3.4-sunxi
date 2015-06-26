@@ -39,12 +39,68 @@
 #include <mach/hardware.h>
 #include <mach/platform.h>
 #include <mach/sunxi-chip.h>
+#include <mach/sunxi-smc.h>
+#ifdef CONFIG_ANDROID_RAM_CONSOLE
+#include <linux/persistent_ram.h>
 
+/* sunxi ram_console */
+struct resource ram_console_res[] = {
+    {
+        .start = RC_MEM_BASE,
+        .end   = RC_MEM_BASE + RC_MEM_SIZE - 1,
+        .flags  = IORESOURCE_MEM,
+    },
+};
+struct ram_console_platform_data {
+    const char *bootinfo;
+};
+
+static struct ram_console_platform_data ram_console_pdata;
+
+static struct platform_device ram_console_pdev = {
+    .name = "ram_console",
+    .id = -1,
+    .num_resources = ARRAY_SIZE(ram_console_res),
+    .resource = ram_console_res,
+    .dev = {
+        .platform_data  = &ram_console_pdata,
+    },
+};
+
+static struct platform_device *sw_pdevs[] __initdata = {
+    &ram_console_pdev,
+};
+
+static void __init ram_console_device_init(void)
+{
+       platform_add_devices(sw_pdevs, ARRAY_SIZE(sw_pdevs));
+}
+
+struct persistent_ram_descriptor rc_pram_desc[] = {
+    {"ram_console", RC_MEM_SIZE},
+};
+
+struct persistent_ram rc_pram = {
+    .start = RC_MEM_BASE,
+    .size  = RC_MEM_SIZE,
+    .num_descs = ARRAY_SIZE(rc_pram_desc),
+    .descs = rc_pram_desc,
+};
+
+static void __init ram_console_persistent_ram_init(void)
+{
+    int ret = persistent_ram_early_init(&rc_pram);
+    if (ret) {
+        printk(KERN_ERR "ram console memory reserved init err!\n");
+    }
+}
+#endif
 /* plat memory info, maybe from boot, so we need bkup for future use */
 unsigned int mem_start = PLAT_PHYS_OFFSET;
 unsigned int mem_size = PLAT_MEM_SIZE;
 #ifdef CONFIG_DRAM_TRAINING_RESERVE_MEM
 phys_addr_t dramfreq_mem_size = 0;
+phys_addr_t dramfreq_mem_size_mb = 0;
 #endif
 static unsigned int sys_config_size = SYS_CONFIG_MEMSIZE;
 
@@ -59,6 +115,66 @@ static struct i2c_board_info i2c_ina219_devs[] __initdata = {
 	{ I2C_BOARD_INFO("ina219_vpu",  0x46), },
 	{ I2C_BOARD_INFO("ina219_audi", 0x47), },
 };
+#endif
+#if defined(CONFIG_ION) || defined(CONFIG_ION_MODULE)
+#define DEFAULT_SUNXI_ION_RESERVE_SIZE	96
+#define ION_CARVEOUT_INIT_MAX	4
+#define ION_CMA_INIT_MAX	4
+struct tag_mem32 ion_mem = { /* the real ion reserve info */
+       .size  = DEFAULT_SUNXI_ION_RESERVE_SIZE << 20,
+       .start = PLAT_PHYS_OFFSET + PLAT_MEM_SIZE - (DEFAULT_SUNXI_ION_RESERVE_SIZE << 20),
+};
+
+u32 ion_carveout_init[ION_CARVEOUT_INIT_MAX];
+u32 ion_cma_init[ION_CMA_INIT_MAX];
+static int __init ion_reserve_common(char *p, int is_cma,int force)
+{
+       char *endp;
+       char* startp=p;
+       int i =0;
+       u32 ion_init_max = is_cma?ION_CMA_INIT_MAX:ION_CARVEOUT_INIT_MAX;
+       u32* ion_reserve = is_cma?ion_cma_init:ion_carveout_init;
+
+       early_printk("ion_%s reserve:",is_cma?"cma":"carveout");
+	do{
+		ion_reserve[i] = (u32)memparse(startp, &endp);
+		early_printk(" %um",ion_reserve[i] >>20);
+		startp = endp+1;
+		i++;
+	}while( i < ion_init_max && *endp == ',');
+	early_printk("\n");
+	if((IS_ENABLED(CONFIG_CMA) && is_cma) || ((!IS_ENABLED(CONFIG_CMA) || force) && !is_cma))
+		for(i=0;i<ion_init_max;i++)
+		{
+		       if(ion_reserve[i])
+		       {
+			    ion_mem.size = ion_reserve[i];
+			    ion_mem.start = mem_start + mem_size - ion_mem.size;
+		       }
+		       else
+		       {
+		            early_printk("%s: ion reserve: [0x%x, 0x%x]!\n", __func__, (int)ion_mem.start, (int)(ion_mem.start + ion_mem.size));
+			    break;
+		       }
+
+		       if (mem_size <= (SZ_512M <<i))
+		       {
+		            early_printk("%s: ion reserve: [0x%x, 0x%x]!\n", __func__, (int)ion_mem.start, (int)(ion_mem.start + ion_mem.size));
+			    break;
+		       }
+		}
+       return 0;
+}
+static int __init early_ion_carveout_list(char *p)
+{
+	return ion_reserve_common(p,0,0);
+}
+static int __init early_ion_cma_list(char *p)
+{
+	return ion_reserve_common(p,1,0);
+}
+early_param("ion_carveout_list", early_ion_carveout_list);
+early_param("ion_cma_list", early_ion_cma_list);
 #endif
 
 #ifndef CONFIG_OF
@@ -93,39 +209,12 @@ static struct platform_device *sun9i_dev[] __initdata = {
 };
 #endif
 
-#if defined(CONFIG_ION) || defined(CONFIG_ION_MODULE)
-struct tag_mem32 ion_mem = {
-	.start = ION_CARVEOUT_MEM_BASE,
-	.size  = ION_CARVEOUT_MEM_SIZE,
-};
-
-/*
- * Pick out the ion memory size.  We look for ion_reserve=size@start,
- * where start and size are "size[KkMm]"
- */
-static int __init early_ion_reserve(char *p)
-{
-	char *endp;
-
-	ion_mem.size  = memparse(p, &endp);
-	if (*endp == '@')
-		ion_mem.start = memparse(endp + 1, NULL);
-	else /* set ion memory to end */
-		ion_mem.start = mem_start + mem_size - ion_mem.size;
-
-	pr_debug("[%s]: ION memory reserve: [0x%016x - 0x%016x]\n",
-			__func__, ion_mem.start, ion_mem.size);
-
-	return 0;
-}
-early_param("ion_reserve", early_ion_reserve);
-#endif
 
 static void sun9i_restart(char mode, const char *cmd)
 {
-	writel(0, (void __iomem *)(SUNXI_R_WDOG_VBASE + R_WDOG_IRQ_EN_REG));
-	writel(0x01, (void __iomem *)(SUNXI_R_WDOG_VBASE + R_WDOG_CFG_REG));
-	writel(0x01, (void __iomem *)(SUNXI_R_WDOG_VBASE + R_WDOG_MODE_REG));
+	sunxi_smc_writel(0, (void __iomem *)(SUNXI_R_WDOG_VBASE + R_WDOG_IRQ_EN_REG));
+	sunxi_smc_writel(0x01, (void __iomem *)(SUNXI_R_WDOG_VBASE + R_WDOG_CFG_REG));
+	sunxi_smc_writel(0x01, (void __iomem *)(SUNXI_R_WDOG_VBASE + R_WDOG_MODE_REG));
 	while(1);
 }
 
@@ -165,10 +254,11 @@ static void __init sun9i_fixup(struct tag *tags, char **from,
 		if (t->hdr.tag == ATAG_MEM && t->u.mem.size) {
             if( (t->u.mem.size) && (t->u.mem.size <=16384) && t->u.mem.start)
             {
+		dramfreq_mem_size_mb = t->u.mem.size;
 #ifdef CONFIG_ARM_LPAE            
                 dram_size_from_boot = ((phys_addr_t)t->u.mem.size*1024*1024);
 #else
-                t->u.mem.size = (t->u.mem.size >=4096)?3072:t->u.mem.size;
+                t->u.mem.size = (t->u.mem.size >=4096)?(4095 - PLAT_PHYS_OFFSET/0x100000):t->u.mem.size;
                 dram_size_from_boot = ((phys_addr_t)t->u.mem.size*1024*1024);                
 #endif                
                 t->u.mem.size=0;
@@ -182,6 +272,10 @@ static void __init sun9i_fixup(struct tag *tags, char **from,
 					t->u.mem.size >> 20);
 #ifdef CONFIG_DRAM_TRAINING_RESERVE_MEM
 			dramfreq_mem_size = t->u.mem.size;
+			dramfreq_mem_size_mb = t->u.mem.size >>20;
+#endif
+#if defined(CONFIG_ION) || defined(CONFIG_ION_MODULE)
+			ion_reserve_common(CONFIG_ION_SUNXI_RESERVE_LIST,0,1);
 #endif
 			return;
 		}
@@ -193,8 +287,12 @@ static void __init sun9i_fixup(struct tag *tags, char **from,
 	meminfo->bank[0].size =  dram_size_from_boot;
 #ifdef CONFIG_DRAM_TRAINING_RESERVE_MEM
     dramfreq_mem_size = dram_size_from_boot;
+	dramfreq_mem_size_mb = dramfreq_mem_size_mb?dramfreq_mem_size_mb:(dramfreq_mem_size>>20);
 #endif
 	meminfo->nr_banks = 1;
+#if defined(CONFIG_ION) || defined(CONFIG_ION_MODULE)
+	ion_reserve_common(CONFIG_ION_SUNXI_RESERVE_LIST,0,1);
+#endif
 
 #ifdef CONFIG_ARM_LPAE
 	early_printk("nr_banks: %d, bank.start: 0x%llx, bank.size: 0x%llx\n",
@@ -209,21 +307,34 @@ static void __init sun9i_fixup(struct tag *tags, char **from,
 
 void __init sun9i_reserve(void)
 {
+	phys_addr_t mem_phyaddr = PLAT_PHYS_OFFSET >>20;
 	/* add any reserve memory to here */
+#ifdef CONFIG_ANDROID_RAM_CONSOLE
+       /* ram console persistent ram init*/
+       ram_console_persistent_ram_init();
+#endif
 #ifdef CONFIG_DRAM_TRAINING_RESERVE_MEM
 	memblock_reserve(PLAT_PHYS_OFFSET, SZ_4K);
-	memblock_reserve(PLAT_PHYS_OFFSET + (dramfreq_mem_size >> 1), SZ_4K);
+	if (dramfreq_mem_size_mb == (dramfreq_mem_size >>20)
+		|| (mem_phyaddr + (dramfreq_mem_size_mb >>1)) >= 4096
+		|| (dramfreq_mem_size_mb >>1) >= (dramfreq_mem_size >>20))
+		memblock_reserve(PLAT_PHYS_OFFSET + (dramfreq_mem_size >> 1), SZ_4K);
+	else
+		memblock_reserve(PLAT_PHYS_OFFSET + (dramfreq_mem_size_mb <<19), SZ_4K);
 #endif
 	/* reserve for sys_config */
 	memblock_reserve(SYS_CONFIG_MEMBASE, sys_config_size);
 
 	/* reserve for standby */
 	memblock_reserve(SUPER_STANDBY_MEM_BASE, SUPER_STANDBY_MEM_SIZE);
+
+	/* reserve for firmware */
+	memblock_reserve(SUNXI_FIRMWARE_BASE, SUNXI_FIRMWARE_SIZE);
 #if defined(CONFIG_ION) || defined(CONFIG_ION_MODULE)
-	/* fix "page fault when ION_IOC_SYNC" bug in mali driver */
-	//memblock_remove(ion_mem.start, ion_mem.size);
+#ifndef CONFIG_CMA
 	memblock_reserve(ion_mem.start, ion_mem.size);
 #endif
+#endif 
 }
 
 static int __init config_size_init(char *str)
@@ -285,10 +396,13 @@ static void __init sun9i_gic_init(void)
 }
 #endif
 
+extern void __init sunxi_firmware_init(void);
 void __init sun9i_map_io(void)
 {
 	iotable_init(sun9i_io_desc, ARRAY_SIZE(sun9i_io_desc));
-	
+#ifdef CONFIG_SUNXI_TRUSTZONE
+	sunxi_firmware_init();
+#endif
 	/* detect sunxi soc ver */
 	sunxi_soc_ver_init();
 }
@@ -308,16 +422,16 @@ static void __init sun9i_dev_init(void)
 	}
 	printk("ina219 device registered\n");
 #endif
+#ifdef CONFIG_ANDROID_RAM_CONSOLE
+       /*      ram console     platform device initialize*/
+       ram_console_device_init();
+#endif
 }
 
-extern void __init sunxi_firmware_init(void);
 void __init sun9i_init_early(void)
 {
 #ifdef CONFIG_SUNXI_CONSISTENT_DMA_SIZE
 	init_consistent_dma_size(CONFIG_SUNXI_CONSISTENT_DMA_SIZE << 20);
-#endif
-#ifdef CONFIG_SUNXI_TRUSTZONE
- 	sunxi_firmware_init();
 #endif
 }
 

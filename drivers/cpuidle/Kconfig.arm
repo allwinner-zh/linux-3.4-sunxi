@@ -15,7 +15,29 @@ config ARM_BIG_LITTLE_CPUIDLE
 
 config ARM_SUNXI_CPUIDLE
 	bool "CPU Idle Driver for SUNXI"
-	depends on ARCH_SUNXI && EVB_PLATFORM
+	depends on ARCH_SUNXI && EVB_PLATFORM && SMP
 	default y
 	help
 	  Select this to enable cpuidle on sunxi platform.
+
+config ARM_SUN8IW6_CPUIDLE
+	bool "CPU Idle Driver for SUN8IW6"
+	depends on ARCH_SUN8IW6 && EVB_PLATFORM && !SUNXI_GIC_ACCESS_SS
+	default n
+	help
+	  Select this to enable cpuidle on sun8iw6 B version IC platform.
+
+config DRAM_SELFREFLASH_IN_CPUIDLE
+	bool "Use dram self-reflash when all cpus in idle"
+	depends on HAS_EARLYSUSPEND
+	default n
+	help
+	  Select this to use dram self-reflash when all cpus in idle status.
+	  This option can reduce system power consume in some scene.
+
+config IDLE_FETCH
+	bool "Calculate the cpuidle time of cpu0"
+	default n
+	help
+	  Select this to calculate the time that cpu0 stay in each idle state.
+	  User can read as sys/kernel/debug/idle_fetch.

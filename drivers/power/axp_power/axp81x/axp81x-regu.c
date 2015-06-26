@@ -424,7 +424,6 @@ static struct axp_funcdev_info axp_regldevs[23] = {
 	},
 };
 
-extern int axp_regu_fetch_sysconfig_para(char * pmu_type, struct axp_reg_init *axp_init_data);
 struct axp_funcdev_info *axp81x_regu_init(void)
 {
 	int ret = 0;

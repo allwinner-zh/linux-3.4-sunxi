@@ -54,6 +54,7 @@ int de_tr_init(void);
 int de_tr_exit(void);
 int de_tr_set_cfg(tr_info *info);
 int de_tr_reset(void);
+int de_tr_exception(void);
 
 int sunxi_tr_request(void);
 int sunxi_tr_release(int hdl);

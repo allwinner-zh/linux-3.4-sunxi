@@ -17,12 +17,15 @@
 typedef enum AW_POWER_ID
 {
 	AXP_19X_ID = 0,
+	AXP_209_ID,
 	AXP_22X_ID,
 	AXP_806_ID,
 	AXP_808_ID,
 	AXP_809_ID,
 	AXP_803_ID,
 	AXP_813_ID,
+
+	OZ_8012_ID = 128,
 } aw_pm_id_e;
 
 typedef enum AXP22X_POWER_LDO
@@ -119,6 +122,18 @@ typedef enum AXP803_813_POWER_LDO
 	AXP803_813_RTC   = 1U << 22,
 } axp803_813_ldo_e;
 
+typedef enum AXP209_POWER_LDO
+{
+	AXP209_DCDC2 = 1U << 0,
+	AXP209_DCDC3 = 1U << 1,
+	AXP209_LDO1 = 1U << 2,
+	AXP209_LDO2 = 1U << 3,
+	AXP209_LDO3 = 1U << 4,
+	AXP209_LDO4 = 1U << 5,
+	AXP209_LDOIO0 = 1U << 6,
+} axp209_ldo_e;
+
+
 enum VDD_BIT
 {
 	VDD_CPUA_BIT = 0,
@@ -162,7 +177,7 @@ extern int del_sys_pwr_dm(const char *id);
 extern int is_sys_pwr_dm_id(const char *id);
 extern int is_sys_pwr_dm_active(unsigned int bitmap);
 extern char *get_sys_pwr_dm_id(unsigned int bitmap);
-extern unsigned int (* get_pwr_regu_tree(void))[VCC_MAX_INDEX];
+void get_pwr_regu_tree(unsigned int *p);
 extern unsigned int parse_pwr_dm_map(char *s, unsigned int size, unsigned int bitmap);
 #endif /* __AXP_DEPEND_H__ */
 

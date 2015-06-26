@@ -1486,7 +1486,7 @@ static int codec_set_digital_bb_clk_format(struct snd_kcontrol *kcontrol,
 		if (digital_bb_cap_keytone_used == 1) {
 		#ifdef CONFIG_ARCH_SUN9IW1
 			/*config sysclk 22.5792M*/
-			sunxi_daudio_set_rate(22579200);
+			sunxi_daudio0_set_rate(22579200);
 
 			/*SUNXI_DAUDIOCTL*/
 			reg_val = readl((void __iomem *)0xf8006000);
@@ -1636,7 +1636,7 @@ static int codec_set_bt_clk_format(struct snd_kcontrol *kcontrol,
 
 #ifdef CONFIG_ARCH_SUN9IW1
 		/*config sysclk 24.576M*/
-		sunxi_daudio_set_rate(24576000);
+		sunxi_daudio0_set_rate(24576000);
 
 		/*config mclk = 24.576M and enble mclk*/
 		reg_val = 0;
@@ -2191,7 +2191,7 @@ static int codec_system_btout_open(struct snd_soc_codec *codec)
 
 #ifdef CONFIG_ARCH_SUN9IW1
 	/*config sysclk 24.576M*/
-	sunxi_daudio_set_rate(24576000);
+	sunxi_daudio0_set_rate(24576000);
 
 	/*config mclk = 24.576M and enble mclk*/
 	reg_val = 0;
@@ -3808,7 +3808,7 @@ static int codec_system_bt_capture_open(struct snd_soc_codec *codec)
 
 #ifdef CONFIG_ARCH_SUN9IW1
 	/*config sysclk 24.576M*/
-	sunxi_daudio_set_rate(24576000);
+	sunxi_daudio0_set_rate(24576000);
 
 	/*config mclk = 24.576M and enble mclk*/
 	reg_val = 0;
@@ -4959,6 +4959,11 @@ static int sndvir_audio_soc_probe(struct snd_soc_codec *codec)
 	sema_init(&hs_data->sem, 1);
 	headphone_state = 0;
 	hs_data->mode = HEADPHONE_IDLE;
+	type = script_get_item("audio0", "homlet_flag", &val);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+		pr_err("[CODEC] homlet_flag type err!\n");
+	}
+	homlet_flag = val.val;
  	if (!homlet_flag) {
 		if(script_get_item("audio0", "aif3_voltage", &aif3_voltage) != SCIRPT_ITEM_VALUE_TYPE_STR){
 			pr_err("[aif3_voltage]script_get_item return type err!!!!!!!!!!!!\n");
@@ -4978,11 +4983,6 @@ static int sndvir_audio_soc_probe(struct snd_soc_codec *codec)
 		pr_err("[CODEC] audio_pa_used type err!\n");
 	}
 	audio_pa_used = val.val;
-	type = script_get_item("audio0", "homlet_flag", &val);
-	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
-		pr_err("[CODEC] homlet_flag type err!\n");
-	}
-	homlet_flag = val.val;
 	if (homlet_flag) {
 		pa_sw0_vol = regulator_get(NULL, sw0_voltage.str);
 		if (!pa_sw0_vol) {

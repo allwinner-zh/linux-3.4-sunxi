@@ -493,6 +493,12 @@ static int __sunxi_clk_periph_set_rate(struct clk_hw *hw, unsigned long rate, un
     else {
         div_m = 1<<divider->mwidth;
         div_n = (1<<divider->nwidth)-1;
+		
+		if( div > (div_m<<div_n) )
+		{
+			WARN(1, "clk %s rate is too large : %lu\n",hw->clk->name , rate );
+			div = div_m<<div_n;
+		}
 #ifndef NEW_RATE_CALULATE
         if(div < div_m) {
             div_m = div;

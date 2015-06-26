@@ -29,10 +29,4 @@
 #define SPINLOCK_FREE       (0)
 #define SPINLOCK_USED       (1)
 
-typedef struct arisc_hwspinlock
-{
-	unsigned long flags;
-	spinlock_t    lock;
-} arisc_hwspinlock_t;
-
 #endif  /* __HW_SPINLOCK_I_H */

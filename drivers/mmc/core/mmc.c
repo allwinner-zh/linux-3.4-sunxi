@@ -623,6 +623,12 @@ MMC_DEV_ATTR(serial, "0x%08x\n", card->cid.serial);
 MMC_DEV_ATTR(enhanced_area_offset, "%llu\n",
 		card->ext_csd.enhanced_area_offset);
 MMC_DEV_ATTR(enhanced_area_size, "%u\n", card->ext_csd.enhanced_area_size);
+MMC_DEV_ATTR(rev, "%u\n", card->ext_csd.rev);
+MMC_DEV_ATTR(cache_ctrl, "%u\n", card->ext_csd.cache_ctrl);
+MMC_DEV_ATTR(cache_size, "%u\n", card->ext_csd.cache_size);
+
+
+
 
 static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_cid.attr,
@@ -638,7 +644,10 @@ static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_serial.attr,
 	&dev_attr_enhanced_area_offset.attr,
 	&dev_attr_enhanced_area_size.attr,
-	NULL,
+    &dev_attr_rev.attr,
+    &dev_attr_cache_ctrl.attr,
+    &dev_attr_cache_size.attr,
+    NULL,
 };
 
 static struct attribute_group mmc_std_attr_group = {
@@ -940,6 +949,14 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 		err = mmc_read_ext_csd(card, ext_csd);
 		if (err)
 			goto free_card;
+
+		/* change card->ext_csd.sec_feature_support according to sys_config.fex */
+		if (host->platform_cap & MMC_HOST_PLATFORM_CAP_DIS_SECURE_PURGE)
+			card->ext_csd.sec_feature_support &= (~EXT_CSD_SEC_ER_EN);
+		if (host->platform_cap & MMC_HOST_PLATFORM_CAP_DIS_TRIM)
+			card->ext_csd.sec_feature_support &= (~EXT_CSD_SEC_GB_CL_EN);
+		if (host->platform_cap & MMC_HOST_PLATFORM_CAP_DIS_SANITIZE)
+			card->ext_csd.sec_feature_support &= (~EXT_CSD_SEC_SANITIZE);
 
 		/* If doing byte addressing, check if required to do sector
 		 * addressing.  Handle the case of <2GB cards needing sector

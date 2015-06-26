@@ -14,7 +14,6 @@
  * License version 2.  This program is licensed "as is" without any
  * warranty of any kind, whether express or implied.
  */
-
 #include <linux/bitmap.h>
 #include <linux/io.h>
 #include <linux/clk.h>
@@ -31,6 +30,7 @@
 #include <linux/pinctrl/pinmux.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
+#include <linux/delay.h>
 #include <mach/sys_config.h>
 #include <mach/platform.h>
 #include <linux/sysfs.h>
@@ -67,8 +67,90 @@ static void pin_reset_bias(unsigned int *pin_bias, unsigned int pin)
 #endif
 	
 }
-
 /*end for huangshr-20140701*/
+
+/* this func main to fix sun8iw7 interrupt error
+ *
+ */
+#ifdef CONFIG_ARCH_SUN8IW7P1
+unsigned int sunxi_pinctrl_read_data_for_sun8iw7(struct sunxi_pin_bank *bank, unsigned int pin_bias)	
+{
+
+	unsigned int reg_offset, shift;
+	unsigned int value, data = 0, loop = 0, i=0;
+	unsigned int mask, trigger,pending = 0;
+	unsigned int clk_src = 0,  scal = 0;
+
+	/* readl pin mode */
+	reg_offset = sunxi_mux_reg(pin_bias);
+	shift = sunxi_mux_offset(pin_bias);
+	value = pinctrl_readl_reg(bank->membase + reg_offset);
+	value = (value >> shift) & MUX_PINS_MASK;
+	if(value == SUNXI_PIN_EINT_FUNC){
+		/* check if trigger mode is edge */
+		reg_offset = sunxi_eint_cfg_reg(pin_bias);
+		shift = sunxi_eint_cfg_offset(pin_bias);
+		value = pinctrl_readl_reg(bank->membase + reg_offset);
+		trigger = (value >> shift) & EINT_CFG_MASK;
+		if(trigger == 0 || trigger == 1 || trigger == 4){
+			value = pinctrl_readl_reg(bank->membase + sunxi_eint_ctrl_reg(pin_bias));
+			mask = EINT_CTRL_MASK << sunxi_eint_ctrl_offset(pin_bias);
+			pinctrl_write_reg((value & ~mask), bank->membase + sunxi_eint_ctrl_reg(pin_bias));
+		}
+		/* switch to input */
+		value = pinctrl_readl_reg(bank->membase + sunxi_mux_reg(pin_bias));
+		mask = MUX_PINS_MASK << sunxi_mux_offset(pin_bias);
+		value=(value & ~mask) | (0 << sunxi_mux_offset(pin_bias));
+		pinctrl_write_reg(value,(bank->membase + sunxi_mux_reg(pin_bias)));
+		
+		/* read data */
+		value = pinctrl_readl_reg(bank->membase + sunxi_data_reg(pin_bias));
+		data = (value >> sunxi_data_offset(pin_bias)) & DATA_PINS_MASK;
+
+		/* switch to eint */
+		value = pinctrl_readl_reg(bank->membase + sunxi_mux_reg(pin_bias));
+		mask = MUX_PINS_MASK << sunxi_mux_offset(pin_bias);
+		value=(value & ~mask) | (6 << sunxi_mux_offset(pin_bias));
+		pinctrl_write_reg(value,(bank->membase + sunxi_mux_reg(pin_bias)));
+
+		/*read debounce check clk src and scat*/
+		value = pinctrl_readl_reg(bank->membase + sunxi_eint_debounce_reg(pin_bias));
+		clk_src = value & 0x1;
+		scal = (value >> 4) & 0x7;
+		if(clk_src == 1){
+			/*as for 24M clk, loggest sample time is 13us.*/
+			loop = 2;
+		}else{
+			/*as for 32K clk, sample time nearly equal (2*1000*n*1.2)/32 us */
+			loop = 8*(2<<scal);
+		}
+		/* wait for pending and clear*/
+		while(i<=loop){
+			/* readl pending */
+			value = readl(bank->membase + sunxi_eint_status_reg(pin_bias));
+			pending = (value >> (pin_bias % SUNXI_BANK_SIZE)) & 1;
+			if(pending){
+				break;
+			}
+			i++;
+			udelay(10);
+		}
+		if(pending){
+			pinctrl_write_reg(1 << (pin_bias % SUNXI_BANK_SIZE), bank->membase + sunxi_eint_status_reg(pin_bias));
+		}
+		if(trigger == 0 || trigger == 1 || trigger == 4){
+			mask = pinctrl_readl_reg(bank->membase + sunxi_eint_ctrl_reg(pin_bias));
+			mask |= EINT_CTRL_MASK << sunxi_eint_ctrl_offset(pin_bias);
+			pinctrl_write_reg(mask, bank->membase + sunxi_eint_ctrl_reg(pin_bias));
+		}
+	}else{
+		value = pinctrl_readl_reg(bank->membase + sunxi_data_reg(pin_bias));
+		data = (value >> sunxi_data_offset(pin_bias)) & DATA_PINS_MASK;
+	}
+	return data;
+}
+#endif/*end */
+
 static struct sunxi_pinctrl *sunxi_gc_to_pinctrl(struct gpio_chip *gc)
 {
 	return container_of(gc, struct sunxi_pinctrl, chip);
@@ -362,8 +444,12 @@ static int sunxi_pinconf_get(struct pinctrl_dev *pctldev,
 		         pin_get_name(pctl->pctl_dev, pin), pull);
 		break;
 	case SUNXI_PINCFG_TYPE_DAT:
+#ifndef CONFIG_ARCH_SUN8IW7
 		val = pinctrl_readl_reg(bank->membase + sunxi_data_reg(pin_bias));
 		data = (val >> sunxi_data_offset(pin_bias)) & DATA_PINS_MASK;
+#else
+		data = sunxi_pinctrl_read_data_for_sun8iw7(bank, pin_bias);
+#endif
 		*config = SUNXI_PINCFG_PACK(SUNXI_PINCFG_TYPE_DAT, data);
 	        pr_debug("sunxi pconf get pin [%s] data [%d]\n", 
 		         pin_get_name(pctl->pctl_dev, pin), data);
@@ -651,8 +737,11 @@ static int sunxi_pinctrl_gpio_get(struct gpio_chip *chip, unsigned offset)
 	}
 	reg = sunxi_data_reg(pin_bias);
 	shift = sunxi_data_offset(pin_bias);
+#ifndef CONFIG_ARCH_SUN8IW7P1
 	val = (pinctrl_readl_reg(bank->membase + reg) >> shift) & DATA_PINS_MASK;
-
+#else
+	val = sunxi_pinctrl_read_data_for_sun8iw7(bank, pin_bias);
+#endif
 	return val;
 }
 static void sunxi_pinctrl_gpio_set(struct gpio_chip *chip,
@@ -900,7 +989,29 @@ static int sunxi_pinctrl_build_state(struct platform_device *pdev)
 }
 
 #ifndef CONFIG_OF
-static int sunxi_pin_cfg_to_pin_map(struct platform_device *pdev,
+
+static char *sunxi_pinctrl_mainkey_to_device_name(char *mainkey_name)
+{
+	char 	*device_name;
+	script_item_value_type_e type;
+	script_item_u   item;
+	/* try to get device name */
+	type = script_get_item(mainkey_name, "device_name", &item);
+	if ((type == SCIRPT_ITEM_VALUE_TYPE_STR) && (item.str)) {
+		/* the mainkey have valid device-name,
+		 * use the config device_name
+		 */
+		device_name = item.str;
+	} else {
+		/* have no device_name config,
+		 * default use mainkey name as device name
+		 */
+		device_name = mainkey_name;
+	}
+	return device_name;
+}
+
+static int sunxi_pin_cfg_to_pin_map_default(struct platform_device *pdev,
                                     struct gpio_config *cfg, 
                                     struct pinctrl_map *map,
                                     char  *device_name, char *state_name)
@@ -917,7 +1028,7 @@ static int sunxi_pin_cfg_to_pin_map(struct platform_device *pdev,
 	
 	/* check config pin is valid sunxi pinctrl pins */
 	if (!sunxi_pin_valid(pctl, cfg->gpio)) {
-		pr_debug("invalid pin number under sunxi platform\n");
+		pr_debug("invalid pin number under sunxi platform.[%d]\n", cfg->gpio);
 		return 0;
 	}
 	
@@ -1005,94 +1116,160 @@ static int sunxi_pin_cfg_to_pin_map(struct platform_device *pdev,
 	/* we have two maps: mux + configs */
     	return 2;
 }
+static int sunxi_pinctrl_creat_mappings(struct platform_device *pdev, int pin_count,
+					script_item_u  *pin_list, char *device_name,
+					char *state_name)
+{
+	struct pinctrl_map *maps;
+	int 		pin_index;
+	int 		map_index;
+
+	/* allocate pinctrl_map table,
+	 * max map table size = pin count * 2 :
+	 * mux map and config map.
+	 */
+	maps = kzalloc(sizeof(*maps) * (pin_count * 2), GFP_KERNEL);
+	if (!maps) {
+		pr_err("allocate memory for sunxi pinctrl map table failed\n");
+		return -ENOMEM;
+	}
+	map_index = 0;
+	for (pin_index = 0; pin_index < pin_count; pin_index++) {
+		/* convert struct sunxi_pin_cfg to struct pinctrl_map */
+		map_index += sunxi_pin_cfg_to_pin_map_default(pdev,
+				&(pin_list[pin_index].gpio),
+				&(maps[map_index]),
+				device_name, state_name);
+	}
+	if (map_index) {
+		/* register maps to pinctrl */
+		pinctrl_register_mappings(maps, map_index);
+	}
+	/* free pinctrl_map table directly,
+	 * pinctrl subsytem will dup this map table
+	 */
+	kfree(maps);
+
+	return 0;
+}
+
+static int sunxi_pin_cfg_to_pin_map_suspend(struct platform_device *pdev,
+                                    struct gpio_config *cfg,
+                                    struct pinctrl_map *map,
+                                    char  *device_name, char *state_name)
+{
+	const char     *pin_name;
+	unsigned int 	pin_number;
+	struct sunxi_pinctrl *pctl = platform_get_drvdata(pdev);
+
+	/* check config pin is valid sunxi pinctrl pins */
+	if (!sunxi_pin_valid(pctl, cfg->gpio)) {
+		return 0;
+	}
+	/* find pin name by number */
+	pin_number = cfg->gpio;
+	pin_name = pin_get_name(pctl->pctl_dev, pin_number);
+	if (!pin_name) {
+		return 0;
+	}
+	map[0].dev_name      = device_name;
+	map[0].name          = state_name;
+	map[0].type          = PIN_MAP_TYPE_MUX_GROUP;
+	map[0].ctrl_dev_name = dev_name(&pdev->dev);
+	map[0].data.mux.function = "io_disable";
+	map[0].data.mux.group    = pin_name;
+
+	return 1;
+
+}
+static int sunxi_pinctrl_creat_suspend_mappings(struct platform_device *pdev,
+					int pin_count, script_item_u  *pin_list,
+					char *device_name, char *state_name)
+{
+	struct pinctrl_map *maps;
+	int 		pin_index;
+	int 		map_index;
+	maps = kzalloc(sizeof(*maps) * pin_count, GFP_KERNEL);
+	if (!maps) {
+		pr_err("allocate memory for sunxi pinctrl map table failed\n");
+		return -ENOMEM;
+	}
+	map_index = 0;
+	for (pin_index = 0; pin_index < pin_count; pin_index++) {
+		/* convert struct sunxi_pin_cfg to struct pinctrl_map */
+		map_index += sunxi_pin_cfg_to_pin_map_suspend(pdev,
+				&(pin_list[pin_index].gpio),
+				&(maps[map_index]),
+				device_name, state_name);
+
+	}
+	if (map_index) {
+		pinctrl_register_mappings(maps, map_index);
+	}
+	kfree(maps);
+
+	return 0;
+
+}
 
 static int sunxi_pinctrl_parse_pin_cfg(struct platform_device *pdev)
 {
 	int             mainkey_count;
 	int             mainkey_idx;
+	int		ret;
 	
 	/* get main key count */
 	mainkey_count = script_get_main_key_count();
 	pr_debug("mainkey total count : %d\n", mainkey_count);
+
 	for (mainkey_idx = 0; mainkey_idx < mainkey_count; mainkey_idx++) {
 		char           *mainkey_name;
 		script_item_u  *pin_list;
 		int             pin_count;
-		int 		pin_index;
-		int 		map_index;
-		struct pinctrl_map *maps;
 		char           *device_name;
-		char		*mainkey_name_temp;
-		char		*state_name;
-		script_item_value_type_e type;
-		script_item_u   item;
-		
+		char	       *state_name;
+		char 	       *mainkey_suspend;
+
 		/* get main key name by index */
 		mainkey_name = script_get_main_key_name(mainkey_idx);
-		mainkey_name_temp = mainkey_name;
 		if (!mainkey_name) {
-			/* get mainkey name failed */
+			/* can not get mainkey name */
 			pr_debug("get mainkey [%s] name failed\n", mainkey_name);
 			continue;
 		}
-		
-		/* get main-key(device) pin configuration */
+		if(strstr(mainkey_name, "_suspend")){
+			/* if mainkey have a suffix _suspend */
+			continue;
+		}
 		pin_count = script_get_pio_list(mainkey_name, &pin_list);
-		pr_debug("mainkey name : %s, pin count : %d\n", mainkey_name, pin_count);
 		if (pin_count == 0) {
 			/* mainley have no pin configuration */
 			continue;
 		}
-		
-		/* try to get device name */
-		type = script_get_item(mainkey_name, "device_name", &item);
-		if ((type == SCIRPT_ITEM_VALUE_TYPE_STR) && (item.str)) {
-			/* the mainkey have valid device-name,
-			 * use the config device_name
-			 */
-			device_name = item.str;
-		} else {
-			/* have no device_name config, 
-			 * default use mainkey name as device name
-			 */
-			device_name = mainkey_name;
-		}
-		/* try to get device state */
-		if(strstr(mainkey_name_temp, "_suspend")){
-			device_name = strsep(&mainkey_name_temp, "_");
+		/* build default state */
+		device_name = sunxi_pinctrl_mainkey_to_device_name(mainkey_name);
+		state_name  = PINCTRL_STATE_DEFAULT;
+		ret = sunxi_pinctrl_creat_mappings(pdev, pin_count, pin_list, device_name, state_name);
+
+		/* build suspend state */
+		mainkey_suspend = kzalloc(32 * sizeof(char *), GFP_KERNEL);
+		strcpy(mainkey_suspend, mainkey_name);
+		mainkey_suspend = strcat(mainkey_suspend, "_suspend");
+
+		if(script_is_main_key_exist(mainkey_suspend)){
+			pin_count = script_get_pio_list(mainkey_suspend, &pin_list);
+			if (pin_count == 0) {
+				/* mainley have no pin configuration */
+				continue;
+			}
+			/* build suspend state */
 			state_name = PINCTRL_STATE_SUSPEND;
-			pr_debug("[%s]device_name %s state_name %s\n", __func__, device_name, state_name);
-			
+			ret = sunxi_pinctrl_creat_mappings(pdev, pin_count, pin_list, device_name, state_name);
 		}else{
-			state_name = PINCTRL_STATE_DEFAULT;
+			state_name = PINCTRL_STATE_SUSPEND;
+			ret = sunxi_pinctrl_creat_suspend_mappings(pdev, pin_count, pin_list, device_name, state_name);
 		}
-		/* allocate pinctrl_map table,
-		 * max map table size = pin count * 2 : 
-		 * mux map and config map.
-		 */
-		maps = kzalloc(sizeof(*maps) * (pin_count * 2), GFP_KERNEL);
-		if (!maps) {
-			pr_err("allocate memory for sunxi pinctrl map table failed\n");
-			return -ENOMEM;
-		}
-		map_index = 0;
-		for (pin_index = 0; pin_index < pin_count; pin_index++) {
-			/* convert struct sunxi_pin_cfg to struct pinctrl_map */
-			map_index += sunxi_pin_cfg_to_pin_map(pdev,
-					&(pin_list[pin_index].gpio),
-					&(maps[map_index]),
-					device_name, state_name);
-		}
-		if (map_index) {
-			/* register maps to pinctrl */
-			pr_debug("map mainkey [%s] to pinctrl, map number [%d]\n", 
-			         mainkey_name, map_index);
-			pinctrl_register_mappings(maps, map_index);
-		}
-		/* free pinctrl_map table directly, 
-		 * pinctrl subsytem will dup this map table
-		 */
-		kfree(maps);
+		kfree(mainkey_suspend);
 	}
 	return 0;
 }
@@ -1255,7 +1432,6 @@ static struct irq_chip sunxi_gpio_irq_chip = {
 	.irq_ack	= sunxi_gpio_irq_ack,
 	.irq_set_type	= sunxi_gpio_irq_set_type,
 };
-
 static irqreturn_t sunxi_gpio_irq_handler(int irq, void *dev_id)
 {
 	struct sunxi_pin_bank *bank  = dev_id;
@@ -1263,7 +1439,9 @@ static irqreturn_t sunxi_gpio_irq_handler(int irq, void *dev_id)
 	unsigned int          pin = 0;
 	unsigned              offset;
 	unsigned long         events;
-	unsigned int  		 pin_bias;
+	unsigned long         status;
+	unsigned long         mask;
+	unsigned int		 pin_bias;
 	
 	if(bank->pin_base < SUNXI_PL_BASE){
 		pin_bias = bank->pin_base;
@@ -1272,10 +1450,11 @@ static irqreturn_t sunxi_gpio_irq_handler(int irq, void *dev_id)
 	}
 	/* read out eint status(pending) register value */
 	reg_offset = sunxi_eint_status_reg(pin_bias);
-	events = pinctrl_readl_reg(bank->membase + reg_offset);
+	status = pinctrl_readl_reg(bank->membase + reg_offset);
+	mask = pinctrl_readl_reg(bank->membase + sunxi_eint_ctrl_reg(pin_bias));
 	
 	/* mask the non-enable eint */
-	events &= bank->eint_en;
+	events = status & mask;
 	
 	/* process all valid pins interrupt */
 	for_each_set_bit(offset, &events, 32) {
@@ -1329,8 +1508,21 @@ static int sunxi_eint_gpio_init(struct platform_device *pdev)
 			return -ENOMEM;
 		}
 		/* request pin irq */
+#if defined(CONFIG_ARCH_SUN8IW7P1)
+		if(bank->pin_base == SUNXI_PL_BASE)
+			err = devm_request_irq(dev, bank->irq, sunxi_gpio_irq_handler,
+				       IRQF_SHARED | IRQF_NO_SUSPEND, bank->name, bank);
+		else{
+
+			err = devm_request_irq(dev, bank->irq, sunxi_gpio_irq_handler,
+					IRQF_SHARED, bank->name, bank);
+
+		}
+
+#else
 		err = devm_request_irq(dev, bank->irq, sunxi_gpio_irq_handler, 
 				       IRQF_SHARED, bank->name, bank);
+#endif
 		if (IS_ERR_VALUE(err)) {
 			dev_err(dev, "unable to request eint irq %d\n", bank->irq);
 			return err;

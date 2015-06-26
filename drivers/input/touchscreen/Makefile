@@ -79,4 +79,5 @@ obj-$(CONFIG_INPUT_TOUCHSCREEN)    += ft5x/
 obj-$(CONFIG_INPUT_TOUCHSCREEN)    += gslx680/
 obj-$(CONFIG_INPUT_TOUCHSCREEN)  += bcd/
 obj-$(CONFIG_INPUT_TOUCHSCREEN)  += icn83xx/
+obj-$(CONFIG_INPUT_TOUCHSCREEN)  += gt911/
 obj-y  += gt927/

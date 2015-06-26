@@ -36,7 +36,6 @@
 #define I2S1_CLK "i2s1"
 #define USBOHCI_CLK "usbohci"
 #define USBHSIC_CLK "usbhsic"
-#define USBHSIC12M_CLK "usbhsic12m"
 #define USBEHCI_CLK "usbehci"
 #define USBOTG_CLK "usbotg"
 #define USBPHY0_CLK "usbphy0"

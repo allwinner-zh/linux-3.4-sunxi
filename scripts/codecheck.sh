@@ -10,7 +10,7 @@ do_cppcheck()
             $CODE_CHECK_TOOL/cppcheck/cppcheck -j16 --force $1|egrep -w '(warn|error|warning)'
         else
             if git log --oneline -1 $1 >/dev/null 2>&1;then
-                for file in `git diff --stat=150,100 ${3}^..${3}|awk '{print $1 }'`
+                for file in `git diff --stat=150,100 ${1}^..${1}|awk '{print $1 }'`
                 do
                     if [ -d $file ];then
                         $CODE_CHECK_TOOL/cppcheck/cppcheck -j16 --force $file|egrep -w '(warn|error|warning)'

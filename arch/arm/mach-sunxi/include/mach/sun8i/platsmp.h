@@ -17,6 +17,9 @@
 #ifndef __SUN8I_PLAT_SMP_H
 #define __SUN8I_PLAT_SMP_H
 
+#include <mach/sunxi-smc.h>
+#include <mach/platform.h>
+
 #if defined(CONFIG_ARCH_SUN8IW6P1) || defined(CONFIG_ARCH_SUN8IW9P1)
 #include <asm/smp_plat.h>
 static inline void enable_cpu(int cpu_nr)
@@ -31,28 +34,37 @@ static inline void enable_cpu(int cpu_nr)
 	cluster = MPIDR_AFFINITY_LEVEL(mpidr, 1);
 
 	/* step1: power switch on */
-		writel(0x00, SUNXI_R_PRCM_VBASE + SUNXI_CPU_PWR_CLAMP(cluster, cpu));
-		while(0x00 != readl(SUNXI_R_PRCM_VBASE + SUNXI_CPU_PWR_CLAMP(cluster, cpu))) {
-			;
-		}
-		mdelay(5);
+	sunxi_smc_writel(0xFE, (void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPU_PWR_CLAMP(cluster, cpu)));
+	udelay(20);
+	sunxi_smc_writel(0xF8, (void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPU_PWR_CLAMP(cluster, cpu)));
+	udelay(10);
+	sunxi_smc_writel(0xE0, (void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPU_PWR_CLAMP(cluster, cpu)));
+	udelay(10);
+	sunxi_smc_writel(0xc0, (void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPU_PWR_CLAMP(cluster, cpu)));
+	udelay(10);
+	sunxi_smc_writel(0x80, (void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPU_PWR_CLAMP(cluster, cpu)));
+	udelay(10);
+	sunxi_smc_writel(0x00, (void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPU_PWR_CLAMP(cluster, cpu)));
+	udelay(20);
+	while(0x00 != sunxi_smc_readl((void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPU_PWR_CLAMP(cluster, cpu)))) {
+		;
+	}
 
-		/* step2: power gating off */
-		value = readl(SUNXI_R_PRCM_VBASE + SUNXI_CLUSTER_PWROFF_GATING(cluster));
-		value &= (~(0x1<<cpu));
-		writel(value, SUNXI_R_PRCM_VBASE + SUNXI_CLUSTER_PWROFF_GATING(cluster));
-		mdelay(2);
+	/* step2: power gating off */
+	value = sunxi_smc_readl((void *)(SUNXI_R_PRCM_VBASE + SUNXI_CLUSTER_PWROFF_GATING(cluster)));
+	value &= (~(0x1<<cpu));
+	sunxi_smc_writel(value, (void *)(SUNXI_R_PRCM_VBASE + SUNXI_CLUSTER_PWROFF_GATING(cluster)));
+	udelay(20);
 
-		/* step3: clear reset */
-		value  = readl(SUNXI_R_CPUCFG_VBASE + SUNXI_CLUSTER_PWRON_RESET(cluster));
-		value |= (1<<cpu);
-		writel(value, SUNXI_R_CPUCFG_VBASE + SUNXI_CLUSTER_PWRON_RESET(cluster));
+	/* step3: clear reset */
+	value  = sunxi_smc_readl((void *)(SUNXI_R_CPUCFG_VBASE + SUNXI_CLUSTER_PWRON_RESET(cluster)));
+	value |= (1<<cpu);
+	sunxi_smc_writel(value, (void *)(SUNXI_R_CPUCFG_VBASE + SUNXI_CLUSTER_PWRON_RESET(cluster)));
 
-		/* step4: core reset */
-		value  = readl(SUNXI_CPUXCFG_VBASE + SUNXI_CPU_RST_CTRL(cluster));
-		value |= (1<<cpu);
-		writel(value, SUNXI_CPUXCFG_VBASE + SUNXI_CPU_RST_CTRL(cluster));
-
+	/* step4: core reset */
+	value  = sunxi_smc_readl((void *)(SUNXI_CPUXCFG_VBASE + SUNXI_CPU_RST_CTRL(cluster)));
+	value |= (1<<cpu);
+	sunxi_smc_writel(value, (void *)(SUNXI_CPUXCFG_VBASE + SUNXI_CPU_RST_CTRL(cluster)));
 }
 
 static inline void disable_cpu(int cpu_nr)
@@ -66,27 +78,29 @@ static inline void disable_cpu(int cpu_nr)
 	cpu     = MPIDR_AFFINITY_LEVEL(mpidr, 0);
 	cluster = MPIDR_AFFINITY_LEVEL(mpidr, 1);
 
-		/* step1: core deassert */
-		value  = readl(SUNXI_CPUXCFG_VBASE + SUNXI_CPU_RST_CTRL(cluster));
-		value &= ~(1 << cpu);
-		writel(value, SUNXI_CPUXCFG_VBASE + SUNXI_CPU_RST_CTRL(cluster));
+	/* step1: core deassert */
+	value  = sunxi_smc_readl((void *)(SUNXI_CPUXCFG_VBASE + SUNXI_CPU_RST_CTRL(cluster)));
+	value &= ~(1 << cpu);
+	sunxi_smc_writel(value, (void *)(SUNXI_CPUXCFG_VBASE + SUNXI_CPU_RST_CTRL(cluster)));
 
-		/* step2: deassert */
-		value  = readl(SUNXI_R_CPUCFG_VBASE + SUNXI_CLUSTER_PWRON_RESET(cluster));
-		value &= ~(1 << cpu);
-		writel(value, SUNXI_R_CPUCFG_VBASE + SUNXI_CLUSTER_PWRON_RESET(cluster));
+	/* step2: deassert */
+	value  = sunxi_smc_readl((void *)(SUNXI_R_CPUCFG_VBASE + SUNXI_CLUSTER_PWRON_RESET(cluster)));
+	value &= ~(1 << cpu);
+	sunxi_smc_writel(value, (void *)(SUNXI_R_CPUCFG_VBASE + SUNXI_CLUSTER_PWRON_RESET(cluster)));
 
+	/* step3: enable power gating off */
+	udelay(20);
+	value = sunxi_smc_readl((void *)(SUNXI_R_PRCM_VBASE + SUNXI_CLUSTER_PWROFF_GATING(cluster)));
+	value |= 0x1<<cpu;
+	sunxi_smc_writel(value, (void *)(SUNXI_R_PRCM_VBASE + SUNXI_CLUSTER_PWROFF_GATING(cluster)));
 
-		/* step3: enable power gating off */
-		mdelay(2);
-		value = readl(SUNXI_R_PRCM_VBASE + SUNXI_CLUSTER_PWROFF_GATING(cluster));
-		value |= 0x1<<cpu;
-		writel(value, SUNXI_R_PRCM_VBASE + SUNXI_CLUSTER_PWROFF_GATING(cluster));
-
-	/* step1: power switch on */
-		mdelay(5);
-		writel(0xff, SUNXI_R_PRCM_VBASE + SUNXI_CPU_PWR_CLAMP(cluster, cpu));
-		mdelay(1);
+	/* step4: power switch off */
+	udelay(20);
+	sunxi_smc_writel(0xff, (void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPU_PWR_CLAMP(cluster, cpu)));
+    udelay(30);
+	while(0xFF != sunxi_smc_readl((void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPU_PWR_CLAMP(cluster, cpu)))) {
+		;
+	}
 }
 
 #else
@@ -100,38 +114,38 @@ static inline void enable_cpu(int cpu)
 	          debug access to the processor.
 	*/
 	/* assert cpu core reset */
-	writel(0, (void *)(SUNXI_R_CPUCFG_VBASE + CPUX_RESET_CTL(cpu)));
+	sunxi_smc_writel(0, (void *)(SUNXI_R_CPUCFG_VBASE + CPUX_RESET_CTL(cpu)));
 	/* L1RSTDISABLE hold low */
-	pwr_reg = readl((void *)(SUNXI_R_CPUCFG_VBASE + SUNXI_CPUCFG_GENCTL));
+	pwr_reg = sunxi_smc_readl((void *)(SUNXI_R_CPUCFG_VBASE + SUNXI_CPUCFG_GENCTL));
 	pwr_reg &= ~(1<<cpu);
-	writel(pwr_reg, (void *)(SUNXI_R_CPUCFG_VBASE + SUNXI_CPUCFG_GENCTL));
+	sunxi_smc_writel(pwr_reg, (void *)(SUNXI_R_CPUCFG_VBASE + SUNXI_CPUCFG_GENCTL));
 	udelay(10);
 
-#if defined CONFIG_ARCH_SUN8IW1 || defined CONFIG_ARCH_SUN8IW5
+#if defined(CONFIG_ARCH_SUN8IW1) || defined(CONFIG_ARCH_SUN8IW5) || defined(CONFIG_ARCH_SUN8IW7)
 	/* step2: release power clamp */
-	writel(0xFE, (void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPUX_PWR_CLAMP(cpu)));
+	sunxi_smc_writel(0xFE, (void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPUX_PWR_CLAMP(cpu)));
 	udelay(20);
-	writel(0xF8, (void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPUX_PWR_CLAMP(cpu)));
+	sunxi_smc_writel(0xF8, (void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPUX_PWR_CLAMP(cpu)));
 	udelay(10);
-	writel(0xE0, (void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPUX_PWR_CLAMP(cpu)));
+	sunxi_smc_writel(0xE0, (void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPUX_PWR_CLAMP(cpu)));
 	udelay(10);
-	writel(0x80, (void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPUX_PWR_CLAMP(cpu)));
+	sunxi_smc_writel(0x80, (void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPUX_PWR_CLAMP(cpu)));
 	udelay(10);
-	writel(0x00, (void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPUX_PWR_CLAMP(cpu)));
+	sunxi_smc_writel(0x00, (void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPUX_PWR_CLAMP(cpu)));
 	udelay(20);
-	while(0x00 != readl((void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPUX_PWR_CLAMP(cpu)))) {
+	while(0x00 != sunxi_smc_readl((void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPUX_PWR_CLAMP(cpu)))) {
 		;
 	}
 #endif
 
 	/* step3: clear power-off gating */
-	pwr_reg = readl((void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPU_PWROFF_REG));
+	pwr_reg = sunxi_smc_readl((void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPU_PWROFF_REG));
 	pwr_reg &= ~(0x00000001<<cpu);
-	writel(pwr_reg, (void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPU_PWROFF_REG));
+	sunxi_smc_writel(pwr_reg, (void *)(SUNXI_R_PRCM_VBASE + SUNXI_CPU_PWROFF_REG));
 	udelay(20);
 
 	/* step4: de-assert core reset */
-	writel(3, (void *)(SUNXI_R_CPUCFG_VBASE + CPUX_RESET_CTL(cpu)));
+	sunxi_smc_writel(3, (void *)(SUNXI_R_CPUCFG_VBASE + CPUX_RESET_CTL(cpu)));
 }
 
 static inline void disable_cpu(int cpu)
@@ -139,20 +153,20 @@ static inline void disable_cpu(int cpu)
 	u32 pwr_reg;
 
 #if defined CONFIG_ARCH_SUN8IW3
-	writel(0, (void *)(SUNXI_R_CPUCFG_VBASE + CPUX_RESET_CTL(cpu)));
+	sunxi_smc_writel(0, (void *)(SUNXI_R_CPUCFG_VBASE + CPUX_RESET_CTL(cpu)));
 #endif
 
-	/* step9: set up power-off signal */
-	pwr_reg = readl(IO_ADDRESS(SUNXI_R_PRCM_PBASE) + SUNXI_CPU_PWROFF_REG);
+	/* step1: set up power-off signal */
+	pwr_reg = sunxi_smc_readl((void *)(IO_ADDRESS(SUNXI_R_PRCM_PBASE) + SUNXI_CPU_PWROFF_REG));
 	pwr_reg |= (1<<cpu);
-	writel(pwr_reg, IO_ADDRESS(SUNXI_R_PRCM_PBASE) + SUNXI_CPU_PWROFF_REG);
+	sunxi_smc_writel(pwr_reg, (void *)(IO_ADDRESS(SUNXI_R_PRCM_PBASE) + SUNXI_CPU_PWROFF_REG));
 	udelay(20);
 
-#if defined CONFIG_ARCH_SUN8IW1 || defined CONFIG_ARCH_SUN8IW5
-	/* step10: active the power output clamp */
-	writel(0xff, IO_ADDRESS(SUNXI_R_PRCM_PBASE) + SUNXI_CPUX_PWR_CLAMP(cpu));
+#if defined(CONFIG_ARCH_SUN8IW1) || defined(CONFIG_ARCH_SUN8IW5) || defined(CONFIG_ARCH_SUN8IW7)
+	/* step2: active the power output clamp */
+	sunxi_smc_writel(0xff, (void *)(IO_ADDRESS(SUNXI_R_PRCM_PBASE) + SUNXI_CPUX_PWR_CLAMP(cpu)));
 	udelay(30);
-	while(0xff != readl(IO_ADDRESS(SUNXI_R_PRCM_PBASE) + SUNXI_CPUX_PWR_CLAMP(cpu))) {
+	while(0xff != sunxi_smc_readl((void *)(IO_ADDRESS(SUNXI_R_PRCM_PBASE) + SUNXI_CPUX_PWR_CLAMP(cpu)))) {
 		;
 	}
 #endif
@@ -166,9 +180,19 @@ static inline void disable_cpu(int cpu)
 static inline void sunxi_set_secondary_entry(void *entry)
 {
 #if defined(CONFIG_ARCH_SUN8IW6P1) || defined(CONFIG_ARCH_SUN8IW9P1)
-	writel((u32)entry, (void *)(SUNXI_R_CPUCFG_VBASE + PRIVATE_REG0));
+	sunxi_smc_writel((u32)entry, (void *)(SUNXI_R_CPUCFG_VBASE + PRIVATE_REG0));
 #else
-	writel((u32)entry, (void *)(SUNXI_R_CPUCFG_VBASE + SUNXI_CPUCFG_P_REG0));
+	sunxi_smc_writel((u32)entry, (void *)(SUNXI_R_CPUCFG_VBASE + SUNXI_CPUCFG_P_REG0));
+#endif
+}
+
+/*
+ * set the boot cpu hotplug flg.
+ */
+static inline void sunxi_set_bootcpu_hotplugflg(void)
+{
+#if defined(CONFIG_ARCH_SUN8IW6P1) || defined(CONFIG_ARCH_SUN8IW9P1)
+	sunxi_smc_writel(0xFA50392F, (void *)(SUNXI_R_CPUCFG_VBASE + BOOT_CPU_HOTPLUG_REG));
 #endif
 }
 
@@ -178,9 +202,9 @@ static inline void sunxi_set_secondary_entry(void *entry)
 static inline void *sunxi_get_secondary_entry(void)
 {
 #if defined(CONFIG_ARCH_SUN8IW6P1) || defined(CONFIG_ARCH_SUN8IW9P1)
-	return (void *)readl(SUNXI_R_CPUCFG_VBASE + PRIVATE_REG0);
+	return (void *)sunxi_smc_readl((void *)(SUNXI_R_CPUCFG_VBASE + PRIVATE_REG0));
 #else
-	return (void *)readl(SUNXI_R_CPUCFG_VBASE + SUNXI_CPUCFG_P_REG0);
+	return (void *)sunxi_smc_readl((void *)(SUNXI_R_CPUCFG_VBASE + SUNXI_CPUCFG_P_REG0));
 #endif
 }
 

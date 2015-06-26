@@ -34,7 +34,7 @@ static const struct snd_pcm_hardware sunxi_pcm_play_hardware = {
 	.info			= SNDRV_PCM_INFO_INTERLEAVED | SNDRV_PCM_INFO_BLOCK_TRANSFER |
 				      SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_MMAP_VALID |
 				      SNDRV_PCM_INFO_PAUSE | SNDRV_PCM_INFO_RESUME,
-	.formats		= SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S20_3LE | SNDRV_PCM_FMTBIT_S24_LE,
+	.formats		= SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S20_3LE | SNDRV_PCM_FMTBIT_S24_LE | SNDRV_PCM_FMTBIT_S32_LE,
 	.rates			= SNDRV_PCM_RATE_8000_192000 | SNDRV_PCM_RATE_KNOT,
 	.rate_min		= 8000,
 	.rate_max		= 192000,
@@ -85,8 +85,13 @@ static int sunxi_pcm_hw_params(struct snd_pcm_substream *substream,
 		return ret;
 	}
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-		slave_config.src_addr_width = DMA_SLAVE_BUSWIDTH_2_BYTES;
-		slave_config.dst_addr_width = DMA_SLAVE_BUSWIDTH_2_BYTES;
+		if (SNDRV_PCM_FORMAT_S16_LE == params_format(params)) {
+			slave_config.src_addr_width = DMA_SLAVE_BUSWIDTH_2_BYTES;
+			slave_config.dst_addr_width = DMA_SLAVE_BUSWIDTH_2_BYTES;
+		} else {
+			slave_config.src_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
+			slave_config.dst_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
+		}
 		slave_config.dst_addr = dmap->dma_addr;
 		slave_config.src_maxburst = 4;
 		slave_config.dst_maxburst = 4;
@@ -119,9 +124,9 @@ static int sunxi_pcm_hw_params(struct snd_pcm_substream *substream,
 /*for a33*/
 #if defined CONFIG_ARCH_SUN8IW5
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-		substream->dma_buffer.addr = 0x00001560;//0x00002000;
-		substream->dma_buffer.area = (unsigned char *)0xf0001560;//0xf0002000;  1580 ok
-		memset((void *)0xf0001560, 0, 0x4000-0x00001560);
+		substream->dma_buffer.addr = 0x00002400;//0x00002400;
+		substream->dma_buffer.area = (unsigned char *)0xf0002400;//0xf0002400;
+		memset((void *)0xf0002400, 0, 0x6400-0x00002400);
 	}
 #endif
 

@@ -69,6 +69,7 @@
 #include "format.h"
 #include "power.h"
 #include "stream.h"
+#include <linux/usb/hcd.h>
 
 MODULE_AUTHOR("Takashi Iwai <tiwai@suse.de>");
 MODULE_DESCRIPTION("USB Audio");
@@ -116,6 +117,15 @@ static DEFINE_MUTEX(register_mutex);
 static struct snd_usb_audio *usb_chip[SNDRV_CARDS];
 static struct usb_driver usb_audio_driver;
 
+int is_sunxi_otg(struct usb_device *udev)
+{
+	struct usb_hcd *hcd = bus_to_hcd(udev->bus);
+	int is_otg = 0;
+	is_otg = !strncmp(hcd->driver->product_desc, "sunxi_hcd host driver", strlen("sunxi_hcd host driver"));
+
+	return is_otg;
+}
+
 /*
  * disconnect streams
  * called from snd_usb_audio_disconnect()
@@ -131,7 +141,13 @@ static void snd_usb_stream_disconnect(struct list_head *head)
 		subs = &as->substream[idx];
 		if (!subs->num_formats)
 			continue;
-		snd_usb_release_substream_urbs(subs, 1);
+
+		if(is_sunxi_otg(subs->dev)){
+			snd_usb_release_substream_urbs(subs, 0);
+		}else{
+			snd_usb_release_substream_urbs(subs, 1);
+		}
+
 		subs->interface = -1;
 	}
 }

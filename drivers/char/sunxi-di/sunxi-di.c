@@ -21,6 +21,7 @@
 #include <linux/device.h>
 #include <linux/uaccess.h>
 #include <linux/sched.h>
+#include <linux/ion_sunxi.h>
 #include <asm/irq.h>
 #include <mach/sys_config.h>
 #include "sunxi-di.h"
@@ -215,9 +216,9 @@ static int sunxi_di_suspend(struct device *dev)
 		di_internal_clk_disable();
 		di_clk_disable();
 		if (NULL != di_data.in_flag)
-			kfree(di_data.in_flag);
+		sunxi_buf_free(di_data.in_flag, di_data.in_flag_phy, di_data.flag_size);
 		if (NULL != di_data.out_flag)
-			kfree(di_data.out_flag);
+		sunxi_buf_free(di_data.out_flag, di_data.out_flag_phy, di_data.flag_size);
 	}
 
 	return 0;
@@ -242,7 +243,6 @@ static long sunxi_di_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
 	case DI_IOCSTART:
 		{
 			__di_para_t __user *di_para = argp;
-			unsigned int in_flag = 0, out_flag = 0;
 
 			dprintk(DEBUG_DATA_INFO, "%s: input_fb.addr[0] = 0x%x\n", __func__, di_para->input_fb.addr[0]);
 			dprintk(DEBUG_DATA_INFO, "%s: input_fb.addr[1] = 0x%x\n", __func__, di_para->input_fb.addr[1]);
@@ -279,17 +279,13 @@ static long sunxi_di_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
 			field = di_para->top_field_first?di_para->field:(1-di_para->field);
 
 			dprintk(DEBUG_DATA_INFO, "%s: field = %d\n", __func__, field);
-
-			in_flag = (unsigned int)virt_to_phys((void *)di_data.in_flag);
-			out_flag = (unsigned int)virt_to_phys((void *)di_data.out_flag);
-
-			dprintk(DEBUG_DATA_INFO, "%s: in_flag = 0x%x\n", __func__, in_flag);
-			dprintk(DEBUG_DATA_INFO, "%s: out_flag = 0x%x\n", __func__, out_flag);
+			dprintk(DEBUG_DATA_INFO, "%s: in_flag_phy = 0x%x\n", __func__, di_data.in_flag_phy);
+			dprintk(DEBUG_DATA_INFO, "%s: out_flag_phy = 0x%x\n", __func__, di_data.out_flag_phy);
 
 			if (0 == field)
-				ret = di_set_para(di_para, in_flag, out_flag, field);
+				ret = di_set_para(di_para, di_data.in_flag_phy, di_data.out_flag_phy, field);
 			else
-				ret = di_set_para(di_para, out_flag, in_flag, field);
+				ret = di_set_para(di_para, di_data.out_flag_phy, di_data.in_flag_phy, field);
 			if (ret) {
 				printk(KERN_ERR "%s: deinterlace work failed.\n", __func__);
 				return -1;
@@ -317,24 +313,23 @@ static long sunxi_di_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
 static int sunxi_di_open(struct inode *inode, struct file *file)
 {
 	int ret = 0;
-	u32 flag_size = 0;
 
 	dprintk(DEBUG_DATA_INFO, "%s: enter!!\n", __func__);
 
 	atomic_set(&di_data.enable, 1);
 
-	flag_size = (FLAG_WIDTH*FLAG_HIGH)/4;
+	di_data.flag_size = (FLAG_WIDTH*FLAG_HIGH)/4;
 
-	di_data.in_flag = (char *)kzalloc(flag_size, GFP_KERNEL);
+	di_data.in_flag = sunxi_buf_alloc(di_data.flag_size, &(di_data.in_flag_phy));
 	if (!(di_data.in_flag)) {
 		printk(KERN_ERR "%s: request in_flag mem failed\n", __func__);
 		return -1;
 	}
 
-	di_data.out_flag = (char *)kzalloc(flag_size, GFP_KERNEL);
+	di_data.out_flag = sunxi_buf_alloc(di_data.flag_size, &(di_data.out_flag_phy));
 	if (!(di_data.out_flag)) {
 		printk(KERN_ERR "%s: request out_flag mem failed\n", __func__);
-		kfree(di_data.in_flag);
+		sunxi_buf_free(di_data.in_flag, di_data.in_flag_phy, di_data.flag_size);
 		return -1;
 	}
 
@@ -344,7 +339,7 @@ static int sunxi_di_open(struct inode *inode, struct file *file)
 		return ret;
 	}
 	di_internal_clk_enable();
-	di_set_init();
+	di_set_init(di_data.mode);
 
 	return 0;
 }
@@ -360,9 +355,9 @@ static int sunxi_di_release(struct inode *inode, struct file *file)
 	di_internal_clk_disable();
 	di_clk_disable();
 	if (NULL != di_data.in_flag)
-		kfree(di_data.in_flag);
+		sunxi_buf_free(di_data.in_flag, di_data.in_flag_phy, di_data.flag_size);
 	if (NULL != di_data.out_flag)
-		kfree(di_data.out_flag);
+		sunxi_buf_free(di_data.out_flag, di_data.out_flag_phy, di_data.flag_size);
 
 	return 0;
 }
@@ -378,6 +373,7 @@ static const struct file_operations sunxi_di_fops = {
 static int __init sunxi_di_init(void)
 {
 	script_item_u used;
+	script_item_u mode;
 	script_item_value_type_e type;
 	int ret;
 
@@ -391,6 +387,13 @@ static int __init sunxi_di_init(void)
 
 	if (1 != used.val)
 		return -1;
+
+	type = script_get_item("di_para", "di_by_pass", &mode);
+	if (SCIRPT_ITEM_VALUE_TYPE_INT != type) {
+		printk(KERN_INFO "%s get di_by_pass err!\n", __func__);
+	} else {
+		di_data.mode = mode.val;
+	}
 
 	atomic_set(&di_data.di_complete, 0);
 	atomic_set(&di_data.enable, 0);
