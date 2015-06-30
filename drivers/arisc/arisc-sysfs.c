@@ -29,9 +29,9 @@ static unsigned char arisc_version[40] = "arisc defualt version";
 
 static unsigned int arisc_pll = 0;
 
+static u8 regaddr = 0;
 #if defined CONFIG_ARCH_SUN8IW1P1
 static struct arisc_p2wi_block_cfg block_cfg;
-static u8 p2wi_regaddr = 0;
 static u8 data = 0;
 #else
 static struct arisc_rsb_block_cfg block_cfg;
@@ -555,21 +555,20 @@ arisc_rsb_read_block_data_store(struct device *dev, struct device_attribute *att
                                 const char *buf, size_t size)
 {
 #if defined CONFIG_ARCH_SUN8IW1P1
-	sscanf(buf, "%x", (u32 *)&p2wi_regaddr);
-	if ((p2wi_regaddr < 0) || (p2wi_regaddr > 0xff)) {
-		ARISC_WRN("invalid paras, regaddr:0x%x\n", p2wi_regaddr);
+	sscanf(buf, "%x", (u32 *)&regaddr);
+	if ((regaddr < 0) || (regaddr > 0xff)) {
+		ARISC_WRN("invalid paras, regaddr:0x%x\n", regaddr);
 		ARISC_LOG("echo like: echo regaddr > p2wi_read_block_data\n");
 		return size;
 	}
 
 	block_cfg.msgattr = ARISC_MESSAGE_ATTR_SOFTSYN;
 	block_cfg.len = 1;
-	block_cfg.addr = &p2wi_regaddr;
+	block_cfg.addr = &regaddr;
 	block_cfg.data = &data;
 
 	ARISC_LOG("p2wi read regaddr:0x%x\n", *block_cfg.addr);
 #else
-	u8 regaddr = 0;
 	u32 devaddr = 0;
 	u32 datatype = 0;
 
@@ -614,7 +613,7 @@ arisc_rsb_write_block_data_show(struct device *dev, struct device_attribute *att
 
 	block_cfg.msgattr = ARISC_MESSAGE_ATTR_SOFTSYN;
 	block_cfg.len = 1;
-	block_cfg.addr = &p2wi_regaddr;
+	block_cfg.addr = &regaddr;
 	block_cfg.data = &data;
 	ret = arisc_p2wi_read_block_data(&block_cfg);
 	ARISC_LOG("p2wi read data:0x%x from regaddr:0x%x\n",
@@ -654,16 +653,16 @@ arisc_rsb_write_block_data_store(struct device *dev, struct device_attribute *at
 	u32 ret = 0;
 
 #if defined CONFIG_ARCH_SUN8IW1P1
-	sscanf(buf, "%x %x", (u32 *)&p2wi_regaddr, (u32 *)&data);
-	if ((p2wi_regaddr < 0) || (p2wi_regaddr > 0xff)) {
-		ARISC_WRN("invalid paras, regaddr:0x%x, data:0x%x\n", p2wi_regaddr, data);
+	sscanf(buf, "%x %x", (u32 *)&regaddr, (u32 *)&data);
+	if ((regaddr < 0) || (regaddr > 0xff)) {
+		ARISC_WRN("invalid paras, regaddr:0x%x, data:0x%x\n", regaddr, data);
 		ARISC_WRN("echo like: echo regaddr data > p2wi_write_block_data\n");
 		return size;
 	}
 
 	block_cfg.msgattr = ARISC_MESSAGE_ATTR_SOFTSYN;
 	block_cfg.len = 1;
-	block_cfg.addr = &p2wi_regaddr;
+	block_cfg.addr = &regaddr;
 	block_cfg.data = &data;
 	ret = arisc_p2wi_write_block_data(&block_cfg);
 	ARISC_LOG("p2wi write data:0x%x to regaddr:0x%x\n",
@@ -673,7 +672,6 @@ arisc_rsb_write_block_data_store(struct device *dev, struct device_attribute *at
 	else
 		ARISC_LOG(" success\n");
 #else
-	u8 regaddr = 0;
 	u32 devaddr = 0;
 	u32 datatype = 0;
 
