@@ -1,33 +1,11 @@
 /*
-************************************************************************************************************************
-*                                                      eNand
-*                                     Nand flash driver format module define
-*
-*                             Copyright(C), 2008-2009, SoftWinners Microelectronic Co., Ltd.
-*											       All Rights Reserved
-*
-* File Name : nand_format.h
-*
-* Author : Kevin.z
-*
-* Version : v0.1
-*
-* Date : 2008.03.25
-*
-* Description : This file define the function interface and some data structure export
-*               for the format module.
-*
-* Others : None at present.
-*
-*
-* History :
-*
-*  <Author>        <time>       <version>      <description>
-*
-* Kevin.z         2008.03.25      0.1          build the file
-*
-************************************************************************************************************************
-*/
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
 #ifndef __NAND_FORMAT_H__
 #define __NAND_FORMAT_H__
 
@@ -109,7 +87,7 @@ typedef struct _blk_for_boot1_t
 
 //define the return value of format error when we should try format again
 #define RET_FORMAT_TRY_AGAIN        (-2)
-	
+
 /*
 ************************************************************************************************************************
 *                                   FORMAT NAND FLASH DISK MODULE INIT

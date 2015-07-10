@@ -1,3 +1,10 @@
+/*
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
 #include <linux/kernel.h>
 #include <linux/kthread.h>
 #include <linux/slab.h>
@@ -578,7 +585,7 @@ static int nand_blktrans_thread(void *arg)
 		#if NAND_TEST_TICK
 		printk("[N]ticks=%ld\n",nand_rw_time);
 		#endif
-		
+
 
 		if((req->cmd_flags&REQ_SYNC)&&(req->cmd_flags&REQ_WRITE)&&(part_secur[dev->devnum]== 1)){
 		    //printk("req sync: 0x%x form part: 0x%x \n", req->cmd_flags, dev->devnum);
@@ -1089,14 +1096,14 @@ static int nand_flush(struct nand_blk_dev *dev)
 
 		dbg_inf("nand_flush \n");
 	}
-	
+
 	return 0;
 }
 
 static int nand_logrelease(struct nand_blk_dev *dev)
 {
     __s32 log_cnt =-1;
-	
+
     #ifdef NAND_LOG_AUTO_MERGE
 	if (0 == down_trylock(&mytr.nand_ops_mutex))
 	{
@@ -1111,7 +1118,7 @@ static int nand_logrelease(struct nand_blk_dev *dev)
 			return log_cnt;
 	}
 	#endif
-	
+
 	return -1;
 }
 
@@ -1193,7 +1200,7 @@ static int  init_blklayer(void)
 	if (ret < 0)
 		return ret;
 
-#if 0	
+#if 0
 	//printk("[NAND] nand driver version: 0x%x 0x%x \n", NAND_VERSION_0,NAND_VERSION_1);
 #ifdef __LINUX_NAND_SUPPORT_INT__
     NAND_ClearRbInt();
@@ -1209,30 +1216,30 @@ static int  init_blklayer(void)
 	else
 	{
 	    printk("nand interrupt register ok\n");
-	}	
-#endif	
+	}
+#endif
 #endif
 
 #ifdef __LINUX_NAND_SUPPORT_INT__
 		//nand_dbg_err("[NAND] nand driver version: 0x%x 0x%x, support int! \n", NAND_VERSION_0,NAND_VERSION_1);
-	
+
 		spin_lock_init(&nand_int_lock);
 		irqflags_ch0 = IRQF_DISABLED;
 		irqflags_ch1 = IRQF_DISABLED;
-	
+
 	#ifdef SUN8IW1P1
 			NAND_Print("[NAND]run on A31\n");
 	#endif
-	
+
 	#ifdef SUN8IW3P1
 			NAND_Print("[NAND]run on A23\n");
 	#endif
-	
+
 	#ifdef SUN9IW1P1
 			NAND_Print("[NAND]run on A80\n");
 	#endif
-	
-	#ifdef SUN8IW1P1 
+
+	#ifdef SUN8IW1P1
 			if (request_irq(SUNXI_IRQ_NAND0, nand_interrupt_ch0, IRQF_DISABLED, mytr.name, &mytr))
 			{
 				//kfree(data);
@@ -1242,8 +1249,8 @@ static int  init_blklayer(void)
 			else
 			{
 				NAND_Print("nand interrupte ch0 irqno: %d register ok\n", SUNXI_IRQ_NAND0);
-			}	
-		
+			}
+
 			if (request_irq(SUNXI_IRQ_NAND1, nand_interrupt_ch1, IRQF_DISABLED, mytr.name, &mytr))
 			{
 				//kfree(data);
@@ -1255,8 +1262,8 @@ static int  init_blklayer(void)
 				NAND_Print("nand interrupte ch1, irqno: %d register ok\n", SUNXI_IRQ_NAND1);
 			}
 	#endif
-		
-	#ifdef SUN8IW3P1 
+
+	#ifdef SUN8IW3P1
 			if (request_irq(SUNXI_IRQ_NAND, nand_interrupt_ch0, IRQF_DISABLED, mytr.name, &mytr))
 			{
 				//kfree(data);
@@ -1266,10 +1273,10 @@ static int  init_blklayer(void)
 			else
 			{
 				//printk("nand interrupte ch0 irqno: %d register ok\n", SUNXI_IRQ_NAND0);
-			}	
-	#endif		
-	
-	#ifdef SUN9IW1P1 
+			}
+	#endif
+
+	#ifdef SUN9IW1P1
 			if (request_irq(SUNXI_IRQ_NAND0, nand_interrupt_ch0, IRQF_DISABLED, mytr.name, &mytr))
 			{
 				//kfree(data);
@@ -1279,8 +1286,8 @@ static int  init_blklayer(void)
 			else
 			{
 				NAND_Print("nand interrupte ch0 irqno: %d register ok\n", SUNXI_IRQ_NAND0);
-			}	
-		
+			}
+
 			if (request_irq(SUNXI_IRQ_NAND1, nand_interrupt_ch1, IRQF_DISABLED, mytr.name, &mytr))
 			{
 				//kfree(data);
@@ -1292,7 +1299,7 @@ static int  init_blklayer(void)
 				NAND_Print("nand interrupte ch1, irqno: %d register ok\n", SUNXI_IRQ_NAND1);
 			}
 	#endif
-		
+
 #endif
 
 	//modify ValidBlkRatio
@@ -1302,17 +1309,17 @@ static int  init_blklayer(void)
     	printk("nand init fetch nand_good_block_ratio failed\n");
   }
   else
-  { 
+  {
         if(nand_good_block_ratio.val <= 0)
         {
             printk("[NAND] use nand_good_block_ratio from default parameter\n");
         }
         else
-        {   
+        {
             printk("[NAND] get nand_good_block_ratio from script: %d \n",nand_good_block_ratio.val);
             NAND_SetValidBlkRatio(nand_good_block_ratio.val);
         }
-	}	
+	}
 
 	ret = FMT_Init();
 	if (ret < 0)
@@ -1331,7 +1338,7 @@ static int  init_blklayer(void)
 	#ifdef NAND_CACHE_RW
 		NAND_CacheOpen();
 	#endif
-	
+
 
 	return nand_blk_register(&mytr);
 }
@@ -1408,7 +1415,7 @@ static int nand_suspend(struct platform_device *plat_dev, pm_message_t state)
 		NAND_PIORelease();
 	}
 	for(i=0; i<(NAND_REG_LENGTH); i++){
-		nand_reg_state.nand_reg_back[i] = *(volatile u32 *)(NAND_GetIOBaseAddr() + i*0x04); 
+		nand_reg_state.nand_reg_back[i] = *(volatile u32 *)(NAND_GetIOBaseAddr() + i*0x04);
 		//pr_info("reg addr 0x%x : 0x%x \n", i, nand_reg_state.nand_reg_back[i]);
 	}
 	}
@@ -1439,7 +1446,7 @@ static int nand_resume(struct platform_device *plat_dev)
 			if(0x9 == i){
 				continue;
 			}
-			*(volatile u32 *)(NAND_GetIOBaseAddr()+ i*0x04) = nand_reg_state.nand_reg_back[i]; 
+			*(volatile u32 *)(NAND_GetIOBaseAddr()+ i*0x04) = nand_reg_state.nand_reg_back[i];
 		}
         //reset all chip
 
@@ -1464,11 +1471,11 @@ static int nand_resume(struct platform_device *plat_dev)
 			if(0x9 == i){
 				continue;
 			}
-			*(volatile u32 *)(NAND_GetIOBaseAddr() + i*0x04) = nand_reg_state.nand_reg_back[i]; 
+			*(volatile u32 *)(NAND_GetIOBaseAddr() + i*0x04) = nand_reg_state.nand_reg_back[i];
 		}
 
 		up(&mytr.nand_ops_mutex);
-		
+
 	}
 
 #endif

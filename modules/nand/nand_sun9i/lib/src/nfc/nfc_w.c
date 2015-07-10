@@ -1,14 +1,12 @@
-/*********************************************************************************
-*                                           NAND FLASH DRIVER
-*								(c) Copyright 2008, SoftWinners Co,Ld.
-*                                          All Right Reserved
-*file : nfc_w.c
-*description : this file provides some physic functions for upper nand driver layer.
-*history :
-*	v0.1  2008-03-26 Richard
-*	        offer direct accsee method to nand flash control machine.
-*   v0.2  2009.09.09 penggang
-**********************************************************************************/
+/*
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+
 #include "../include/nfc.h"
 #include "../include/nfc_reg.h"
 #include "../include/nand_physic.h"
@@ -624,7 +622,7 @@ __s32 NFC_Write_0xFF( NFC_CMD_LIST  *wcmd, void *mainbuf, void *sparebuf,  __u8 
 
 	/*disable ecc*/
 	_disable_ecc();
-	
+
 	col_addr = 0;
 
 	for(i=0;i<18;i++)
@@ -691,7 +689,7 @@ __s32 NFC_Write_0xFF( NFC_CMD_LIST  *wcmd, void *mainbuf, void *sparebuf,  __u8 
 
 			cfg |= random_program_cmd;
 			cfg |= ( 1 << 16);
-			
+
 			cfg |= (NDFC_SEND_ADR | NDFC_ACCESS_DIR | NDFC_DATA_TRANS | NDFC_SEND_CMD1 | NDFC_DATA_SWAP_METHOD);
 
 
@@ -719,7 +717,7 @@ __s32 NFC_Write_0xFF( NFC_CMD_LIST  *wcmd, void *mainbuf, void *sparebuf,  __u8 
 			/*set NFC_REG_CNT*/
 		    NDFC_WRITE_REG_CNT(1024);
 
-			
+
 			for(j=0; j< 2; j++)
 			{
 				addr_buf_col[j] = col_addr & 0xff;
@@ -734,7 +732,7 @@ __s32 NFC_Write_0xFF( NFC_CMD_LIST  *wcmd, void *mainbuf, void *sparebuf,  __u8 
 
 			cfg |= random_program_cmd;
 			cfg |= ( 1 << 16);
-			
+
 			cfg |= (NDFC_SEND_ADR | NDFC_ACCESS_DIR | NDFC_DATA_TRANS | NDFC_SEND_CMD1 | NDFC_DATA_SWAP_METHOD);
 
 
@@ -753,7 +751,7 @@ __s32 NFC_Write_0xFF( NFC_CMD_LIST  *wcmd, void *mainbuf, void *sparebuf,  __u8 
 	}
 
 	cfg  = 0;
-	cfg |= program_cmd;	
+	cfg |= program_cmd;
 	cfg |= (NDFC_SEND_CMD1 | NDFC_WAIT_FLAG);
 	NDFC_WRITE_REG_CMD(cfg);
 
@@ -780,7 +778,7 @@ __s32 NFC_Write_CFG( NFC_CMD_LIST  *wcmd, void *mainbuf, void *sparebuf,  __u8 d
 	__u32 blk_cnt, blk_mask;
 
 	//PHY_ERR("write: ecc %d, page size %d, seq %d\n", ndfc_cfg->ecc_mode, ndfc_cfg->page_size_kb, ndfc_cfg->sequence_mode);
-	
+
 	if (page_mode == 0){
 		PHY_ERR("page_mode == 0, return -1\n");
 		return -1;
@@ -801,16 +799,16 @@ __s32 NFC_Write_CFG( NFC_CMD_LIST  *wcmd, void *mainbuf, void *sparebuf,  __u8 d
 	NDFC_WRITE_REG_CTL((NDFC_READ_REG_CTL()) | NDFC_RAM_METHOD);
 
     /*page_size_temp = (NDFC_READ_REG_CTL() & 0xf00)>>8;
-	if(ndfc_cfg->page_size_kb  ==  1) 	    page_size_mode = 0x0;   //1K	
-	else if (ndfc_cfg->page_size_kb  ==  2) page_size_mode = 0x1;   //2K	
-	else if (ndfc_cfg->page_size_kb  ==  4) page_size_mode = 0x2;   //4K	
-	else if (ndfc_cfg->page_size_kb  ==  8) page_size_mode = 0x3;   //8K	
-	else if (ndfc_cfg->page_size_kb  == 16) page_size_mode = 0x4;   //16K 
+	if(ndfc_cfg->page_size_kb  ==  1) 	    page_size_mode = 0x0;   //1K
+	else if (ndfc_cfg->page_size_kb  ==  2) page_size_mode = 0x1;   //2K
+	else if (ndfc_cfg->page_size_kb  ==  4) page_size_mode = 0x2;   //4K
+	else if (ndfc_cfg->page_size_kb  ==  8) page_size_mode = 0x3;   //8K
+	else if (ndfc_cfg->page_size_kb  == 16) page_size_mode = 0x4;   //16K
 	else if (ndfc_cfg->page_size_kb  == 32) page_size_mode = 0x5;   //32K
-	else    
-		return -1;    
+	else
+		return -1;
 	NDFC_WRITE_REG_CTL(((NDFC_READ_REG_CTL()) & (~NDFC_PAGE_SIZE))| (page_size_mode<<8));*/
-	page_size_set = ndfc_cfg->page_size_kb * 1024;  
+	page_size_set = ndfc_cfg->page_size_kb * 1024;
 
 	_dma_config_start(1, (__u32)mainbuf, page_size_set);
 
@@ -976,7 +974,7 @@ __s32 NFC_Write_1K( NFC_CMD_LIST  *wcmd, void *mainbuf, void *sparebuf,  __u8 dm
 	/*enable ecc*/
 	_enable_ecc(1);
 
-	/*set ecc to 64-bit/72-bit ecc*/	
+	/*set ecc to 64-bit/72-bit ecc*/
     ecc_mode_temp = (NDFC_READ_REG_ECC_CTL() & 0xf000)>>12;
     if (NdfcVersion == NDFC_VERSION_V1) {
 		NDFC_WRITE_REG_ECC_CTL(((NDFC_READ_REG_ECC_CTL() & (~NDFC_ECC_MODE))|(0x8<<12) ));
@@ -1286,7 +1284,7 @@ __s32 _read_in_page_mode_seq_16k(NFC_CMD_LIST  *rcmd,void *mainbuf,void *sparebu
 
 	/*set ecc to specified ecc*/
     ecc_mode_temp = (NDFC_READ_REG_ECC_CTL() & 0xf000)>>12;
-	
+
 	ecc_set = 0x6;
 	NDFC_WRITE_REG_ECC_CTL(((NDFC_READ_REG_ECC_CTL() & (~NDFC_ECC_MODE))|(ecc_set<<12) ));
 
@@ -1349,14 +1347,14 @@ __s32 _read_in_page_mode_cfg(NFC_CMD_LIST  *rcmd,void *mainbuf,void *sparebuf,__
 	NDFC_WRITE_REG_CTL((NDFC_READ_REG_CTL()) | NDFC_RAM_METHOD);
 
 	/*page_size_temp = (NDFC_READ_REG_CTL() & 0xf00)>>8;
-	if(ndfc_cfg->page_size_kb  ==  1) 	    page_size_mode = 0x0;   //1K	
-	else if (ndfc_cfg->page_size_kb  ==  2) page_size_mode = 0x1;   //2K	
-	else if (ndfc_cfg->page_size_kb  ==  4) page_size_mode = 0x2;   //4K	
-	else if (ndfc_cfg->page_size_kb  ==  8) page_size_mode = 0x3;   //8K	
-	else if (ndfc_cfg->page_size_kb  == 16) page_size_mode = 0x4;   //16K 
+	if(ndfc_cfg->page_size_kb  ==  1) 	    page_size_mode = 0x0;   //1K
+	else if (ndfc_cfg->page_size_kb  ==  2) page_size_mode = 0x1;   //2K
+	else if (ndfc_cfg->page_size_kb  ==  4) page_size_mode = 0x2;   //4K
+	else if (ndfc_cfg->page_size_kb  ==  8) page_size_mode = 0x3;   //8K
+	else if (ndfc_cfg->page_size_kb  == 16) page_size_mode = 0x4;   //16K
 	else if (ndfc_cfg->page_size_kb  == 32) page_size_mode = 0x5;   //32K
-	else    
-		return -1; 
+	else
+		return -1;
 	NDFC_WRITE_REG_CTL(((NDFC_READ_REG_CTL()) & (~NDFC_PAGE_SIZE))| (page_size_mode<<8));*/
 	page_size_set = ndfc_cfg->page_size_kb * 1024;
 
@@ -1521,7 +1519,7 @@ __s32 _read_in_page_mode_1K(NFC_CMD_LIST  *rcmd,void *mainbuf,void *sparebuf,__u
 	} else if (NdfcVersion == NDFC_VERSION_V2) {
 		NDFC_WRITE_REG_ECC_CTL(((NDFC_READ_REG_ECC_CTL() & (~NDFC_ECC_MODE))|(0x9<<12) ));
 	} else
-		PHY_ERR("_read_in_page_mode_1K: wrong ndfc version, %d\n", NdfcVersion); 	
+		PHY_ERR("_read_in_page_mode_1K: wrong ndfc version, %d\n", NdfcVersion);
 	NDFC_WRITE_REG_CMD(cfg);
 
     NAND_WaitDmaFinish();
@@ -2012,25 +2010,25 @@ __s32 NFC_LSBInit(__u32 read_retry_type)
 
 __s32 LSB_GetDefaultParam(__u32 chip,__u8* default_value, __u32 read_retry_type)
 {
-   
+
 	return 0;
 }
 
 __s32 LSB_SetDefaultParam(__u32 chip,__u8* default_value, __u32 read_retry_type)
 {
-   
+
 	return 0;
 }
 
 __s32 NFC_LSBEnable(__u32 chip, __u32 read_retry_type)
 {
-    
+
     return 0;
 }
 
 __s32 NFC_LSBDisable(__u32 chip, __u32 read_retry_type)
 {
-   
+
     return 0;
 }
 

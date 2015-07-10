@@ -1,34 +1,10 @@
 /*
-************************************************************************************************************************
-*                                                      eNand
-*                                           Nand flash driver scan module
-*
-*                             Copyright(C), 2008-2009, SoftWinners Microelectronic Co., Ltd.
-*                                                  All Rights Reserved
-*
-* File Name : nand_id.c
-*
-* Author : Kevin.z
-*
-* Version : v0.1
-*
-* Date : 2008.03.27
-*
-* Description : This file is a table, that record the physical architecture parameter for
-*               every kind of nand flash, and indexed by the nand chip ID.
-*
-* Others : None at present.
-*
-*
-* History :
-*
-*  <Author>        <time>       <version>      <description>
-*
-* Kevin.z         2008.03.27      0.1          build the file
-* penggang        2009.09.09      0.2          modify the file
-*
-************************************************************************************************************************
-*/
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
 
 #include "../include/nand_scan.h"
 

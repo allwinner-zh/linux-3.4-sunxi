@@ -1,33 +1,12 @@
 /*
-************************************************************************************************************************
-*                                                      eNand
-*                                         Nand flash driver logic manage module
-*
-*                             Copyright(C), 2008-2009, SoftWinners Microelectronic Co., Ltd.
-*											       All Rights Reserved
-*
-* File Name : logic_ctl.c
-*
-* Author : Kevin.z
-*
-* Version : v0.1
-*
-* Date : 2008.03.29
-*
-* Description : This file is the nand flash driver logic manage control module, is the main
-*               module of logic manage module.
-*
-* Others : None at present.
-*
-*
-* History :
-*
-*  <Author>        <time>       <version>      <description>
-*
-* Kevin.z         2008.03.29      0.1          build the file
-*
-************************************************************************************************************************
-*/
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+
 #include "../include/nand_logic.h"
 
 struct __NandDriverGlobal_t     NandDriverInfo={0};

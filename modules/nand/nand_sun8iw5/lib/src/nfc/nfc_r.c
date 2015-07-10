@@ -1,14 +1,10 @@
-/*********************************************************************************
-*                                           NAND FLASH DRIVER
-*								(c) Copyright 2008, SoftWinners Co,Ld.
-*                                          All Right Reserved
-*file : nfc_r.c
-*description : this file provides some physic functions for upper nand driver layer.
-*history :
-*	v0.1  2008-03-26 Richard
-*	        offer direct accsee read method to nand flash control machine.
-*   v0.2  2009.09.09 penggang
-**********************************************************************************/
+/*
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
 #include "../include/nfc.h"
 
 __u32 NandIOBase[2] = {0, 0};
@@ -49,9 +45,9 @@ const	__s16 param0x31[9][3] =	   {0
 const	__s16 param0x32[19][4] ={0
 									};
 
-const	__s16 param0x40[10] = {0};						
+const	__s16 param0x40[10] = {0};
 
-const	__s16 param0x50[7] = {0};	
+const	__s16 param0x50[7] = {0};
 __u32 ddr_param[8] = {0};
 
 static void dumphex32(char* name, char* base, int len)
@@ -110,9 +106,9 @@ __s32 _wait_cmdfifo_free(void)
 	    PRINT("nand _wait_cmdfifo_free time out, status:0x%x\n", NFC_READ_REG(NFC_REG_ST));
 
       	dumphex32("nand0 reg", (char*)0xf1c03000, 60);
-      
+
       	dumphex32("nand1 reg", (char*)0xf1c05000, 60);
-      
+
       	dumphex32("gpio reg", (char*)0xf1c20848, 50);
 
 
@@ -128,13 +124,13 @@ __s32 _wait_cmd_finish(void)
 	if (timeout <= 0)
 	{
 	    PRINT("nand _wait_cmd_finish time out, NandIndex %d, status:0x%x\n", (__u32)NandIndex, NFC_READ_REG(NFC_REG_ST));
-      
+
       	dumphex32("nand0 reg", (char*)0xf1c03000, 60);
-      
+
       	dumphex32("nand1 reg", (char*)0xf1c05000, 60);
-      
+
       	dumphex32("gpio reg", (char*)0xf1c20848, 50);
-      
+
         return -ERR_TIMEOUT;
    }
 	NFC_WRITE_REG(NFC_REG_ST, NFC_READ_REG(NFC_REG_ST) & NFC_CMD_INT_FLAG);
@@ -145,11 +141,11 @@ __u32 nand_dma_addr[2] = {0, 0};
 void _dma_config_start(__u8 rw, __u32 buff_addr, __u32 len)
 {
 	__u32 reg_val;
-	
-	NAND_CleanFlushDCacheRegion(buff_addr, len); 
-	
+
+	NAND_CleanFlushDCacheRegion(buff_addr, len);
+
 	nand_dma_addr[NandIndex] = NAND_DMASingleMap(rw, buff_addr, len);
-	
+
 	//set mbus dma mode
 	reg_val = NFC_READ_REG(NFC_REG_CTL);
 	reg_val &= (~(0x1<<15));
@@ -160,7 +156,7 @@ void _dma_config_start(__u8 rw, __u32 buff_addr, __u32 len)
 
 __s32 _wait_dma_end(__u8 rw, __u32 buff_addr, __u32 len)
 {
-  
+
 	__s32 timeout = 0xffffff;
 
 	while ( (timeout--) && (!(NFC_READ_REG(NFC_REG_ST) & NFC_DMA_INT_FLAG)) );
@@ -170,18 +166,18 @@ __s32 _wait_dma_end(__u8 rw, __u32 buff_addr, __u32 len)
 		PRINT("DMA addr: 0x%x, DMA len: 0x%x\n", NFC_READ_REG(NFC_REG_MDMA_ADDR), NFC_READ_REG(NFC_REG_DMA_CNT));
 
       	dumphex32("nand0 reg", (char*)0xf1c03000, 60);
-      
+
       	dumphex32("nand1 reg", (char*)0xf1c05000, 60);
-      
+
       	dumphex32("gpio reg", (char*)0xf1c20848, 50);
 
 		return -ERR_TIMEOUT;
     }
-	
+
 	NFC_WRITE_REG(NFC_REG_ST, NFC_READ_REG(NFC_REG_ST) & NFC_DMA_INT_FLAG);
 
     	NAND_DMASingleUnmap(rw, nand_dma_addr[NandIndex], len);
-		
+
 	return 0;
 }
 
@@ -740,7 +736,7 @@ __s32 _read_secs_in_page_mode(NFC_CMD_LIST  *rcmd,void *mainbuf, void *cachebuf,
 			_disable_ecc();
 			NFC_WRITE_REG(NFC_REG_SPARE_AREA, spareoffsetbak);
 
-			
+
 		}
 		else  //1K page mode
 		{
@@ -811,7 +807,7 @@ __s32 _read_secs_in_page_mode(NFC_CMD_LIST  *rcmd,void *mainbuf, void *cachebuf,
 						ret1 |= _wait_dma_end(0, (__u32)cachebuf + 1024*(eccblkstart+k), 1024);
 						//PRINT("  dmabuf: 0x%x, dmacnt: 0x%x\n", (__u32)cachebuf + 1024*(eccblkstart+k), 1024);
 		                	}
-		
+
 					if (ret1)
 					{
 					    PRINT(" _read_secs_in_page_mode error, 1K mode, dma not finish \n");
@@ -1184,15 +1180,15 @@ __s32 NFC_SelectChip( __u32 chip)
 #if 0
     if(((read_retry_mode == 0)||(read_retry_mode == 1))&&(read_retry_cycle))
         cfg |= (0x1<<6);
-#endif    
+#endif
     NFC_WRITE_REG(NFC_REG_CTL,cfg);
-    
+
     if((cfg>>18)&0x3) //ddr nand
     {
         //set ddr param
         NFC_WRITE_REG(NFC_REG_TIMING_CTL,ddr_param[0]);
     }
-    
+
 	return 0;
 }
 
@@ -1225,14 +1221,14 @@ __s32 NFC_SelectRb( __u32 rb)
 
 __s32 NFC_DeSelectChip( __u32 chip)
 {
-#if 0    
+#if 0
     __u32 cfg;
 
     if(((read_retry_mode == 0)||(read_retry_mode == 1))&&(read_retry_cycle))
     {
         cfg = NFC_READ_REG(NFC_REG_CTL);
         cfg &= (~(0x1<<6));
-        NFC_WRITE_REG(NFC_REG_CTL,cfg);    
+        NFC_WRITE_REG(NFC_REG_CTL,cfg);
     }
 #endif
 	return 0;
@@ -1311,7 +1307,7 @@ __s32 NFC_ChangMode(NFC_INIT_INFO *nand_info )
 	   cfg |= ( 0x4 << 8 );
 	else                                      /* default 4K */
 	   cfg |= ( 0x2 << 8 );
-	cfg |= ((nand_info->ddr_type & 0x3) << 18);   //set ddr type 
+	cfg |= ((nand_info->ddr_type & 0x3) << 18);   //set ddr type
 	cfg |= ((nand_info->debug & 0x1) << 31);
 	NFC_WRITE_REG(NFC_REG_CTL,cfg);
 
@@ -1369,22 +1365,22 @@ __s32 NFC_Init(NFC_INIT_INFO *nand_info )
 		PRINT("data: %x %d\n",NAND_DRV_DATE,TIME);
 
 	}
-    
+
     //init ddr_param
     for(i=0;i<8;i++)
         ddr_param[i] = 0x21f;
 
     NandIOBase[0] = (__u32)NAND_IORemap(NAND_IO_BASE_ADDR0, 4096);
     NandIOBase[1] = (__u32)NAND_IORemap(NAND_IO_BASE_ADDR1, 4096);
-    
+
     //init pin
     NAND_PIORequest(NandIndex);
-    
+
     //init clk
     NAND_ClkRequest(NandIndex);
     NAND_SetClk(NandIndex, 10,20);
-    
- 
+
+
     //init dma
 	NFC_SetEccMode(0);
 
@@ -1392,7 +1388,7 @@ __s32 NFC_Init(NFC_INIT_INFO *nand_info )
 	ret = NFC_ChangMode( nand_info);
 
 	/*request special dma*/
-		
+
 	return ret;
 
 }
@@ -1419,7 +1415,7 @@ void NFC_Exit( void )
 
     //init pin
     NAND_PIORelease(NandIndex);
-    
+
 }
 
 /*******************************************************************************
@@ -1433,26 +1429,26 @@ void NFC_Exit( void )
 ********************************************************************************/
 __s32 _vender_get_param(__u8 *para, __u8 *addr, __u32 count)
 {
-   
+
 	return 0;
 }
 
 __s32 _vender_set_param(__u8 *para, __u8 *addr, __u32 count)
 {
-    
+
 	return 0;
 }
 
 __s32 _vender_pre_condition(void)
 {
-    
+
 
 	return 0;
 }
 
 __s32 _vender_get_param_otp_hynix(__u8 *para, __u8 *addr, __u32 count)
 {
- 
+
 	return 0;
 }
 
@@ -1471,22 +1467,22 @@ __s32 NFC_ReadRetryInit(__u32 read_retry_type)
 
 void NFC_GetOTPValue(__u32 chip, __u8* otp_value, __u32 read_retry_type)
 {
-  
+
 }
 
 __s32 NFC_GetDefaultParam(__u32 chip,__u8* default_value, __u32 read_retry_type)
 {
-   
+
     return 0;
 
 }
 
 __s32 NFC_SetDefaultParam(__u32 chip,__u8* default_value,__u32 read_retry_type)
 {
- 
+
 	return 0;
-        
-    
+
+
 }
 
 
@@ -1551,9 +1547,9 @@ __u32 NFC_GetRbStatus(__u32 rb)
     if(rb == 0)
         return (NFC_READ_REG(NFC_REG_ST) & NFC_RB_STATE0);
     else if(rb == 1)
-        return (NFC_READ_REG(NFC_REG_ST) & NFC_RB_STATE1); 
-    else 
-        return 0;        
+        return (NFC_READ_REG(NFC_REG_ST) & NFC_RB_STATE1);
+    else
+        return 0;
 }
 
 void NFC_DmaIntEnable(void)
@@ -1561,7 +1557,7 @@ void NFC_DmaIntEnable(void)
     //enable interrupt
 	//NFC_WRITE_REG(NFC_REG_INT, NFC_READ_REG(NFC_REG_INT)|NFC_DMA_INT_ENABLE);
 	NFC_WRITE_REG(NFC_REG_INT, NFC_DMA_INT_ENABLE);
-	
+
 }
 
 

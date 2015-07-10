@@ -1,34 +1,11 @@
 /*
-************************************************************************************************************************
-*                                                      eNand
-*                                           Nand flash driver scan module
-*
-*                             Copyright(C), 2008-2009, SoftWinners Microelectronic Co., Ltd.
-*                                                  All Rights Reserved
-*
-* File Name : nand_id.c
-*
-* Author : Kevin.z
-*
-* Version : v0.1
-*
-* Date : 2008.03.27
-*
-* Description : This file is a table, that record the physical architecture parameter for
-*               every kind of nand flash, and indexed by the nand chip ID.
-*
-* Others : None at present.
-*
-*
-* History :
-*
-*  <Author>        <time>       <version>      <description>
-*
-* Kevin.z         2008.03.27      0.1          build the file
-* penggang        2009.09.09      0.2          modify the file
-*
-************************************************************************************************************************
-*/
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
 
 #include "../include/nand_scan.h"
 
@@ -233,14 +210,14 @@ static struct __NfcInitDdrInfo DDRInfo1 = {
 //==============================================================================
 struct __NandPhyInfoPar_t SamsungNandTbl[] =
 {
-    //                NAND_CHIP_ID                     DieCnt SecCnt  PagCnt   BlkCnt      OpOpt    DatBlk  Freq   EccMode ReadRetry  DDRType    OperationPar       DDRInfo    
-    //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------                               
+    //                NAND_CHIP_ID                     DieCnt SecCnt  PagCnt   BlkCnt      OpOpt    DatBlk  Freq   EccMode ReadRetry  DDRType    OperationPar       DDRInfo
+    //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     { {0xec, 0xd5, 0x14, 0xb6, 0xff, 0xff, 0xff, 0xff }, 1,     8,     128,     4096,   0x00000008,   896,    30,     0,       0,        0,     &PhysicArchiPara3, &DefDDRInfo,  0x000011},   // K9GAG08
     { {0xec, 0xd7, 0x55, 0xb6, 0xff, 0xff, 0xff, 0xff }, 2,     8,     128,     4096,   0x00000028,   896,    30,     0,       0,        0,     &PhysicArchiPara3, &DefDDRInfo,  0x000012},   // K9LBG08
     { {0xec, 0xd7, 0xd5, 0x29, 0xff, 0xff, 0xff, 0xff }, 2,     8,     128,     4096,   0x00000028,   896,    30,     0,       0,        0,     &PhysicArchiPara3, &DefDDRInfo,  0x000013},   // K9LBG08
     { {0xec, 0xd7, 0x94, 0x72, 0xff, 0xff, 0xff, 0xff }, 1,    16,     128,     4096,   0x00000008,   896,    30,     2,       0,        0,     &PhysicArchiPara3, &DefDDRInfo,  0x000014},   // K9GBG08
     { {0xec, 0xd5, 0x98, 0x71, 0xff, 0xff, 0xff, 0xff }, 1,     8,     256,     2048,   0x00000008,   896,    30,     3,       0,        0,     &PhysicArchiPara3, &DefDDRInfo,  0x000015},   // K9AAG08
-                                                                                                                                                                         
+
     { {0xec, 0xd5, 0x94, 0x29, 0xff, 0xff, 0xff, 0xff }, 1,     8,     128,     4096,   0x00000008,   896,    30,     0,       0,        0,     &PhysicArchiPara3, &DefDDRInfo,  0x000016},   // K9GAG08U0D
     { {0xec, 0xd5, 0x84, 0x72, 0xff, 0xff, 0xff, 0xff }, 1,    16,     128,     2048,   0x00011000,   896,    24,     2,       0,        0,     &PhysicArchiPara3, &DefDDRInfo,  0x000017 },   // K9GAG08U0E
     { {0xec, 0xd5, 0x94, 0x76, 0x54, 0xff, 0xff, 0xff }, 1,    16,     128,     2048,   0x00011408,   896,    30,     2,       0,        0,     &PhysicArchiPara3, &DefDDRInfo,  0x000018 },   // K9GAG08U0E
@@ -261,14 +238,14 @@ struct __NandPhyInfoPar_t SamsungNandTbl[] =
 //==============================================================================
 struct __NandPhyInfoPar_t HynixNandTbl[] =
 {
-    //                NAND_CHIP_ID                     DieCnt SecCnt  PagCnt   BlkCnt     OpOpt      DatBlk  Freq   EccMode ReadRetry DDRType   OperationPar       DDRInfo  
+    //                NAND_CHIP_ID                     DieCnt SecCnt  PagCnt   BlkCnt     OpOpt      DatBlk  Freq   EccMode ReadRetry DDRType   OperationPar       DDRInfo
     //---------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-    //---------------------------------------------------------------------------------------------------------------------------------------------------------------------                              
+    //---------------------------------------------------------------------------------------------------------------------------------------------------------------------
     { {0xad, 0xd3, 0x14, 0xb6, 0xff, 0xff, 0xff, 0xff }, 1,     8,     128,     2048,   0x00000008,   896,    30,     0,      0,         0,    &PhysicArchiPara3, &DefDDRInfo,  0x010014 },   // H27U8G8T2B
     { {0xad, 0xd5, 0x14, 0xb6, 0xff, 0xff, 0xff, 0xff }, 1,     8,     128,     4096,   0x00000008,   896,    30,     0,      0,         0,    &PhysicArchiPara3, &DefDDRInfo,  0x010015 },   // H27UAG8T2M, H27UBG8U5M
     { {0xad, 0xd7, 0x55, 0xb6, 0xff, 0xff, 0xff, 0xff }, 2,     8,     128,     4096,   0x00000008,   896,    30,     0,      0,         0,    &PhysicArchiPara3, &DefDDRInfo,  0x010016 },   // H27UCG8V5M
-    //---------------------------------------------------------------------------------------------------------------------------------------------------------------------                                           
+    //---------------------------------------------------------------------------------------------------------------------------------------------------------------------
     { {0xad, 0xd5, 0x94, 0x25, 0xff, 0xff, 0xff, 0xff }, 1,     8,     128,     4096,   0x00000008,   896,    30,     2,      0,         0,    &PhysicArchiPara3, &DefDDRInfo,  0x010017 },   // H27UBG8U5A
     { {0xad, 0xd7, 0x95, 0x25, 0xff, 0xff, 0xff, 0xff }, 2,     8,     128,     4096,   0x00000008,   896,    30,     2,      0,         0,    &PhysicArchiPara3, &DefDDRInfo,  0x010018 },   // H27UCG8V5A
     { {0xad, 0xd5, 0x95, 0x25, 0xff, 0xff, 0xff, 0xff }, 2,     8,     128,     4096,   0x00000008,   896,    30,     2,      0,         0,    &PhysicArchiPara3, &DefDDRInfo,  0x010019 },   // H27UCG8VFA
@@ -276,7 +253,7 @@ struct __NandPhyInfoPar_t HynixNandTbl[] =
     { {0xad, 0xd7, 0x94, 0x9A, 0xff, 0xff, 0xff, 0xff }, 1,    16,     256,     2048,   0x00001008,   896,    30,     2,      0,         0,    &PhysicArchiPara3, &DefDDRInfo,  0x01001b },   // H27UBG8T2A H27UCG8U5(D)A H27UDG8VF(D)A
     { {0xad, 0xde, 0xd5, 0x9A, 0xff, 0xff, 0xff, 0xff }, 2,    16,     256,     2048,   0x00001008,   896,    30,     2,      0,         0,    &PhysicArchiPara3, &DefDDRInfo,  0x01001c },   // H27UDG8V5A
     { {0xad, 0xd7, 0x94, 0x25, 0xff, 0xff, 0xff, 0xff }, 1,     8,     128,     8192,   0x00001008,   896,    30,     2,      0,         0,    &PhysicArchiPara3, &DefDDRInfo,  0x01001d },   // H27UBG8T2M
-    //---------------------------------------------------------------------------------------------------------------------------------------------------------------------                                 
+    //---------------------------------------------------------------------------------------------------------------------------------------------------------------------
     { {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff }, 0,     0,       0,        0,   0x00000000,     0,     0,     0,      0,         0,               0,            0,      0xffffff },
 };
 
@@ -286,9 +263,9 @@ struct __NandPhyInfoPar_t HynixNandTbl[] =
 //==============================================================================
 struct __NandPhyInfoPar_t ToshibaNandTbl[] =
 {
-    //                    NAND_CHIP_ID                 DieCnt SecCnt  PagCnt   BlkCnt     OpOpt      DatBlk  Freq   EccMode ReadRetry DDRType   OperationPar       DDRInfo  
+    //                    NAND_CHIP_ID                 DieCnt SecCnt  PagCnt   BlkCnt     OpOpt      DatBlk  Freq   EccMode ReadRetry DDRType   OperationPar       DDRInfo
     //--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------                            
+    //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     { {0x98, 0xd3, 0x94, 0xba, 0xff, 0xff, 0xff, 0xff }, 1,     8,     128,     2048,   0x00000008,   896,    20,     0,     0,          0,   &PhysicArchiPara6, &DefDDRInfo,  0x020008 },   // TC58NVG3D1DTG00
     { {0x98, 0xd7, 0x95, 0xba, 0xff, 0xff, 0xff, 0xff }, 1,     8,     128,     8192,   0x00000008,   896,    30,     2,     0,          0,   &PhysicArchiPara7, &DefDDRInfo,  0x020009 },   // TC58NVG6D1DTG20
     { {0x98, 0xd5, 0x94, 0xba, 0xff, 0xff, 0xff, 0xff }, 1,     8,     128,     4096,   0x00000008,   896,    30,     2,     0,          0,   &PhysicArchiPara7, &DefDDRInfo,  0x02000a },    // TH58NVG5D1DTG20
@@ -296,7 +273,7 @@ struct __NandPhyInfoPar_t ToshibaNandTbl[] =
     { {0x98, 0xd7, 0x94, 0x32, 0xff, 0xff, 0xff, 0xff }, 1,    16,     128,     4096,   0x00000008,   896,    25,     2,     0,          0,   &PhysicArchiPara8, &DefDDRInfo,  0x02000c },    // TH58NVG5D2FTA00 TH58NVG6D2FTA20
     { {0x98, 0xd7, 0x95, 0x32, 0xff, 0xff, 0xff, 0xff }, 2,    16,     128,     4096,   0x00000008,   896,    25,     1,     0,          0,   &PhysicArchiPara8, &DefDDRInfo,  0x02000d },    // TH58NVG6D2ETA20
 
-    //------------------------------------------------------------------------------------------------------------------------------------------------------------------------                            
+    //------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 	{ {0x98, 0xd7, 0xd4, 0x32, 0x76, 0x55, 0xff, 0xff }, 1,    16,     128,     4096,   0x00000088,   896,    30,     2,     0,          0,   &PhysicArchiPara8, &DefDDRInfo,  0x020015 },    // TH58NVG6E2FTA00
 	{ {0x98, 0xd3, 0x91, 0x26, 0x76, 0xff, 0xff, 0xff }, 1,     8,      64,     4096,   0x00088,   896,    30,     3, 	 0,       0,   &PhysicArchiPara9,    &DefDDRInfo,     0x020019 },    // TC58NVG3S0HTAI0
 
@@ -310,12 +287,12 @@ struct __NandPhyInfoPar_t ToshibaNandTbl[] =
 //==============================================================================
 struct __NandPhyInfoPar_t MicronNandTbl[] =
 {
-    //                   NAND_CHIP_ID                  DieCnt SecCnt  PagCnt   BlkCnt     OpOpt      DatBlk  Freq   EccMode ReadRetry DDRType   OperationPar       DDRInfo 
+    //                   NAND_CHIP_ID                  DieCnt SecCnt  PagCnt   BlkCnt     OpOpt      DatBlk  Freq   EccMode ReadRetry DDRType   OperationPar       DDRInfo
     //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    //------------------------------------------------------------------------------------------------------------------------------------------------------------------------                                 
+    //------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     { {0x2c, 0xd5, 0x94, 0x3e, 0xff, 0xff, 0xff, 0xff }, 1,     8,     128,     4096,   0x00000008,   896,    30,     0,     0,          0,   &PhysicArchiPara4, &DefDDRInfo,  0x030009 },   // MT29F16G08MAA, MT29F32G08QAA, JS29F32G08AAM, JS29F32G08CAM
     { {0x2c, 0xd5, 0xd5, 0x3e, 0xff, 0xff, 0xff, 0xff }, 2,     8,     128,     4096,   0x00000008,   896,    30,     0,     0,          0,   &PhysicArchiPara4, &DefDDRInfo,  0x03000a },   // MT29F64G08TAA, JS29F64G08FAM
-    //------------------------------------------------------------------------------------------------------------------------------------------------------------------------                                 
+    //------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     { {0x2c, 0xd7, 0x94, 0x3e, 0xff, 0xff, 0xff, 0xff }, 1,     8,     128,     8192,   0x00000208,   896,    30,     2,     0,          0,   &PhysicArchiPara4, &DefDDRInfo,  0x03000b },   // MT29F32G08CBAAA,MT29F64G08CFAAA
     { {0x2c, 0xd7, 0xd5, 0x3e, 0xff, 0xff, 0xff, 0xff }, 2,     8,     128,     4096,   0x00000008,   896,    30,     2,     0,          0,   &PhysicArchiPara4, &DefDDRInfo,  0x03000c },   // MT29F64G08CTAA
     { {0x2c, 0xd9, 0xd5, 0x3e, 0xff, 0xff, 0xff, 0xff }, 2,     8,     128,     8192,   0x00000008,   896,    30,     2,     0,          0,   &PhysicArchiPara4, &DefDDRInfo,  0x03000d },   // MT29F128G08,
@@ -336,16 +313,16 @@ struct __NandPhyInfoPar_t MicronNandTbl[] =
 //==============================================================================
 struct __NandPhyInfoPar_t IntelNandTbl[] =
 {
-    //                 NAND_CHIP_ID                    DieCnt SecCnt  PagCnt   BlkCnt     OpOpt      DatBlk  Freq   EccMode ReadRetry DDRType   OperationPar       DDRInfo 
+    //                 NAND_CHIP_ID                    DieCnt SecCnt  PagCnt   BlkCnt     OpOpt      DatBlk  Freq   EccMode ReadRetry DDRType   OperationPar       DDRInfo
     //------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    //------------------------------------------------------------------------------------------------------------------------------------------------------------------------                                
+    //------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 	{ {0x89, 0xd7, 0x94, 0x3e, 0xff, 0xff, 0xff, 0xff }, 1,     8,     128,     8192,   0x00000008,   864,    30,     2,     0,          0,   &PhysicArchiPara4, &DefDDRInfo,  0x040002 },   // MLC32GW8IMA,MLC64GW8IMA, 29F32G08AAMD2, 29F64G08CAMD2
 	{ {0x89, 0xd5, 0x94, 0x3e, 0xff, 0xff, 0xff, 0xff }, 1,     8,     128,     4096,   0x00000008,   864,    30,     2,     0,          0,   &PhysicArchiPara4, &DefDDRInfo,  0x040003 },   // 29F32G08CAMC1
 	{ {0x89, 0xd7, 0xd5, 0x3e, 0xff, 0xff, 0xff, 0xff }, 1,     8,     128,     8192,   0x00000008,   864,    30,     2,     0,          0,   &PhysicArchiPara4, &DefDDRInfo,  0x040004 },   // 29F64G08FAMC1
 	{ {0x89, 0x68, 0x04, 0x46, 0xff, 0xff, 0xff, 0xff }, 1,     8,     256,     4096,   0x00000208,   864,    30,     2,     0,          0,   &PhysicArchiPara4, &DefDDRInfo,  0x040005 },   // 29F32G08AAMDB
 	{ {0x89, 0x88, 0x24, 0x4B, 0xff, 0xff, 0xff, 0xff }, 1,    16,     256,     4096,   0x1f000208,   864,    40,     2,     0,          0,   &PhysicArchiPara4, &DefDDRInfo,  0x040006 },   // 29F64G08CBAAA 29F64G083AME1 29F64G08ACME3
 	{ {0x89, 0xA8, 0x25, 0xCB, 0xff, 0xff, 0xff, 0xff }, 2,    16,     256,     4096,   0x00000208,   864,    30,     2,     0,          0,   &PhysicArchiPara4, &DefDDRInfo,  0x040007 },   // ?
-	//------------------------------------------------------------------------------------------------------------------------------------------------------------------------          
+	//------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 	//------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 	{ {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff }, 0,     0,       0,        0,   0x00000000,     0,     0,      0,     0,         0,          0,              0,        0xffffff },   // NULL
 };
@@ -356,9 +333,9 @@ struct __NandPhyInfoPar_t IntelNandTbl[] =
 //==============================================================================
 struct __NandPhyInfoPar_t StNandTbl[] =
 {
-    //              NAND_CHIP_ID                       DieCnt SecCnt  PagCnt   BlkCnt     OpOpt      DatBlk  Freq   EccMode ReadRetry DDRType   OperationPar       DDRInfo 
+    //              NAND_CHIP_ID                       DieCnt SecCnt  PagCnt   BlkCnt     OpOpt      DatBlk  Freq   EccMode ReadRetry DDRType   OperationPar       DDRInfo
     //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------          
+    //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
     { {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff }, 0,     0,       0,        0,   0x00000000,     0,     0,    0,       0,         0,           0,            0,         0xffffff },   // NULL
 };
 
@@ -367,9 +344,9 @@ struct __NandPhyInfoPar_t StNandTbl[] =
 //==============================================================================
 struct __NandPhyInfoPar_t SpansionNandTbl[] =
 {
-    //                   NAND_CHIP_ID                  DieCnt SecCnt  PagCnt   BlkCnt     OpOpt      DatBlk  Freq   EccMode ReadRetry DDRType   OperationPar       DDRInfo 
+    //                   NAND_CHIP_ID                  DieCnt SecCnt  PagCnt   BlkCnt     OpOpt      DatBlk  Freq   EccMode ReadRetry DDRType   OperationPar       DDRInfo
     //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------           
+    //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
     { {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff }, 0,     0,       0,        0,   0x00000000,     0,     0,     0,      0,         0,          0,              0,        0xffffff },   // NULL
 };
 
@@ -380,7 +357,7 @@ struct __NandPhyInfoPar_t PowerNandTbl[] =
 {
     //                   NAND_CHIP_ID                 DieCnt SecCnt  PagCnt   BlkCnt     OpOpt      DatBlk  Freq   EccMode ReadRetry DDRType   OperationPar       DDRInfo
     //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------          
+    //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------
     { {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff }, 0,     0,       0,        0,   0x00000000,     0,     0,     0,      0,         0,          0,                0,      0xffffff },   // NULL
 };
 

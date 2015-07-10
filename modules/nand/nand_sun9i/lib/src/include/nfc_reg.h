@@ -1,32 +1,12 @@
 /*
-************************************************************************************************************************
-*                                                  NAND BSP for sun
-*                                 NAND hardware registers definition and BSP interfaces
-*                             				Copyright(C), 2006-2008, uLIVE
-*											       All Rights Reserved
-*
-* File Name : nfc_reg.h
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
 
-* Author : Gavin.Wen
-*
-* Version : 1.0.0
-*
-* Date : 2013.07.19
-*
-* Description : This file provides functions to read and write NDFC's registers.
-*			
-* 
-* Others : None at present.
-*
-*
-* History :
-*
-*  <Author>        <time>       <version>      <description>
-*
-* Gavin.Wen      2013.07.19       1.0.0        build the file
-*
-************************************************************************************************************************
-*/
+
 
 #ifndef __NDFC_REG_H
 #define __NDFC_REG_H

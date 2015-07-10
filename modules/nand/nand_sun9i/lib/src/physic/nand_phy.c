@@ -1,14 +1,12 @@
-/*********************************************************************************************************
-*                                                                NAND FLASH DRIVER
-*								(c) Copyright 2008, SoftWinners Co,Ld.
-*                                          			    All Right Reserved
-*file : nand_phy.c
-*description : this file creates some physic optimize access function for system .
-*history :
-*	v0.1  2008-03-26 Richard
-* v0.2  2009-9-3 penggang modified for 1615
-*
-*********************************************************************************************************/
+/*
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+
 #include "../include/nand_type.h"
 #include "../include/nand_physic.h"
 #include "../include/nand_simple.h"
@@ -595,7 +593,7 @@ __s32 _read_single_page_spare(struct boot_physical_param *readop,__u8 dma_wait_m
 					}
 				}
 			}
-        }    
+        }
         for( k = 0; k<READ_RETRY_CYCLE+1;k++)
 		{
 
@@ -769,9 +767,9 @@ __s32 _read_single_page_spare(struct boot_physical_param *readop,__u8 dma_wait_m
 								NFC_ReadRetry_Prefix_Sandisk_A19();
 								NFC_DSP_ON_Sandisk_A19();
 							}
-			
+
 							NFC_ReadRetry_Enable_Sandisk_A19();
-							
+
 							if(SUPPORT_RANDOM)
 							{
 								random_seed = _cal_random_seed(readop->page);
@@ -789,7 +787,7 @@ __s32 _read_single_page_spare(struct boot_physical_param *readop,__u8 dma_wait_m
 								{
 									if((sparebuf[0] == 0x32)&&(sparebuf[1] == 0x43)&&(sparebuf[2] == 0xaa)&&(sparebuf[3] == 0x4e))
 										free_page_flag = 1;
-		
+
 								}
 
 								if(free_page_flag)
@@ -847,11 +845,11 @@ __s32 _read_single_page_spare(struct boot_physical_param *readop,__u8 dma_wait_m
 				}
 				else if(0x33 == READ_RETRY_MODE)
 				{
-					
+
 					RetryCount[NandIndex][readop->chip] = 0;
-					
+
 					for(n=0; n<(READ_RETRY_CYCLE+1); n++)
-					{							
+					{
 						if(NFC_ReadRetry(readop->chip,RetryCount[NandIndex][readop->chip],READ_RETRY_TYPE))
 						{
 							PHY_ERR("[Read_single_page_spare] NFC_ReadRetry fail\n");
@@ -864,9 +862,9 @@ __s32 _read_single_page_spare(struct boot_physical_param *readop,__u8 dma_wait_m
 							NFC_Test_Mode_Exit_Sandisk();
 						}
 						NFC_ReadRetry_Prefix_Sandisk_A19();
-		
+
 						NFC_ReadRetry_Enable_Sandisk_A19();
-					
+
 						if(SUPPORT_RANDOM)
 						{
 							random_seed = _cal_random_seed(readop->page);
@@ -884,7 +882,7 @@ __s32 _read_single_page_spare(struct boot_physical_param *readop,__u8 dma_wait_m
 							{
 								if((sparebuf[0] == 0x32)&&(sparebuf[1] == 0x43)&&(sparebuf[2] == 0xaa)&&(sparebuf[3] == 0x4e))
 									free_page_flag = 1;
-	
+
 							}
 
 							if(free_page_flag)
@@ -1546,7 +1544,7 @@ __s32 _read_sectors(struct boot_physical_param *readop,__u8 dma_wait_mode)
 								NFC_ReadRetry_Prefix_Sandisk_A19();
 								NFC_DSP_ON_Sandisk_A19();
 							}
-			
+
 							NFC_ReadRetry_Enable_Sandisk_A19();
 
 							if(SUPPORT_RANDOM)
@@ -1602,11 +1600,11 @@ __s32 _read_sectors(struct boot_physical_param *readop,__u8 dma_wait_mode)
 				}
 				else if(0x33 == READ_RETRY_MODE)
 				{
-					
+
 					RetryCount[NandIndex][readop->chip] = 0;
-					
+
 					for(n=0; n<(READ_RETRY_CYCLE+1); n++)
-					{							
+					{
 						if(NFC_ReadRetry(readop->chip,RetryCount[NandIndex][readop->chip],READ_RETRY_TYPE))
 						{
 							PHY_ERR("[Read_sectors] NFC_ReadRetry fail\n");
@@ -1619,9 +1617,9 @@ __s32 _read_sectors(struct boot_physical_param *readop,__u8 dma_wait_mode)
 							NFC_Test_Mode_Exit_Sandisk();
 						}
 						NFC_ReadRetry_Prefix_Sandisk_A19();
-		
+
 						NFC_ReadRetry_Enable_Sandisk_A19();
-					
+
 						if(SUPPORT_RANDOM)
 						{
 							random_seed = _cal_random_seed(readop->page);
@@ -1651,7 +1649,7 @@ __s32 _read_sectors(struct boot_physical_param *readop,__u8 dma_wait_mode)
 
 						RetryCount[NandIndex][readop->chip]++;
 					}
-						
+
 					if(ret == -ERR_ECC)
 						PHY_DBG("ecc error--2!\n");
 				}
@@ -2166,9 +2164,9 @@ __s32 _read_sectors_first(struct boot_physical_param *readop,__u8 dma_wait_mode)
 								NFC_ReadRetry_Prefix_Sandisk_A19();
 								NFC_DSP_ON_Sandisk_A19();
 							}
-			
+
 							NFC_ReadRetry_Enable_Sandisk_A19();
-							
+
 							if(SUPPORT_RANDOM)
 							{
 								random_seed = _cal_random_seed(readop->page);
@@ -2187,7 +2185,7 @@ __s32 _read_sectors_first(struct boot_physical_param *readop,__u8 dma_wait_mode)
 								ret = NFC_Read(cmd_list, data_buf, sparebuf, dma_wait_mode , NDFC_PAGE_MODE);
 							}
 
-							
+
 							if(ret != -ERR_ECC)
 							{
 								if(m==2)
@@ -2211,7 +2209,7 @@ __s32 _read_sectors_first(struct boot_physical_param *readop,__u8 dma_wait_mode)
 
 							RetryCount[NandIndex][readop->chip]++;
 						}
-						
+
 						if(ret != -ERR_ECC)
 						{
 							break;
@@ -2224,11 +2222,11 @@ __s32 _read_sectors_first(struct boot_physical_param *readop,__u8 dma_wait_mode)
 				}
 				else if(0x33 == READ_RETRY_MODE)
 				{
-					
+
 					RetryCount[NandIndex][readop->chip] = 0;
-					
+
 					for(n=0; n<(READ_RETRY_CYCLE+1); n++)
-					{							
+					{
 						if(NFC_ReadRetry(readop->chip,RetryCount[NandIndex][readop->chip],READ_RETRY_TYPE))
 						{
 							PHY_ERR("[Read_sectors_first] NFC_ReadRetry fail\n");
@@ -2241,9 +2239,9 @@ __s32 _read_sectors_first(struct boot_physical_param *readop,__u8 dma_wait_mode)
 							NFC_Test_Mode_Exit_Sandisk();
 						}
 						NFC_ReadRetry_Prefix_Sandisk_A19();
-		
+
 						NFC_ReadRetry_Enable_Sandisk_A19();
-					
+
 						if(SUPPORT_RANDOM)
 						{
 							random_seed = _cal_random_seed(readop->page);
@@ -2273,7 +2271,7 @@ __s32 _read_sectors_first(struct boot_physical_param *readop,__u8 dma_wait_mode)
 
 						RetryCount[NandIndex][readop->chip]++;
 					}
-						
+
 					if(ret == -ERR_ECC)
 						PHY_DBG("ecc error--2!\n");
 				}
@@ -2547,7 +2545,7 @@ __s32 _read_sectors_v2_first(struct boot_physical_param *readop, __u8 dma_wait_m
 								NFC_ReadRetry_Prefix_Sandisk_A19();
 								NFC_DSP_ON_Sandisk_A19();
 							}
-			
+
 							NFC_ReadRetry_Enable_Sandisk_A19();
 
 							if(SUPPORT_RANDOM)
@@ -2588,7 +2586,7 @@ __s32 _read_sectors_v2_first(struct boot_physical_param *readop, __u8 dma_wait_m
 
 							RetryCount[NandIndex][readop->chip]++;
 						}
-						
+
 						if(ret != -ERR_ECC)
 						{
 							break;
@@ -2601,11 +2599,11 @@ __s32 _read_sectors_v2_first(struct boot_physical_param *readop, __u8 dma_wait_m
 				}
 				else if(0x33 == READ_RETRY_MODE)
 				{
-					
+
 					RetryCount[NandIndex][readop->chip] = 0;
-					
+
 					for(n=0; n<(READ_RETRY_CYCLE+1); n++)
-					{							
+					{
 						if(NFC_ReadRetry(readop->chip,RetryCount[NandIndex][readop->chip],READ_RETRY_TYPE))
 						{
 							PHY_ERR("[Read_sectors_v2_first] NFC_ReadRetry fail\n");
@@ -2618,9 +2616,9 @@ __s32 _read_sectors_v2_first(struct boot_physical_param *readop, __u8 dma_wait_m
 							NFC_Test_Mode_Exit_Sandisk();
 						}
 						NFC_ReadRetry_Prefix_Sandisk_A19();
-		
+
 						NFC_ReadRetry_Enable_Sandisk_A19();
-					
+
 						if(SUPPORT_RANDOM)
 						{
 							random_seed = _cal_random_seed(readop->page);
@@ -2650,7 +2648,7 @@ __s32 _read_sectors_v2_first(struct boot_physical_param *readop, __u8 dma_wait_m
 
 						RetryCount[NandIndex][readop->chip]++;
 					}
-						
+
 					if(ret == -ERR_ECC)
 						PHY_DBG("ecc error--2!\n");
 				}
@@ -3554,7 +3552,7 @@ __s32  PHY_PageReadSpare(struct __PhysicOpPara_t *pPageAdr)
 			//ts2[NandIndex] = jiffies();
 			if(i==0)
 				_phy_read_status(chip);
-				
+
 			readop.mainbuf = (__u8 *)(pPageAdr->MDataPtr) + 512*SECTOR_CNT_OF_SINGLE_PAGE*(i*CHANNEL_CNT+ NandIndex);
 			if (pPageAdr->SDataPtr) {
 				readop.oobbuf = tmp_oob[i][NandIndex];

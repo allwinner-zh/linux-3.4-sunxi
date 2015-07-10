@@ -1,14 +1,10 @@
-/*********************************************************************************
-*                                       NAND FLASH DRIVER
-*                                (c) Copyright 2008, SoftWinners Co,Ld.
-*                                       All Right Reserved
-*file : mapping.c
-*description : this file create a interface to mange map table:
-*history :
-*    v0.1  2008-04-09 Richard
-*            support all kinds of access way of block map and page map.
-**********************************************************************************/
-
+/*
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
 #include "../include/nand_drv_cfg.h"
 #include "../include/nand_type.h"
 #include "../include/nand_physic.h"
@@ -28,9 +24,9 @@ void dump(void *buf, __u32 len , __u8 nbyte,__u8 linelen)
 {
 	__u32 i;
 	__u32 tmplen = len/nbyte;
-		
+
 	PRINT("/********************************************/\n");
-	
+
 	for (i = 0; i < tmplen; i++)
 	{
 		if (nbyte == 1)
@@ -41,13 +37,13 @@ void dump(void *buf, __u32 len , __u8 nbyte,__u8 linelen)
 			PRINT("%x  ",((__u32 *)buf)[i]);
 		else
 			break;
-			
+
 		if(i%linelen == (linelen - 1))
 			PRINT("\n");
 	}
 
 	return;
-	
+
 }
 
 /*
@@ -1224,7 +1220,7 @@ __s32 BMM_GetLogReleaseLogBlk(__u32 pos)
 		PRINT("BMM_GetLogReleaseLogBlk: 0x%x invalid \n", pos);
 		return LOG_BLK_TBL[0].LogicBlkNum;
 	}
-		
+
 }
 
 __s32 BMM_CheckLastUsedPage(__u32 pos)
@@ -1233,15 +1229,15 @@ __s32 BMM_CheckLastUsedPage(__u32 pos)
 	{
 		if(LOG_BLK_TBL[pos].LastUsedPage == (PAGE_CNT_OF_LOGIC_BLK -1))
 			return 0;
-		else 
-			return -1; 
+		else
+			return -1;
 	}
 	else
 	{
 		PRINT("BMM_CheckLastUsedPage: 0x%x invalid \n", pos);
 		return 0;
 	}
-		
+
 }
 
 
@@ -1269,7 +1265,7 @@ __s32 BMM_RleaseLogBlock(__s32 tmpPst, __s32 start_page, __u32 merge_page_cnt)
 {
 	__s32 result;
 
-	
+
 	//PRINT("BMM_RleaseLogBlock: 0x%x, 0x%x, 0x%x\n", tmpPst, start_page, merge_page_cnt);
 	BMM_SetDirtyFlag();
 

@@ -1,33 +1,12 @@
 /*
-************************************************************************************************************************
-*                                                      eNand
-*                                         Nand flash driver logic manage module
-*
-*                             Copyright(C), 2008-2009, SoftWinners Microelectronic Co., Ltd.
-*											       All Rights Reserved
-*
-* File Name : bad_manage.c
-*
-* Author : Kevin.z
-*
-* Version : v0.1
-*
-* Date : 2008.04.07
-*
-* Description : This file is the bad block processing module, process bad block in different
-*               cases of bad block produced.
-*
-* Others : None at present.
-*
-*
-* History :
-*
-*  <Author>        <time>       <version>      <description>
-*
-* Kevin.z         2008.04.07      0.1          build the file
-*
-************************************************************************************************************************
-*/
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+
 #include "../include/nand_logic.h"
 
 extern struct __NandDriverGlobal_t     NandDriverInfo;
@@ -106,7 +85,7 @@ static __s32 _MarkBadBlk(struct __SuperPhyBlkType_t *pBadBlk, __u32 nZoneNum)
 		LOGICCTL_DBG("[LOGICCTL_DBG] erase bad block fail!\n");
 	}
 
-	
+
     //set the spare area data for write
     MEMSET((void *)tmpSpare, 0x00, 2*sizeof(struct __NandUserData_t));
 
@@ -157,7 +136,7 @@ __s32 LML_BadBlkManage(struct __SuperPhyBlkType_t *pBadBlk, __u32 nZoneNum, __u3
     tmpBadBlk = *pBadBlk;
 
 	LOGICCTL_ERR("%s : %d : bad block manage go ,bad block: %x\n",__FUNCTION__,__LINE__,tmpBadBlk.PhyBlkNum);
-	
+
 __PROCESS_BAD_BLOCK:
 
     if(pNewBlk)

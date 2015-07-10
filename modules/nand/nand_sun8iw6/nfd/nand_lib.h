@@ -1,3 +1,10 @@
+/*
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
 #ifndef __NAND_LIB_H__
 #define __NAND_LIB_H__
 
@@ -175,11 +182,11 @@ extern int mbr2disks(struct nand_disk* disk_array);
 extern int NAND_Print(const char *fmt, ...);
 
 
-/* 
+/*
 *   Description:
 *   1. if u wanna set dma callback hanlder(sleep during dma transfer) to free cpu for other tasks,
 *      one must call the interface before nand flash initialization.
-      this option is also protected by dma poll method,wakup(succeed or timeout) then check 
+      this option is also protected by dma poll method,wakup(succeed or timeout) then check
       dma transfer complete or still running.
 *   2. if u use dma poll method,no need to call the interface.
 *

@@ -1,33 +1,12 @@
 /*
-************************************************************************************************************************
-*                                                      eNand
-*                                           Nand flash driver scan module
-*
-*                             Copyright(C), 2008-2009, SoftWinners Microelectronic Co., Ltd.
-*											       All Rights Reserved
-*
-* File Name : nand_scan.c
-*
-* Author : Kevin.z
-*
-* Version : v0.1
-*
-* Date : 2008.03.27
-*
-* Description : This file scan the nand flash storage system, analyze the nand flash type
-*               and initiate the physical architecture parameters.
-*
-* Others : None at present.
-*
-*
-* History :
-*
-*  <Author>        <time>       <version>      <description>
-*
-* Kevin.z         2008.03.27      0.1          build the file
-*
-************************************************************************************************************************
-*/
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+
 
 #include "../include/nand_drv_cfg.h"
 #include "../include/nand_scan.h"
@@ -209,16 +188,16 @@ __s32 NAND_GetParam(boot_nand_para_t * nand_param)
 	nand_param->good_block_ratio   =   NandStorageInfo.ValidBlkRatio     ;
 	nand_param->ReadRetryType      =   NandStorageInfo.ReadRetryType     ;
 	nand_param->DDRType            =   NandStorageInfo.DDRType           ;
-	
+
 	PHY_ERR("DDRType: %d\n", nand_param->DDRType);
 	if ((nand_param->DDRType == 0x2) || (nand_param->DDRType == 0x12)) {
 		PHY_ERR("set ddrtype 0, freq 30Mhz\n");
 		nand_param->DDRType = 0;
-		nand_param->FrequencePar = 30;		
+		nand_param->FrequencePar = 30;
 	} else if (nand_param->DDRType == 0x13) {
 		PHY_ERR("set ddrtype 3, freq 30Mhz\n");
 		nand_param->DDRType = 3;
-		nand_param->FrequencePar = 30;	
+		nand_param->FrequencePar = 30;
 	}
 
 	for(i =0; i<8; i++)
@@ -277,9 +256,9 @@ __s32 _GetOldPhysicArch(void *phy_arch, __u32 *good_blk_no)
 				oob[0], oob[1], oob[2], oob[3]);
 		if (ret>=0)
 		{
-			if (oob[0]==0x00) 
+			if (oob[0]==0x00)
 			{
-				if ((oob[1]==0x50) && (oob[2]==0x48) && (oob[3]==0x59) && (oob[4]==0x41) && (oob[5]==0x52) && (oob[6]==0x43) && (oob[7]==0x48)) 
+				if ((oob[1]==0x50) && (oob[2]==0x48) && (oob[3]==0x59) && (oob[4]==0x41) && (oob[5]==0x52) && (oob[6]==0x43) && (oob[7]==0x48))
 				{
 					//*((struct __NandStorageInfo_t *)phy_arch) = *parch;
 					if((parch->PlaneCntPerDie !=1) && (parch->PlaneCntPerDie !=2))
@@ -296,7 +275,7 @@ __s32 _GetOldPhysicArch(void *phy_arch, __u32 *good_blk_no)
 				}
 				else
 				{
-					PHY_DBG("_GetOldPhysicArch: mark bad block!\n");					
+					PHY_DBG("_GetOldPhysicArch: mark bad block!\n");
 				}
 			}
 			else if(oob[0]==0xff)
@@ -305,13 +284,13 @@ __s32 _GetOldPhysicArch(void *phy_arch, __u32 *good_blk_no)
 				ret2 = 2;//blank page
 				break;
 			}
-			else 
+			else
 			{
 				PHY_DBG("_GetOldPhysicArch: unkonwn1!\n");
 			}
 		}
-		else 
-		{			
+		else
+		{
 			if (oob[0]==0xff)
 			{
 				PHY_DBG("_GetOldPhysicArch: blank block!\n");
@@ -322,17 +301,17 @@ __s32 _GetOldPhysicArch(void *phy_arch, __u32 *good_blk_no)
 			{
 				PHY_DBG("_GetOldPhysicArch: bad block!\n");
 			}
-			else 
+			else
 			{
 				PHY_DBG("_GetOldPhysicArch: unkonwn2!\n");
 			}
-		}		
+		}
 	}
-	
+
 	if (b == (start_blk+blk_cnt)) {
 		ret2 = -1;
 		*good_blk_no = 0;
-	} else 
+	} else
 		*good_blk_no = b;
 
 EXIT:
@@ -348,7 +327,7 @@ __s32 _SetNewPhysicArch(void *phy_arch)
 	__u32 start_blk=12, blk_cnt=100;
 	__u8 oob[128];
 	__u32 good_blk_no;
-	struct __NandStorageInfo_t *parch; 
+	struct __NandStorageInfo_t *parch;
 	struct __NandStorageInfo_t arch_tmp = {0};
 	struct boot_physical_param nand_op;
 
@@ -363,7 +342,7 @@ __s32 _SetNewPhysicArch(void *phy_arch)
 		FREE(parch, 64*1024);
 		return ret;
 	}
-	
+
 	PHY_DBG("_SetNewPhysicArch: write physic arch to blk %d...\n", good_blk_no);
 
 	for (b=good_blk_no; b<start_blk+blk_cnt; b++)
@@ -384,17 +363,17 @@ __s32 _SetNewPhysicArch(void *phy_arch)
 
 			for (p=0; p<NandStorageInfo.PageCntPerPhyBlk; p++)
 			{
-				nand_op.page = p;		
+				nand_op.page = p;
 				ret = PHY_SimpleWrite(&nand_op); //PHY_SimpleWrite_CurCH(&nand_op);
 				if (ret<0) {
 					PHY_ERR("_SetNewPhysicArch: mark bad block, write chip %d, block %d, page %d error\n", nand_op.chip, nand_op.block, nand_op.page);
 				}
 			}
-		} 
-		else 
+		}
+		else
 		{
 			PHY_DBG("_SetNewPhysicArch: erase block %d ok.\n", b);
-			
+
 			for (i=0; i<128; i++)
 		    	oob[i] = 0x88;
 		    oob[0] = 0x00; //bad block flag
@@ -405,13 +384,13 @@ __s32 _SetNewPhysicArch(void *phy_arch)
 			oob[5] = 0x52; //82; //'R'
 			oob[6] = 0x43; //67; //'C'
 			oob[7] = 0x48; //72; //'H'
-		
+
 			//MEMSET(parch, 0x0, 1024);
 			MEMCPY(parch, phy_arch, sizeof(struct __NandStorageInfo_t));
 			//*parch = *((struct __NandStorageInfo_t *)phy_arch);
 			for (p=0; p<NandStorageInfo.PageCntPerPhyBlk; p++)
 			{
-				nand_op.page = p;			
+				nand_op.page = p;
 				ret = PHY_SimpleWrite(&nand_op); //PHY_SimpleWrite_CurCH(&nand_op);
 				if(ret<0)
 				{
@@ -423,7 +402,7 @@ __s32 _SetNewPhysicArch(void *phy_arch)
 			break;
 		}
 	}
-			
+
 	PHY_DBG("_SetNewPhysicArch: ============\n");
     ret = _GetOldPhysicArch(&arch_tmp, &good_blk_no);
 	if (ret == -1) {
@@ -432,9 +411,9 @@ __s32 _SetNewPhysicArch(void *phy_arch)
 		FREE(parch, 64*1024);
 		return ret;
 	}
-	
+
 	FREE(parch, 64*1024);
-	
+
 	return 0;
 }
 
@@ -443,7 +422,7 @@ __s32 _UpdateExtMultiPlanePara(void)
 {
 	__u32 id_number_ctl;
 	__u32 script_twoplane, para;
-	
+
 	id_number_ctl = NAND_GetNandIDNumCtrl();
 	if (0x0 != id_number_ctl)
 	{
@@ -468,41 +447,41 @@ __s32 _UpdateExtMultiPlanePara(void)
 							NandStorageInfo.PlaneCntPerDie = 1;
 							NandStorageInfo.OperationOpt &= ~NAND_MULTI_READ;
 				       	 	NandStorageInfo.OperationOpt &= ~NAND_MULTI_PROGRAM;
-						}													
+						}
 					} else if (script_twoplane == 0){
 						PHY_DBG("%d\n", script_twoplane);
 						NandStorageInfo.PlaneCntPerDie = 1;
 						NandStorageInfo.OperationOpt &= ~NAND_MULTI_READ;
-			       	 	NandStorageInfo.OperationOpt &= ~NAND_MULTI_PROGRAM;				       	 	
+			       	 	NandStorageInfo.OperationOpt &= ~NAND_MULTI_PROGRAM;
 					} else {
-						PHY_DBG("%d, wrong parameter(0,1)\n", script_twoplane);							
+						PHY_DBG("%d, wrong parameter(0,1)\n", script_twoplane);
 						return -1;
-					}						
+					}
 				}
-				else 
+				else
 				{
 					PHY_ERR("_UpdateExtMultiPlanePara: wrong id number, 0x%x/0x%x\n", (para & 0xffffff), NandIDNumber);
 					return -1;
 				}
 			}
-			else 
+			else
 			{
 				PHY_ERR("_UpdateExtMultiPlanePara: wrong two plane para, 0x%x\n", para);
 				return -1;
 			}
 		}
-		else 
+		else
 		{
 			PHY_ERR("_UpdateExtMultiPlanePara: wrong id ctrl number: %d/%d\n", id_number_ctl, (1U<<1));
 			return -1;
 		}
 	}
-	else 
+	else
 	{
 		PHY_ERR("_UpdateExtMultiPlanePara: no para.\n");
 		return -1;
 	}
-	
+
 	return 0;
 }
 
@@ -510,14 +489,14 @@ __s32 _UpdateExtAccessFreqPara(void)
 {
 	__u32 id_number_ctl;
 	__u32 script_frequence, para;
-	
+
 	id_number_ctl = NAND_GetNandIDNumCtrl();
 	if (0x0 != id_number_ctl) {
 		if (id_number_ctl & (1U<<0)) {//bit 0, set freq para
 			para = NAND_GetNandExtPara(0);
 			if(0xffffffff != para) { //get script success
 				if(((para & 0xffffff) == NandIDNumber) || ((para & 0xffffff) == 0xeeeeee)) {
-					
+
 					script_frequence = (para >> 24) & 0xff;
 					if( (script_frequence > 10)&&(script_frequence < 100) ) {
 						NandStorageInfo.FrequencePar = script_frequence;
@@ -525,8 +504,8 @@ __s32 _UpdateExtAccessFreqPara(void)
 					} else {
 						PHY_ERR("_UpdateExtAccessFreqPara: wrong freq, %d\n",script_frequence);
 						return -1;
-					}					
-					
+					}
+
 				} else {
 					PHY_ERR("_UpdateExtAccessFreqPara: wrong id number, 0x%x/0x%x\n", (para & 0xffffff), NandIDNumber);
 					return -1;
@@ -543,14 +522,14 @@ __s32 _UpdateExtAccessFreqPara(void)
 		PHY_DBG("_UpdateExtAccessFreqPara: no para.\n");
 		return -1;
 	}
-	
-	return 0;	
+
+	return 0;
 }
 
-__s32 NAND_UpdatePhyArch(void) 
+__s32 NAND_UpdatePhyArch(void)
 {
 	__s32 ret = 0;
-	
+
 	/*
 	 * when erase chip during update firmware, it means that we will ignore previous
 	 * physical archtecture, erase all good blocks and write new data.
@@ -559,7 +538,7 @@ __s32 NAND_UpdatePhyArch(void)
 	 */
 	ret = _UpdateExtMultiPlanePara();
 	if (ret<0)
-	{		
+	{
 		if (CurrentDriverTwoPlaneOPCfg) {
 			NandStorageInfo.PlaneCntPerDie = 2;
 			NandStorageInfo.OperationOpt |= NAND_MULTI_READ;
@@ -567,7 +546,7 @@ __s32 NAND_UpdatePhyArch(void)
 		} else {
 			NandStorageInfo.PlaneCntPerDie = 1;
 			NandStorageInfo.OperationOpt &= ~NAND_MULTI_READ;
-	   	 	NandStorageInfo.OperationOpt &= ~NAND_MULTI_PROGRAM;	
+	   	 	NandStorageInfo.OperationOpt &= ~NAND_MULTI_PROGRAM;
 		}
 		PHY_ERR("NAND_UpdatePhyArch: get script error, use current driver cfg!\n");
 	}
@@ -576,7 +555,7 @@ __s32 NAND_UpdatePhyArch(void)
 	if (ret<0) {
 		PHY_ERR("NAND_UpdatePhyArch: write physic arch to nand failed!\n");
 	}
-	
+
 	return ret;
 }
 
@@ -588,7 +567,7 @@ __s32 NAND_ReadPhyArch(void)
 
 	ret = _GetOldPhysicArch(&old_storage_info, &good_blk_no);
 	if ( ret == 1 ) {
-		PHY_ERR("NAND_ReadPhyArch: get old physic arch ok, use old cfg, now:0x%x 0x%x - old:0x%x 0x%x!\n", 
+		PHY_ERR("NAND_ReadPhyArch: get old physic arch ok, use old cfg, now:0x%x 0x%x - old:0x%x 0x%x!\n",
 			NandStorageInfo.PlaneCntPerDie, NandStorageInfo.OperationOpt,
 			old_storage_info.PlaneCntPerDie, old_storage_info.OperationOpt);
 		NandStorageInfo.PlaneCntPerDie = old_storage_info.PlaneCntPerDie;
@@ -600,9 +579,9 @@ __s32 NAND_ReadPhyArch(void)
 		    NandStorageInfo.OperationOpt |= NAND_MULTI_READ;
    	 	    NandStorageInfo.OperationOpt |= NAND_MULTI_PROGRAM;
 		}
-	} else if(ret == 2) {		
+	} else if(ret == 2) {
 		PHY_ERR("NAND_ReadPhyArch: blank page!\n");
-	} else{		
+	} else{
 		PHY_ERR("NAND_ReadPhyArch: get para error!\n");
 	}
 	return ret;
@@ -835,30 +814,30 @@ __s32  SCN_AnalyzeNandSystem(void)
     NandStorageInfo.OptPhyOpPar.InterBnk1StatusCmd = tmpNandPhyInfo.OptionOp->InterBnk1StatusCmd;
     NandStorageInfo.OptPhyOpPar.BadBlockFlagPosition = tmpNandPhyInfo.OptionOp->BadBlockFlagPosition;
     NandStorageInfo.OptPhyOpPar.MultiPlaneBlockOffset = tmpNandPhyInfo.OptionOp->MultiPlaneBlockOffset;
-    
+
     /* set max block erase cnt and enable read reclaim flag */
     MaxBlkEraseTimes = tmpNandPhyInfo.MaxBlkEraseTimes;
 	/* in order to support to parse external script, record id ctl number */
-    NandIDNumber = tmpNandPhyInfo.Idnumber;    
-    
+    NandIDNumber = tmpNandPhyInfo.Idnumber;
+
     /* record current nand flash whether support two plane program */
     if ( NandStorageInfo.OperationOpt & NAND_MULTI_PROGRAM)
     	NandSupportTwoPlaneOp = 1;
-    else 
+    else
     	NandSupportTwoPlaneOp = 0;
-	
+
 	/* record current driver cfg for two plane operation */
 	if (CFG_SUPPORT_MULTI_PLANE_PROGRAM == 0)
 		CurrentDriverTwoPlaneOPCfg = 0;
 	else {
-		if (NandSupportTwoPlaneOp)	
+		if (NandSupportTwoPlaneOp)
 			CurrentDriverTwoPlaneOPCfg = 1;
-		else 
+		else
 			CurrentDriverTwoPlaneOPCfg = 0;
-	}    
-    PHY_DBG("[SCAN_DBG] NandTwoPlaneOp: %d, DriverTwoPlaneOPCfg: %d, 0x%x \n", 
+	}
+    PHY_DBG("[SCAN_DBG] NandTwoPlaneOp: %d, DriverTwoPlaneOPCfg: %d, 0x%x \n",
     	NandSupportTwoPlaneOp, CurrentDriverTwoPlaneOPCfg, ((NandIDNumber<<4)^0xffffffff));
-    	
+
     /* update access frequency from script */
     if (SUPPORT_UPDATE_EXTERNAL_ACCESS_FREQ) {
 	    _UpdateExtAccessFreqPara();
@@ -973,7 +952,7 @@ __s32  SCN_AnalyzeNandSystem(void)
         	    return -1;
 		}
     }
-    
+
 
     {
 		//for 2ch, secbitmap limit __u64
@@ -1067,9 +1046,9 @@ __s32  SCN_AnalyzeNandSystem(void)
 				break;
 		}
 		NandIndex = 0;
-		
+
 		if (NDFC_VERSION_V1 == NdfcVersion) {
-			/* ndfc version support nv-ddr2 and toggle ddr2 */	
+			/* ndfc version support nv-ddr2 and toggle ddr2 */
 			if (DDR_TYPE == TOG_DDR2)
 				DDR_TYPE = TOG_DDR;
 			if (DDR_TYPE == ONFI_DDR2)
@@ -1102,7 +1081,7 @@ __s32  SCN_AnalyzeNandSystem(void)
 					if(((*(volatile __u32 *)(0xf8001400+0x190))>>0x3)&0x1)
 						nand_info.ddr_delay = 0x1f;
 					else
-						nand_info.ddr_delay = 0x39;		
+						nand_info.ddr_delay = 0x39;
 
 					NFC_InitDDRParam(0, (nand_info.ddr_edo<<8)|(nand_info.ddr_delay));
 					NFC_ChangeInterfaceMode(&nand_info);
@@ -1197,7 +1176,7 @@ __s32  SCN_AnalyzeNandSystem(void)
     SCAN_DBG("[SCAN_DBG] =======================================================\n");
 
 	//NandHw_DbgInfo(0);
-	
+
 	val[0] = (NandStorageInfo.NandChipId[0] << 0) | (NandStorageInfo.NandChipId[1] << 8)
         	| (NandStorageInfo.NandChipId[2] << 16) | (NandStorageInfo.NandChipId[3] << 24);
 	val[1] = (NandStorageInfo.NandChipId[4] << 0) | (NandStorageInfo.NandChipId[5] << 8)

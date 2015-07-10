@@ -1,30 +1,12 @@
 /*
-************************************************************************************************************************
-*                                                      eNand
-*                                         Nand flash driver logic manage module
-*
-*                             Copyright(C), 2008-2009, SoftWinners Microelectronic Co., Ltd.
-*											       All Rights Reserved
-*
-* File Name : logic_ctl.c
-*
-* Author :
-*
-* Version : v0.1
-*
-* Date : 2008.04.03
-*
-* Description : This file is the mapping manage module of nand flash driver.
-*
-* Others : None at present.
-*
-*
-* History :
-*
-*  <Author>        <time>       <version>      <description>
-*
-************************************************************************************************************************
-*/
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+
 #include "../include/nand_drv_cfg.h"
 #include "../include/nand_type.h"
 #include "../include/nand_physic.h"
@@ -61,7 +43,7 @@ __u32 PMM_CalNextLogPage(__u32 current_page)
 
 			if(page_index == PAGE_CNT_OF_LOGIC_BLK)
 				next_page = PAGE_CNT_OF_LOGIC_BLK;
-			 
+
 			if((page_index<PAGE_CNT_OF_LOGIC_BLK)&&(lsb_page[page_index]!= 1))
 				PRINT("PMM_CalNextLogPage error, current: %x, next: %x\n", current_page, next_page);
 		}
@@ -777,8 +759,8 @@ static __s32 _GetLogPageForWrite(__u32 nBlk, __u32 nPage, __u16 *pLogPage, __u32
 		else
 		{
 			tmpPage =PMM_CalNextLogPage(tmpPage);
-		}	
-		
+		}
+
 		if((tmpPage >= PAGE_CNT_OF_SUPER_BLK)&&(LOG_BLK_TBL[tmpLogPst].WriteBlkIndex == 0))
 		{
 			LOG_BLK_TBL[tmpLogPst].WriteBlkIndex = 1;

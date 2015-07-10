@@ -1,18 +1,10 @@
-/*********************************************************************************
-*                                   NAND FLASH DRIVER
-*                       (c) Copyright 2008, SoftWinners Co,Ld.
-*                                   All Right Reserved
-*file : merge.c
-*description : this file create a interface to make room for new data writing. three block type:
-*              data block - data was arrange must be  in page order;
-*              log block  -  data was arranged is not necessary in page order.
-*              free block - totally clear physical block.
-*              only log block can be programmed.so if log block  is used up, merge is necessary.
-*history :
-*    v0.1  2008-04-07 Richard
-*            support three methods to make free physic block or free physic page.
-**********************************************************************************/
-
+/*
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
 #include "../include/nand_drv_cfg.h"
 #include "../include/nand_type.h"
 #include "../include/nand_physic.h"
@@ -229,7 +221,7 @@ __s32  _free2log_move_merge(__u32 nlogical)
 							if(DstPage>=PAGE_CNT_OF_SUPER_BLK)
 								break;
 						}
-						
+
 						if(DstPage >= PAGE_CNT_OF_SUPER_BLK)
 						{
 							LOGICCTL_ERR("move merge : dst page cal error\n");
@@ -715,7 +707,7 @@ __s32  _free2data_simple_merge_ext(__u32 nlogical, __u32 start_page, __u32 merge
 	    		{
 	    			//PRINT(" last  log Merge quit 0 !\n");
 	    			tmpMergePageNum = 0xffff;
-				tmpLogicalBlk = 0xffff;	
+				tmpLogicalBlk = 0xffff;
 				return tmpMergePageNum;
 	    		}
 			else
@@ -724,24 +716,24 @@ __s32  _free2data_simple_merge_ext(__u32 nlogical, __u32 start_page, __u32 merge
 				PRINT("tmpLogicalBlk: 0x%x, tmpMergePageNum: 0x%x, tmpMergeFreeBlk.PhyBlkNum: 0x%x\n", tmpLogicalBlk, tmpMergePageNum, tmpMergeFreeBlk.PhyBlkNum);
 				while(1);
 			}
-    			
+
     		}
     		tmpMergeFreeBlk.BlkEraseCnt = 0xffff;
 		tmpMergeFreeBlk.PhyBlkNum = 0xffff;
 		tmpMergePageNum = 0xffff;
 		tmpLogicalBlk = nlogical;
     }
-    else 
+    else
     {
     		//simple merge quit by other process
     		if(tmpMergePageNum == 0xefef)
     		{
     			//PRINT(" last  log Merge quit 1 !\n");
     			tmpMergePageNum = 0xffff;
-			tmpLogicalBlk = 0xffff;	
+			tmpLogicalBlk = 0xffff;
 			return tmpMergePageNum;
     		}
-			
+
     }
 
     /*init block info*/
@@ -758,12 +750,12 @@ __s32  _free2data_simple_merge_ext(__u32 nlogical, __u32 start_page, __u32 merge
 			PRINT(" GET Free Block too many times!\n");
 			while(1);
 		}
-	
+
 		tmpFreeBlklock = 1;
 		 if (NAND_OP_TRUE != BMM_GetFreeBlk(LOWEST_EC_TYPE, &tmpMergeFreeBlk))
         		return NAND_OP_FALSE;
 	}
-   
+
 
 
     /*copy data from data block or log block to free block*/
@@ -888,9 +880,9 @@ __s32  _free2data_simple_merge_ext(__u32 nlogical, __u32 start_page, __u32 merge
 			tmpMergeFreeBlk.PhyBlkNum = 0xffff;
 			tmpMergePageNum = 0xffff;
 			tmpLogicalBlk = 0xffff;
-			
+
 		}
-	    
+
 	}
 	else
 	{
@@ -985,9 +977,9 @@ __s32  _free2data_simple_merge_ext(__u32 nlogical, __u32 start_page, __u32 merge
 			tmpMergeFreeBlk.PhyBlkNum = 0xffff;
 			tmpMergePageNum = 0xffff;
 			tmpLogicalBlk = 0xffff;
-			
+
 		}
-	   
+
 	}
 
 	tmpMergePageNum = SuperPage;
@@ -1095,10 +1087,10 @@ __s32 LML_MergeLogBlk_Ext(__u32 nMode, __u32 nlogical, __u32 start_page, __u32 m
     {
     	//PRINT("--%x Ext swap--\n", nlogical);
     	ret = (_log2data_swap_merge(nlogical));
-	//PRINT("--Ext merge end: 0x%x--\n", nlogical);	
+	//PRINT("--Ext merge end: 0x%x--\n", nlogical);
 	if(ret == 0)
 		return 0xffff;
-	else 
+	else
 		return -1;
     }
     else{
@@ -1108,8 +1100,8 @@ __s32 LML_MergeLogBlk_Ext(__u32 nMode, __u32 nlogical, __u32 start_page, __u32 m
 		return ret;
     }
 
-    
-	
+
+
 
 }
 
@@ -1127,20 +1119,20 @@ void  LML_MergeLogBlk_Quit(void)
 			/*move erased data block to free block*/
 		    if (tmpMergeFreeBlk.BlkEraseCnt < 0xffff)
 		        tmpMergeFreeBlk.BlkEraseCnt ++;
-		    BMM_SetFreeBlk(&tmpMergeFreeBlk);	
+		    BMM_SetFreeBlk(&tmpMergeFreeBlk);
 			tmpFreeBlklock =0;
 
 	      }
-		
+
 		tmpMergeFreeBlk.PhyBlkNum =0xffff;
 		tmpMergeFreeBlk.BlkEraseCnt =0xffff;
 		tmpLogicalBlk = 0xffff;
 		tmpMergePageNum = 0xefef;
-		
-	
+
+
 	}
-	
-	
+
+
 
 	//DBUG_INF("--%x merge end--\n", nlogical);
 

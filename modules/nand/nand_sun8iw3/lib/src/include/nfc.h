@@ -1,42 +1,19 @@
 /*
-************************************************************************************************************************
-*                                                  NAND BSP for sun
-*                                 NAND hardware registers definition and BSP interfaces
-*
-*                             Copyright(C), 2006-2008, uLIVE
-*											       All Rights Reserved
-*
-* File Name : nfc.h
-*
-* Author : Gary.Wang
-*
-* Version : 1.1.0
-*
-* Date : 2008.03.25
-*
-* Description : This file provides some definition of NAND's hardware registers and BSP interfaces. 
-*             This file is very similar to file "nand.inc"; the two files should be modified at the 
-*             same time to keep coherence of information.
-* 
-* Others : None at present.
-*
-*
-* History :
-*
-*  <Author>        <time>       <version>      <description>
-*
-* Gary.Wang      2008.03.25       1.1.0        build the file
-* penggang       2009.09.09       1.1.1        modify the file
-*
-************************************************************************************************************************
-*/
-#ifndef _NFC_H_
-#define _NFC_H_                   
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
 
-#include "nand_drv_cfg.h" 
-                                       
+
+#ifndef _NFC_H_
+#define _NFC_H_
+
+#include "nand_drv_cfg.h"
+
 extern __u32 NandIOBase[2];
-extern __u32 NandIndex;                  
+extern __u32 NandIndex;
 #define NAND_IO_BASE    (NandIOBase[NandIndex])
 #define __NFC_REG(x)    (*(volatile unsigned int   *)(NAND_IO_BASE + x))
 /*
@@ -192,18 +169,18 @@ extern __u32 NandIndex;
 
 typedef struct cmd_list{
 	struct	cmd_list *next;
-	__u8	*addr;	
-	__u8	addr_cycle;	
+	__u8	*addr;
+	__u8	addr_cycle;
 	__u8	data_fetch_flag;
 	__u8	main_data_fetch;
-	__u8	wait_rb_flag;	
+	__u8	wait_rb_flag;
 	__u32 	bytecnt;
-	__u32	value;	
+	__u32	value;
 }NFC_CMD_LIST;
 
-typedef struct NFC_init_info{   
+typedef struct NFC_init_info{
 	__u8	bus_width;// bus width 8 bit
-	__u8	rb_sel; // ready busy 
+	__u8	rb_sel; // ready busy
 	__u8	ce_ctl; // chip select
 	__u8	ce_ctl1;
 	__u8	pagesize; // 1024 ,2048 ,

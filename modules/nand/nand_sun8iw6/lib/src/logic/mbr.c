@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
 #include "../include/mbr.h"
 #include "../include/nand_type.h"
 #include "../include/nand_drv_cfg.h"
@@ -22,7 +30,7 @@ typedef struct tag_CRC32_DATA
 	__u32 CRC_32_Tbl[256];	//用来保存码表
 }CRC32_DATA_t;
 
-CRC32_DATA_t nand_crc32 = {0};	
+CRC32_DATA_t nand_crc32 = {0};
 
 __u32 calc_crc32(void * buffer, __u32 length)
 {
@@ -136,7 +144,7 @@ int NAND_PartInit(void)
 	{
 	    //if((mbr->array[part_cnt].user_type == 2) || (mbr->array[part_cnt].user_type == 0))
 	    {
-			//PRINT("The %d disk name = %s, class name = %s, disk size = %d\n", part_index, mbr->array[part_cnt].name, 
+			//PRINT("The %d disk name = %s, class name = %s, disk size = %d\n", part_index, mbr->array[part_cnt].name,
 			//			mbr->array[part_cnt].classname, mbr->array[part_cnt].lenlo);
 
 	        nand_disk_array[part_index].offset = mbr->array[part_cnt].addrlo;
@@ -151,7 +159,7 @@ int NAND_PartInit(void)
 	_free_mbr();
 	DBUG_MSG("The %d disk size = %x\n", part_index - 1, nand_disk_array[part_index - 1].size);
 	DBUG_MSG("part total count = %d\n", part_index);
-	
+
 	nand_part_cnt = part_index;
 
 	NandPartTable.magic = NAND_PART_TABLE_MAGIC;
@@ -164,10 +172,10 @@ int NAND_PartInit(void)
 	}
 
 	NAND_SetPartInfo(&NandPartTable);
-	
+
 	return part_index;
 
-mbr_error: 	
+mbr_error:
 #if 1
 	if(part_index == 0)
 	{

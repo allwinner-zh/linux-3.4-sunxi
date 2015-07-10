@@ -1,3 +1,10 @@
+/*
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
 #include <linux/kernel.h>
 #include <linux/kthread.h>
 #include <linux/slab.h>
@@ -119,7 +126,7 @@ struct collect_ops logrelease_arg;
 struct burn_param_t{
 	void* buffer;
   long length;
-	
+
 };
 
 
@@ -156,7 +163,7 @@ extern __u32 NAND_GetIOBaseAddrCH1(void);
 
 DEFINE_SEMAPHORE(nand_mutex);
 DEFINE_SEMAPHORE(nand_global_value_mutex);
-spinlock_t     nand_global_value_lock;   
+spinlock_t     nand_global_value_lock;
 
 static unsigned char volatile IS_IDLE = 1;
 static int nand_flush(struct nand_blk_dev *dev);
@@ -177,7 +184,7 @@ static struct nand_state nand_reg_state;
 static int nand_getglobalvalue(int *value)
 {
 	int result;
-	
+
 	//down(&nand_global_value_mutex);
 	spin_lock(&nand_global_value_lock);
 	result = *value;
@@ -195,7 +202,7 @@ static void nand_clearglobalvalue(int *value)
 	*value = 0;
 	//up(&nand_global_value_mutex);
 	spin_unlock(&nand_global_value_lock);
-	
+
 }
 
 static void nand_setglobalvalue(int *value)
@@ -217,15 +224,15 @@ static void nand_setglobalvalue2(int *value)
 }
 
 
-#ifdef __LINUX_NAND_SUPPORT_INT__	
-    spinlock_t     nand_int_lock;    
+#ifdef __LINUX_NAND_SUPPORT_INT__
+    spinlock_t     nand_int_lock;
     static irqreturn_t nand_interrupt_ch0(int irq, void *dev_id)
     {
         unsigned long iflags;
 	__u32 nand_index;
 
 	//printk("nand_interrupt_ch0!\n");
-	
+
 	spin_lock_irqsave(&nand_int_lock, iflags);
 
 	nand_index = NAND_GetCurrentCH();
@@ -237,9 +244,9 @@ static void nand_setglobalvalue2(int *value)
 	{
 		NAND_Interrupt(nand_index);
 	}
-	
+
         spin_unlock_irqrestore(&nand_int_lock, iflags);
-    
+
     	return IRQ_HANDLED;
     }
 
@@ -249,7 +256,7 @@ static void nand_setglobalvalue2(int *value)
     	__u32 nand_index;
 
 	//printk("nand_interrupt_ch1!\n");
-	
+
         spin_lock_irqsave(&nand_int_lock, iflags);
         nand_index = NAND_GetCurrentCH();
 	if(nand_index!=1)
@@ -261,7 +268,7 @@ static void nand_setglobalvalue2(int *value)
 		NAND_Interrupt(nand_index);
 	}
         spin_unlock_irqrestore(&nand_int_lock, iflags);
-    
+
     	return IRQ_HANDLED;
     }
 #endif
@@ -455,7 +462,7 @@ static int nand_blktrans_thread(void *arg)
       		//nand_io_clear = 0;
       		nand_clearglobalvalue(&nand_io_clear);
 	#endif
-	
+
 	/* we might get involved when memory gets low, so use PF_MEMALLOC */
 	current->flags |= PF_MEMALLOC | PF_NOFREEZE;
 	daemonize("%sd", nandr->name);
@@ -957,7 +964,7 @@ static int nand_blktrans_thread(void *arg)
 		partial_flag = 0;
 		sector_cnt_of_single_page = NAND_GetPageSize()/512;
 		sector_cnt_of_logic_page = NAND_GetLogicPageSize()/512;
-		
+
 		if(rw_flag == REQ_WRITE)  //write
 		{
     		__rq_for_each_bio(rq_iter.bio,req){
@@ -983,7 +990,7 @@ static int nand_blktrans_thread(void *arg)
     				#else
     					nand_current_dev_num = dev->devnum;
     					nand_transfer(dev, sector,  rq_len>>9, (__u32)buffer, rw_flag, partial_flag);
-						
+
     				#endif
     					up(&nandr->nand_ops_mutex);
     					spin_lock_irq(&nandr->queue_lock);
@@ -1097,20 +1104,20 @@ static int nand_blktrans_thread(void *arg)
 							temp_len -= rw_io[io_cnt][1];
 							temp_buf += (rw_io[io_cnt][1]<<9);
 
-                            
+
                             if( io_cnt&&( (rw_io[io_cnt][0]/sector_cnt_of_logic_page)!=(rw_io[io_cnt-1][0]/sector_cnt_of_logic_page) ) )
                             {
                                 page_index++;
             					io_cnt_for_page[page_index] = 0;
             					sec_cnt_for_page[page_index] = 0;
                             }
-                            
+
                             io_cnt_for_page[page_index] ++;
             				sec_cnt_for_page[page_index] += rw_io[io_cnt][1];
-            				
+
             				//PRINT(" page_index:%d, io_index: %d \n", page_index, io_cnt);
             				//PRINT(" 0x%x, 0x%x, 0x%x\n", rw_io[io_cnt][0], rw_io[io_cnt][1], rw_io[io_cnt][2]);
-            				
+
             				io_cnt++;
 	    				}
 
@@ -1145,22 +1152,22 @@ static int nand_blktrans_thread(void *arg)
 								temp_len -= rw_io[io_cnt][1];
 								temp_buf += (rw_io[io_cnt][1]<<9);
 
-                                
+
                                 if( io_cnt&&( (rw_io[io_cnt][0]/sector_cnt_of_logic_page)!=(rw_io[io_cnt-1][0]/sector_cnt_of_logic_page) ) )
 								{
 									page_index++;
 									io_cnt_for_page[page_index] = 0;
 									sec_cnt_for_page[page_index] = 0;
 								}
-                                
+
                                 io_cnt_for_page[page_index] ++;
                 				sec_cnt_for_page[page_index] += rw_io[io_cnt][1];
-                				
+
                 				//PRINT(" page_index:%d, io_index: %d \n", page_index, io_cnt);
                 				//PRINT(" 0x%x, 0x%x, 0x%x\n", rw_io[io_cnt][0], rw_io[io_cnt][1], rw_io[io_cnt][2]);
-                				
+
                 				io_cnt++;
-                
+
 	    					}
     						/*update new*/
     						sector += rq_len>>9;
@@ -1186,7 +1193,7 @@ static int nand_blktrans_thread(void *arg)
 					temp_len -= rw_io[io_cnt][1];
 					temp_buf += (rw_io[io_cnt][1]<<9);
 
-                
+
                 if( io_cnt&&( (rw_io[io_cnt][0]/sector_cnt_of_logic_page)!=(rw_io[io_cnt-1][0]/sector_cnt_of_logic_page) ) )
 					{
 						page_index++;
@@ -1195,10 +1202,10 @@ static int nand_blktrans_thread(void *arg)
 					}
                 io_cnt_for_page[page_index] ++;
 				sec_cnt_for_page[page_index] += rw_io[io_cnt][1];
-				
+
 				//PRINT(" page_index:%d, io_index: %d \n", page_index, io_cnt);
 				//PRINT(" 0x%x, 0x%x, 0x%x\n", rw_io[io_cnt][0], rw_io[io_cnt][1], rw_io[io_cnt][2]);
-				
+
 				io_cnt++;
 
 				}
@@ -1227,7 +1234,7 @@ static int nand_blktrans_thread(void *arg)
 				else
 					partial_flag = 1;
 				#endif
-					
+
 				#if 1//if (iocnt>1)&&(seccnt>half_single_page), cache mode, else partial mode
 					if((io_cnt_for_page[i] > 1)||(sec_cnt_for_page[i] >=(sector_cnt_of_single_page>>1)))
 					partial_flag = 0;
@@ -1236,18 +1243,18 @@ static int nand_blktrans_thread(void *arg)
 				#endif
 				spin_unlock_irq(&nandr->queue_lock);
     			down(&nandr->nand_ops_mutex);
-    		
+
     			nand_current_dev_num = dev->devnum;
 				for(j=0; j<io_cnt_for_page[i];j++)
 				{
-				    //PRINT("  0x%x, 0x%x, 0x%x\n", rw_io[io_index][0], rw_io[io_index][1], rw_io[io_index][2]); 
+				    //PRINT("  0x%x, 0x%x, 0x%x\n", rw_io[io_index][0], rw_io[io_index][1], rw_io[io_index][2]);
 				    if(rw_io[io_index][1])
 				    {
 				      	 nand_transfer(dev, rw_io[io_index][0],  rw_io[io_index][1], rw_io[io_index][2], rw_io[io_index][3], partial_flag);
-				    }    
+				    }
 					io_index++;
 				}
-				
+
     			up(&nandr->nand_ops_mutex);
     			spin_lock_irq(&nandr->queue_lock);
 
@@ -1805,7 +1812,7 @@ static void nand_flush_all(void)
 
     /* get nand ops mutex */
     down(&mytr.nand_ops_mutex);
-	 
+
     printk("nand try to shutdown %d time\n", timeout);
 
 
@@ -1842,8 +1849,8 @@ static int __init init_blklayer(void)
 	int ret;
 	script_item_u   good_block_ratio_flag;
 	script_item_value_type_e  type;
-	
-#ifdef __LINUX_NAND_SUPPORT_INT__	
+
+#ifdef __LINUX_NAND_SUPPORT_INT__
 	unsigned long irqflags_ch0, irqflags_ch1;
 #endif
 	ClearNandStruct();
@@ -1851,7 +1858,7 @@ static int __init init_blklayer(void)
 
 	//nand_log_release_finish_flag = 1;
 	nand_setglobalvalue(&nand_log_release_finish_flag);
-	//nand_shut_down_flag = 0;	
+	//nand_shut_down_flag = 0;
 	nand_clearglobalvalue(&nand_shut_down_flag);
 
 	printk("[NAND] nand IO Merge: 0x%x \n", USE_BIO_MERGE);
@@ -1863,7 +1870,7 @@ static int __init init_blklayer(void)
 		return -1;
 	}
 
-	#ifdef __LINUX_NAND_SUPPORT_INT__	
+	#ifdef __LINUX_NAND_SUPPORT_INT__
     //printk("[NAND] nand driver version: 0x%x 0x%x, support int! \n", NAND_VERSION_0,NAND_VERSION_1);
 #ifdef __LINUX_SUPPORT_RB_INT__
     NAND_ClearRbInt();
@@ -1879,16 +1886,16 @@ static int __init init_blklayer(void)
 	#ifdef SUN8IW1P1
 			NAND_Print("[NAND]run on A31\n");
 	#endif
-	
+
 	#ifdef SUN8IW3P1
 			NAND_Print("[NAND]run on A23\n");
 	#endif
-	
+
 	#ifdef SUN9IW1P1
 			NAND_Print("[NAND]run on A80\n");
 	#endif
-	
-	#ifdef SUN8IW1P1 
+
+	#ifdef SUN8IW1P1
 			if (request_irq(SUNXI_IRQ_NAND0, nand_interrupt_ch0, IRQF_DISABLED, mytr.name, &mytr))
 			{
 				//kfree(data);
@@ -1898,8 +1905,8 @@ static int __init init_blklayer(void)
 			else
 			{
 				NAND_Print("nand interrupte ch0 irqno: %d register ok\n", SUNXI_IRQ_NAND0);
-			}	
-		
+			}
+
 			if (request_irq(SUNXI_IRQ_NAND1, nand_interrupt_ch1, IRQF_DISABLED, mytr.name, &mytr))
 			{
 				//kfree(data);
@@ -1911,21 +1918,8 @@ static int __init init_blklayer(void)
 				NAND_Print("nand interrupte ch1, irqno: %d register ok\n", SUNXI_IRQ_NAND1);
 			}
 	#endif
-		
-	#ifdef SUN8IW3P1 
-			if (request_irq(SUNXI_IRQ_NAND, nand_interrupt_ch0, IRQF_DISABLED, mytr.name, &mytr))
-			{
-				//kfree(data);
-				printk("nand interrupte ch0 irqno: %d register error\n", SUNXI_IRQ_NAND);
-				return -EAGAIN;
-			}
-			else
-			{
-				//printk("nand interrupte ch0 irqno: %d register ok\n", SUNXI_IRQ_NAND0);
-			}	
-	#endif	
 
-	#ifdef SUN8IW5P1 
+	#ifdef SUN8IW3P1
 			if (request_irq(SUNXI_IRQ_NAND, nand_interrupt_ch0, IRQF_DISABLED, mytr.name, &mytr))
 			{
 				//kfree(data);
@@ -1935,10 +1929,10 @@ static int __init init_blklayer(void)
 			else
 			{
 				//printk("nand interrupte ch0 irqno: %d register ok\n", SUNXI_IRQ_NAND0);
-			}	
-	#endif	
+			}
+	#endif
 
-	#ifdef SUN8IW6P1 
+	#ifdef SUN8IW5P1
 			if (request_irq(SUNXI_IRQ_NAND, nand_interrupt_ch0, IRQF_DISABLED, mytr.name, &mytr))
 			{
 				//kfree(data);
@@ -1948,10 +1942,10 @@ static int __init init_blklayer(void)
 			else
 			{
 				//printk("nand interrupte ch0 irqno: %d register ok\n", SUNXI_IRQ_NAND0);
-			}	
-	#endif	
+			}
+	#endif
 
-	#ifdef SUN8IW7P1 
+	#ifdef SUN8IW6P1
 			if (request_irq(SUNXI_IRQ_NAND, nand_interrupt_ch0, IRQF_DISABLED, mytr.name, &mytr))
 			{
 				//kfree(data);
@@ -1961,10 +1955,23 @@ static int __init init_blklayer(void)
 			else
 			{
 				//printk("nand interrupte ch0 irqno: %d register ok\n", SUNXI_IRQ_NAND0);
-			}	
-	#endif	
-	
-	#ifdef SUN9IW1P1 
+			}
+	#endif
+
+	#ifdef SUN8IW7P1
+			if (request_irq(SUNXI_IRQ_NAND, nand_interrupt_ch0, IRQF_DISABLED, mytr.name, &mytr))
+			{
+				//kfree(data);
+				printk("nand interrupte ch0 irqno: %d register error\n", SUNXI_IRQ_NAND);
+				return -EAGAIN;
+			}
+			else
+			{
+				//printk("nand interrupte ch0 irqno: %d register ok\n", SUNXI_IRQ_NAND0);
+			}
+	#endif
+
+	#ifdef SUN9IW1P1
 			if (request_irq(SUNXI_IRQ_NAND0, nand_interrupt_ch0, IRQF_DISABLED, mytr.name, &mytr))
 			{
 				//kfree(data);
@@ -1974,8 +1981,8 @@ static int __init init_blklayer(void)
 			else
 			{
 				NAND_Print("nand interrupte ch0 irqno: %d register ok\n", SUNXI_IRQ_NAND0);
-			}	
-		
+			}
+
 			if (request_irq(SUNXI_IRQ_NAND1, nand_interrupt_ch1, IRQF_DISABLED, mytr.name, &mytr))
 			{
 				//kfree(data);
@@ -1992,18 +1999,18 @@ static int __init init_blklayer(void)
 	ret = SCN_AnalyzeNandSystem();
 	if (ret < 0)
 		return ret;
-		
+
 #if 1
 
 	/* »ñÈ¡card_lineÖµ */
 	type = script_get_item("nand0_para", "good_block_ratio", &good_block_ratio_flag);
-	
+
 	if(SCIRPT_ITEM_VALUE_TYPE_INT != type)
 		printk("nand type err!\n");
 	else
 	{
 		printk("[NAND]nand get good block ratio  %d\n", good_block_ratio_flag.val);
-    
+
 		if((good_block_ratio_flag.val >= 800)&&(good_block_ratio_flag.val <= 960))
 		{
 			printk("nand good block ratio value is valid \n");
@@ -2011,12 +2018,12 @@ static int __init init_blklayer(void)
 		}
 		else
 			printk("nand good block ratio value is invalid \n");
-			
-	}		
-	
-#endif	
-		
-	
+
+	}
+
+#endif
+
+
 	ret = PHY_ChangeMode(1);
 	if (ret < 0)
 		return ret;
@@ -2042,7 +2049,7 @@ static int __init init_blklayer(void)
 	#ifdef NAND_CACHE_RW
 		NAND_CacheOpen();
 	#endif
-	
+
 	return nand_blk_register(&mytr);
 }
 
@@ -2082,7 +2089,7 @@ static int nand_suspend(struct platform_device *plat_dev, pm_message_t state)
 
 	if(nand_ch_cnt>2)
 		printk("error nand_ch_cnt: 0x%x\n", nand_ch_cnt);
-	
+
 
 	if(NORMAL_STANDBY== standby_type)
 	{
@@ -2132,23 +2139,23 @@ static int nand_suspend(struct platform_device *plat_dev, pm_message_t state)
 				LML_FlushPageCache();
 			#endif
 
-			
+
 		}
 
 		for(j=0;j<nand_ch_cnt;j++)
 		{
 			for(i=0; i<(NAND_REG_LENGTH); i++){
-				if(j==0)	
+				if(j==0)
 				{
 					nand_reg_state.nand_reg_back[j][i] = *(volatile u32 *)(NAND_GetIOBaseAddrCH0() + i*0x04);
 					//printk("nand ch %d, reg 0x%x, value: 0x%x\n", j, NAND_GetIOBaseAddrCH0() + i*0x04, *(volatile u32 *)(NAND_GetIOBaseAddrCH0() + i*0x04));
-				}	
+				}
 				else if(j==1)
 				{
 					nand_reg_state.nand_reg_back[j][i] = *(volatile u32 *)(NAND_GetIOBaseAddrCH1() + i*0x04);
 					//printk("nand ch %d, reg 0x%x, value: 0x%x\n", j, NAND_GetIOBaseAddrCH1() + i*0x04, *(volatile u32 *)(NAND_GetIOBaseAddrCH0() + i*0x04));
 				}
-				
+
 			}
 		}
 
@@ -2164,13 +2171,13 @@ static int nand_suspend(struct platform_device *plat_dev, pm_message_t state)
 		//printk("reg 0xf1c208fc, value: 0x%x\n", *(volatile __u32 *)(0xf1c208fc));
 		//printk("reg 0xf1c20900, value: 0x%x\n", *(volatile __u32 *)(0xf1c20900));
 		//printk("reg 0xf1c20908, value: 0x%x\n", *(volatile __u32 *)(0xf1c20908));
-			
+
 		for(j=0;j<nand_ch_cnt;j++)
 		{
 			NAND_ClkRelease(j);
 			NAND_PIORelease(j);
 		}
-		
+
 	}
 
 		pr_debug("[NAND] nand_suspend ok \n");
@@ -2187,7 +2194,7 @@ static int nand_resume(struct platform_device *plat_dev)
     int nand_ch_cnt=NAND_GetChannelCnt();
 	__u32 nand_index_bak = NAND_GetCurrentCH();
 	__u32 bank = 0;
-	
+
 	if(NORMAL_STANDBY== standby_type){
 		printk("[NAND] nand_resume normal\n");
 	//NAND_PIORequest();
@@ -2200,19 +2207,19 @@ static int nand_resume(struct platform_device *plat_dev)
 		printk("[NAND] nand_resume super\n");
 	if(nand_index_bak!=0)
 		printk("[NAND] currnt index: %d\n", nand_index_bak);
-	
+
 	for(j=0;j<nand_ch_cnt;j++)
 	{
 		NAND_PIORequest(j);
 	    	NAND_ClkRequest(j);
 	}
-		
+
         //process for super standby
 		//restore reg state
 	for(j=0;j<nand_ch_cnt;j++)
 	{
-		
-		
+
+
 		for(i=0; i<(NAND_REG_LENGTH); i++){
 			if(0x9 == i){
 				continue;
@@ -2223,18 +2230,18 @@ static int nand_resume(struct platform_device *plat_dev)
 			}
 			else if(j==1)
 			{
-				*(volatile u32 *)(NAND_GetIOBaseAddrCH1() + i*0x04) = nand_reg_state.nand_reg_back[j][i]; 
-			}	
+				*(volatile u32 *)(NAND_GetIOBaseAddrCH1() + i*0x04) = nand_reg_state.nand_reg_back[j][i];
+			}
 		}
 	}
-		
+
     //reset all chip
     for(j=0;j<nand_ch_cnt;j++)
     {
 		bank = 0;
-		
+
 		NAND_SetCurrentCH(j);
-		
+
     	for(i=0; i<4; i++)
         {
             if(NAND_GetChipConnect()&(0x1<<i)) //chip valid
@@ -2245,14 +2252,14 @@ static int nand_resume(struct platform_device *plat_dev)
 				bank++;
                 if(ret)
                     printk("nand reset ch %d, chip %d failed!\n",j, i);
-		
+
             }
 		    else
 		    {
 		    	//printk("nand skip ch %d, chip %d!\n",j, i);
 		    }
-			
-	    
+
+
         }
 
 		PHY_ChangeMode(1);
@@ -2277,9 +2284,9 @@ static int nand_resume(struct platform_device *plat_dev)
 
 
 	NAND_SetCurrentCH(nand_index_bak);
-    	
 
-    	    
+
+
 	//process for super standby
 	//restore reg state
 	for(j=0;j<nand_ch_cnt;j++)
@@ -2291,15 +2298,15 @@ static int nand_resume(struct platform_device *plat_dev)
 			if(j==0)
 			{
 				*(volatile u32 *)(NAND_GetIOBaseAddrCH0() + i*0x04) = nand_reg_state.nand_reg_back[j][i];
-				//printk("nand ch %d, reg 0x%x, value: 0x%x\n", j, NAND_GetIOBaseAddrCH0() + i*0x04, *(volatile u32 *)(NAND_GetIOBaseAddrCH0() + i*0x04));	
+				//printk("nand ch %d, reg 0x%x, value: 0x%x\n", j, NAND_GetIOBaseAddrCH0() + i*0x04, *(volatile u32 *)(NAND_GetIOBaseAddrCH0() + i*0x04));
 			}
 			else if(j==1)
 			{
 				*(volatile u32 *)(NAND_GetIOBaseAddrCH1() + i*0x04) = nand_reg_state.nand_reg_back[j][i];
-				//printk("nand ch %d, reg 0x%x, value: 0x%x\n", j, NAND_GetIOBaseAddrCH1() + i*0x04, *(volatile u32 *)(NAND_GetIOBaseAddrCH0() + i*0x04));	
+				//printk("nand ch %d, reg 0x%x, value: 0x%x\n", j, NAND_GetIOBaseAddrCH1() + i*0x04, *(volatile u32 *)(NAND_GetIOBaseAddrCH0() + i*0x04));
 			}
-		
-				
+
+
 		}
 	}
 
@@ -2315,9 +2322,9 @@ static int nand_resume(struct platform_device *plat_dev)
 	//printk("reg 0xf1c208fc, value: 0x%x\n", *(volatile __u32 *)(0xf1c208fc));
 	//printk("reg 0xf1c20900, value: 0x%x\n", *(volatile __u32 *)(0xf1c20900));
 	//printk("reg 0xf1c20908, value: 0x%x\n", *(volatile __u32 *)(0xf1c20908));
-	
+
 	up(&mytr.nand_ops_mutex);
-		
+
 	}
 
 	return 0;
@@ -2393,7 +2400,7 @@ void __exit nand_exit(void)
 	if(SCIRPT_ITEM_VALUE_TYPE_INT != type)
 		printk("nand type err!");
 	printk("nand0_used_flag is %d\n", nand0_used_flag.val);
-    
+
 
 	if(nand0_used_flag.val == 0)
 	{

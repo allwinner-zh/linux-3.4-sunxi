@@ -1,32 +1,11 @@
 /*
-************************************************************************************************************************
-*                                                      eNand
-*                                         Nand flash driver logic manage module
-*
-*                             Copyright(C), 2008-2009, SoftWinners Microelectronic Co., Ltd.
-*											       All Rights Reserved
-*
-* File Name : read_reclaim.c
-*
-* Author : Kevin.z
-*
-* Version : v0.1
-*
-* Date : 2008.04.07
-*
-* Description : This file is the read-reclaim module.
-*
-* Others : None at present.
-*
-*
-* History :
-*
-*  <Author>        <time>       <version>      <description>
-*
-* Kevin.z         2008.04.07      0.1          build the file
-*
-************************************************************************************************************************
-*/
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
 #include "../include/nand_drv_cfg.h"
 #include "../include/nand_type.h"
 #include "../include/nand_physic.h"
@@ -60,7 +39,7 @@ __s32 LML_ReadReclaim(__u32 nPage)
     #if CFG_SUPPORT_READ_RECLAIM
 
 	LOGICCTL_ERR("[LOGICCTL_ERR] read reclaim go\n");
-	
+
     //flush the page cache to nand flash first, because need use the buffer
     result = LML_FlushPageCache();
     if(result < 0)

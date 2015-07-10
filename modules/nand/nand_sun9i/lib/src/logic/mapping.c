@@ -1,13 +1,12 @@
-/*********************************************************************************
-*                                       NAND FLASH DRIVER
-*                                (c) Copyright 2008, SoftWinners Co,Ld.
-*                                       All Right Reserved
-*file : mapping.c
-*description : this file create a interface to mange map table:
-*history :
-*    v0.1  2008-04-09 Richard
-*            support all kinds of access way of block map and page map.
-**********************************************************************************/
+/*
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+
 
 #include "../include/nand_logic.h"
 

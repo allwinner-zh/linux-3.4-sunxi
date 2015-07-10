@@ -1,32 +1,11 @@
 /*
-************************************************************************************************************************
-*                                                      eNand
-*                                   Nand flash driver data struct type define
-*
-*                             Copyright(C), 2008-2009, SoftWinners Microelectronic Co., Ltd.
-*											       All Rights Reserved
-*
-* File Name : nand_type.h
-*
-* Author : Kevin.z
-*
-* Version : v0.1
-*
-* Date : 2008.03.19
-*
-* Description : This file defines the data struct type and return value type for nand flash driver.
-*
-* Others : None at present.
-*
-*
-* History :
-*
-*  <Author>        <time>       <version>      <description>
-*
-* Kevin.z         2008.03.19      0.1          build the file
-*
-************************************************************************************************************************
-*/
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
 #ifndef __NAND_TYPE_H
 #define __NAND_TYPE_H
 
@@ -50,7 +29,7 @@ struct __OptionalPhyOpPar_t
     __u16       MultiPlaneBlockOffset;              //the value of the block number offset between the left-plane block and the right pane block
 };
 
-typedef struct 
+typedef struct
 {
 	__u32		ChannelCnt;
     __u32        ChipCnt;                            //the count of the total nand flash chips are currently connecting on the CE pin
@@ -66,7 +45,7 @@ typedef struct
     __u32       BlkCntPerDie;                       //the count of the physic blocks in one die, include valid block and invalid block
     __u32       OperationOpt;                       //the mask of the operation types which current nand flash can support support
     __u32        FrequencePar;                       //the parameter of the hardware access clock, based on 'MHz'
-    __u32        EccMode;                            //the Ecc Mode for the nand flash chip, 0: bch-16, 1:bch-28, 2:bch_32   
+    __u32        EccMode;                            //the Ecc Mode for the nand flash chip, 0: bch-16, 1:bch-28, 2:bch_32
     __u8        NandChipId[8];                      //the nand chip id of current connecting nand chip
     __u32       ValidBlkRatio;                      //the ratio of the valid physical blocks, based on 1024
 	__u32 		good_block_ratio;					//good block ratio get from hwscan
@@ -100,7 +79,7 @@ struct __NandStorageInfo_t
     __u32       BlkCntPerDie;                       //the count of the physic blocks in one die, include valid block and invalid block
     __u32       OperationOpt;                       //the mask of the operation types which current nand flash can support support
     __u32        FrequencePar;                       //the parameter of the hardware access clock, based on 'MHz'
-    __u32       EccMode;                            //the Ecc Mode for the nand flash chip, 0: bch-16, 1:bch-28, 2:bch_32   
+    __u32       EccMode;                            //the Ecc Mode for the nand flash chip, 0: bch-16, 1:bch-28, 2:bch_32
     __u8       NandChipId[8];                      //the nand chip id of current connecting nand chip
     __u32       ValidBlkRatio;                         //the ratio of the valid physical blocks, based on 1024
     __u32		ReadRetryType;						//the read retry type
@@ -301,7 +280,7 @@ struct __NandPhyInfoPar_t
     __u32       OperationOpt;                       //the bitmap that marks which optional operation that the nand flash can support
     __u16       ValidBlkRatio;                      //the valid block ratio, based on 1024 blocks
     __u16       AccessFreq;                         //the highest access frequence of the nand flash chip, based on MHz
-    __u16       EccMode;                            //the Ecc Mode for the nand flash chip, 0: bch-16, 1:bch-28, 2:bch_32   
+    __u16       EccMode;                            //the Ecc Mode for the nand flash chip, 0: bch-16, 1:bch-28, 2:bch_32
     __u32 		ReadRetryType;
     __u32       DDRType;
     struct __OptionalPhyOpPar_t *OptionOp;          //the pointer point to the optional operation parameter

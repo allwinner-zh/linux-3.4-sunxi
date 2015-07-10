@@ -1,33 +1,10 @@
 /*
-************************************************************************************************************************
-*                                                      eNand
-*                                           Nand flash driver scan module
-*
-*                             Copyright(C), 2008-2009, SoftWinners Microelectronic Co., Ltd.
-*											       All Rights Reserved
-*
-* File Name : nand_scan.c
-*
-* Author : Kevin.z
-*
-* Version : v0.1
-*
-* Date : 2008.03.27
-*
-* Description : This file scan the nand flash storage system, analyze the nand flash type
-*               and initiate the physical architecture parameters.
-*
-* Others : None at present.
-*
-*
-* History :
-*
-*  <Author>        <time>       <version>      <description>
-*
-* Kevin.z         2008.03.27      0.1          build the file
-*
-************************************************************************************************************************
-*/
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
 
 #include "../include/nand_scan.h"
 #include"../include/nfc.h"
@@ -98,7 +75,7 @@ __s32 NAND_SetValidBlkRatio(__u32 ValidBlkRatio)
 {
     NandStorageInfo.ValidBlkRatio = (__u16)ValidBlkRatio;
     return 0;
-    
+
 }
 
 __u32 NAND_GetFrequencePar(void)
@@ -110,7 +87,7 @@ __s32 NAND_SetFrequencePar(__u32 FrequencePar)
 {
     NandStorageInfo.FrequencePar = (__u8)FrequencePar;
     return 0;
-    
+
 }
 
 __s32 NAND_GetBlkCntOfDie(void)
@@ -148,13 +125,13 @@ __u32 NAND_SetCurrentCH(__u32 nand_index)
 __u32 NAND_GetNandVersion(void)
 {
     __u32 nand_version;
-	
+
 	nand_version = 0;
 	nand_version |= 0xff;
 	nand_version |= 0x00<<8;
 	nand_version |= NAND_VERSION_0<<16;
 	nand_version |= NAND_VERSION_1<<24;
-    
+
 	return nand_version;
 }
 
@@ -181,7 +158,7 @@ __u32 NAND_GetNandVersionDate(void)
 __s32 NAND_GetParam(boot_nand_para_t * nand_param)
 {
 	__u32 i;
-	
+
 	nand_param->ChannelCnt         =   NandStorageInfo.ChannelCnt        ;
 	nand_param->ChipCnt            =   NandStorageInfo.ChipCnt           ;
 	nand_param->ChipConnectInfo    =   NandStorageInfo.ChipConnectInfo   ;
@@ -240,7 +217,7 @@ __s32 NAND_GetFlashInfo(boot_flash_info_t *param)
 __s32 _SearchNandArchi(__u8 *pNandID, struct __NandPhyInfoPar_t *pNandArchInfo)
 {
     __s32 i=0, j=0, k=0;
-    __u32 id_match_tbl[3]={0xffff, 0xffff, 0xffff};  
+    __u32 id_match_tbl[3]={0xffff, 0xffff, 0xffff};
     __u32 id_bcnt;
     struct __NandPhyInfoPar_t *tmpNandManu;
 
@@ -281,16 +258,16 @@ __s32 _SearchNandArchi(__u8 *pNandID, struct __NandPhyInfoPar_t *pNandArchInfo)
         case SPANSION_NAND:
             tmpNandManu = &SpansionNandTbl;
             break;
-            
+
        //manufacture is power, search parameter from Spansion nand table
         case POWER_NAND:
             tmpNandManu = &PowerNandTbl;
-            break;     
-            
+            break;
+
 	   //manufacture is sandisk, search parameter from sandisk nand table
         case SANDISK:
             tmpNandManu = &SandiskNandTbl;
-            break;   
+            break;
 
         //manufacture is unknown, search parameter from default nand table
         default:
@@ -302,35 +279,35 @@ __s32 _SearchNandArchi(__u8 *pNandID, struct __NandPhyInfoPar_t *pNandArchInfo)
     while(tmpNandManu[i].NandID[0] != 0xff)
     {
         //compare 6 byte id
-        id_bcnt = 1; 
+        id_bcnt = 1;
         for(j=1; j<6; j++)
         {
             //0xff is matching all ID value
             if((pNandID[j] != tmpNandManu[i].NandID[j]) && (tmpNandManu[i].NandID[j] != 0xff))
             break;
-            
+
             if(tmpNandManu[i].NandID[j] != 0xff)
                 id_bcnt++;
         }
-        
+
         if(j == 6)
         {
              /*4 bytes of the nand chip ID are all matching, search parameter successful*/
             if(id_bcnt == 4)
                 id_match_tbl[0] = i;
             else if(id_bcnt == 5)
-                id_match_tbl[1] = i; 
-            else if(id_bcnt == 6)   
+                id_match_tbl[1] = i;
+            else if(id_bcnt == 6)
                 id_match_tbl[2] = i;
         }
-        
+
         //prepare to search the next table item
         i++;
     }
-    
+
     for(k=2; k>=0;k--)
     {
-        
+
         if(id_match_tbl[k]!=0xffff)
         {
             i= id_match_tbl[k];
@@ -460,9 +437,9 @@ __s32  SCN_AnalyzeNandSystem(void)
     {
         NandStorageInfo.OperationOpt &= ~NAND_MULTI_READ;
         NandStorageInfo.OperationOpt &= ~NAND_MULTI_PROGRAM;
-    }	
+    }
     #endif
-    
+
 
     if(!CFG_SUPPORT_INT_INTERLEAVE)
     {
@@ -478,7 +455,7 @@ __s32  SCN_AnalyzeNandSystem(void)
     {
         NandStorageInfo.OperationOpt &= ~NAND_READ_RETRY;
     }
-    
+
     if(!CFG_SUPPORT_ALIGN_NAND_BNK)
     {
         NandStorageInfo.OperationOpt |= NAND_PAGE_ADR_NO_SKIP;
@@ -487,7 +464,7 @@ __s32  SCN_AnalyzeNandSystem(void)
 	if(!CFG_SUPPORT_CHECK_WRITE_SYNCH)
     {
         NandStorageInfo.OperationOpt &= ~NAND_FORCE_WRITE_SYNC;
-    }	
+    }
 
     //process the plane count of a die and the bank count of a chip
     if(!SUPPORT_MULTI_PROGRAM)
@@ -499,19 +476,19 @@ __s32  SCN_AnalyzeNandSystem(void)
     {
         NandStorageInfo.BankCntPerChip = 1;
     }
-  
+
      //process the rb connect infomation
     for(i=1; i<MAX_CHIP_SELECT_CNT; i++)
     {
         //reset current nand flash chip
         PHY_ResetChip((__u32)i);
-    
+
         //read the nand chip ID from current nand flash chip
         PHY_ReadNandId((__u32)i, tmpChipID);
         //check if the nand flash id same as the boot chip
         if((tmpChipID[0] == NandStorageInfo.NandChipId[0]) && (tmpChipID[1] == NandStorageInfo.NandChipId[1])
             && (tmpChipID[2] == NandStorageInfo.NandChipId[2]) && (tmpChipID[3] == NandStorageInfo.NandChipId[3])
-            && ((tmpChipID[4] == NandStorageInfo.NandChipId[4])||(NandStorageInfo.NandChipId[4]==0xff)) 
+            && ((tmpChipID[4] == NandStorageInfo.NandChipId[4])||(NandStorageInfo.NandChipId[4]==0xff))
             && ((tmpChipID[5] == NandStorageInfo.NandChipId[5])||(NandStorageInfo.NandChipId[5]==0xff)))
         {
             NandStorageInfo.ChipCnt++;
@@ -522,46 +499,46 @@ __s32  SCN_AnalyzeNandSystem(void)
     //process the rb connect infomation
     {
         NandStorageInfo.RbConnectMode = 0xff;
-		
+
         if((NandStorageInfo.ChipCnt == 1) && (NandStorageInfo.ChipConnectInfo & (1<<0)))
         {
              NandStorageInfo.RbConnectMode =1;
-        }	     
+        }
         else if(NandStorageInfo.ChipCnt == 2)
         {
     	      if((NandStorageInfo.ChipConnectInfo & (1<<0)) && (NandStorageInfo.ChipConnectInfo & (1<<1)))
-		    NandStorageInfo.RbConnectMode =2; 
+		    NandStorageInfo.RbConnectMode =2;
 	      else if((NandStorageInfo.ChipConnectInfo & (1<<0)) && (NandStorageInfo.ChipConnectInfo & (1<<2)))
-		    NandStorageInfo.RbConnectMode =3; 	
+		    NandStorageInfo.RbConnectMode =3;
 		else if((NandStorageInfo.ChipConnectInfo & (1<<0)) && (NandStorageInfo.ChipConnectInfo & (1<<7)))
-		    NandStorageInfo.RbConnectMode =0; 	//special use, only one rb 
-		  
+		    NandStorageInfo.RbConnectMode =0; 	//special use, only one rb
+
         }
-		
+
         else if(NandStorageInfo.ChipCnt == 4)
         {
-    	      if((NandStorageInfo.ChipConnectInfo & (1<<0)) && (NandStorageInfo.ChipConnectInfo & (1<<1)) 
+    	      if((NandStorageInfo.ChipConnectInfo & (1<<0)) && (NandStorageInfo.ChipConnectInfo & (1<<1))
 			  	&&  (NandStorageInfo.ChipConnectInfo & (1<<2)) &&  (NandStorageInfo.ChipConnectInfo & (1<<3)) )
-		    NandStorageInfo.RbConnectMode =4; 
-	      else if((NandStorageInfo.ChipConnectInfo & (1<<0)) && (NandStorageInfo.ChipConnectInfo & (1<<2)) 
+		    NandStorageInfo.RbConnectMode =4;
+	      else if((NandStorageInfo.ChipConnectInfo & (1<<0)) && (NandStorageInfo.ChipConnectInfo & (1<<2))
 			  	&&  (NandStorageInfo.ChipConnectInfo & (1<<4)) &&  (NandStorageInfo.ChipConnectInfo & (1<<6)) )
-		    NandStorageInfo.RbConnectMode =5; 			
+		    NandStorageInfo.RbConnectMode =5;
         }
         else if(NandStorageInfo.ChipCnt == 8)
         {
-	      NandStorageInfo.RbConnectMode =8; 			
+	      NandStorageInfo.RbConnectMode =8;
         }
-		
+
 		if( NandStorageInfo.RbConnectMode == 0xff)
-            {   
+            {
         	    SCAN_ERR("%s : check nand rb connect fail, ChipCnt =  %x, ChipConnectInfo = %x \n",__FUNCTION__, NandStorageInfo.ChipCnt, NandStorageInfo.ChipConnectInfo);
         	    return -1;
 		}
 
-	 
+
     }
 
-	
+
     //process the external inter-leave operation
     if(CFG_SUPPORT_EXT_INTERLEAVE)
     {
@@ -591,7 +568,7 @@ __s32  SCN_AnalyzeNandSystem(void)
 		nand_info.ce_ctl = 0x0;
 		nand_info.ce_ctl1 = 0x0;
 		nand_info.debug = 0x0;
-		nand_info.pagesize = SECTOR_CNT_OF_SINGLE_PAGE;	
+		nand_info.pagesize = SECTOR_CNT_OF_SINGLE_PAGE;
 		nand_info.rb_sel = 1;
 		nand_info.serial_access_mode = 1;
 		nand_info.ddr_type = DDR_TYPE;
@@ -606,7 +583,7 @@ __s32  SCN_AnalyzeNandSystem(void)
 		}
 		NandIndex = 0;
 	}
-	
+
 	PHY_ChangeMode(1);
 
 	if(SUPPORT_READ_RETRY)
@@ -620,13 +597,13 @@ __s32  SCN_AnalyzeNandSystem(void)
 	    }
 
 	}
-	
+
     //print nand flash physical architecture parameter
     SCAN_DBG("\n\n");
     SCAN_DBG("[SCAN_DBG] ==============Nand Architecture Parameter==============\n");
     SCAN_DBG("[SCAN_DBG]    Nand Chip ID:         0x%x 0x%x\n",
         (NandStorageInfo.NandChipId[0] << 0) | (NandStorageInfo.NandChipId[1] << 8)
-        | (NandStorageInfo.NandChipId[2] << 16) | (NandStorageInfo.NandChipId[3] << 24), 
+        | (NandStorageInfo.NandChipId[2] << 16) | (NandStorageInfo.NandChipId[3] << 24),
         (NandStorageInfo.NandChipId[4] << 0) | (NandStorageInfo.NandChipId[5] << 8)
         | (NandStorageInfo.NandChipId[6] << 16) | (NandStorageInfo.NandChipId[7] << 24));
     SCAN_DBG("[SCAN_DBG]    Nand Channel Count:   0x%x\n", NandStorageInfo.ChannelCnt);

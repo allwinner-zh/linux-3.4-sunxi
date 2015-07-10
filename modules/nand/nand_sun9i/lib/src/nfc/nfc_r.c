@@ -1,14 +1,12 @@
-/*********************************************************************************
-*                                           NAND FLASH DRIVER
-*								(c) Copyright 2008, SoftWinners Co,Ld.
-*                                          All Right Reserved
-*file : nfc_r.c
-*description : this file provides some physic functions for upper nand driver layer.
-*history :
-*	v0.1  2008-03-26 Richard
-*	        offer direct accsee read method to nand flash control machine.
-*   v0.2  2009.09.09 penggang
-**********************************************************************************/
+/*
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+
 #include "../include/nfc.h"
 #include "../include/nfc_reg.h"
 #include "../include/nand_physic.h"
@@ -115,7 +113,7 @@ __s32 _wait_cmdfifo_free(void)
 	    PHY_ERR("nand _wait_cmdfifo_free time out, status:0x%x\n", NDFC_READ_REG_ST());
 
 		NAND_DumpReg();
-	    
+
 		return -ERR_TIMEOUT;
     }
 	return 0;
@@ -124,7 +122,7 @@ __s32 _wait_cmdfifo_free(void)
 __s32 _wait_cmd_finish(void)
 {
 	__s32 timeout = 0xffff;
-	
+
 	while( (timeout--) && !(NDFC_READ_REG_ST()& NDFC_CMD_INT_FLAG) );
 	if (timeout <= 0)
 	{
@@ -134,9 +132,9 @@ __s32 _wait_cmd_finish(void)
 
         return -ERR_TIMEOUT;
    }
-   
+
 	NDFC_WRITE_REG_ST(NDFC_READ_REG_ST() & NDFC_CMD_INT_FLAG);
-	
+
 	return 0;
 }
 
@@ -176,15 +174,15 @@ void _dma_config_start(__u8 rw, __u32 buff_addr, __u32 len)
 	__u32 reg_val;
 
 	if ( NdfcVersion == NDFC_VERSION_V1 ) {
-		
+
 		if (NdfcDmaMode == 1) {
 			/*
 				MBUS DMA
 			*/
 			NAND_CleanFlushDCacheRegion(buff_addr, len);
-		
+
 			nand_dma_addr[NandIndex][0] = NAND_DMASingleMap(rw, buff_addr, len);
-		
+
 			//set mbus dma mode
 			reg_val = NDFC_READ_REG_CTL();
 			reg_val &= (~(0x1<<15));
@@ -198,41 +196,41 @@ void _dma_config_start(__u8 rw, __u32 buff_addr, __u32 len)
 			NAND_CleanFlushDCacheRegion(buff_addr, len);
 
 			reg_val = NDFC_READ_REG_CTL();
-			reg_val |=(0x1 << 15); 
-			NDFC_WRITE_REG_CTL(reg_val);			
+			reg_val |=(0x1 << 15);
+			NDFC_WRITE_REG_CTL(reg_val);
 			NDFC_WRITE_REG_DMA_CNT(len);
-			
+
 			nand_dma_addr[NandIndex][0] = NAND_DMASingleMap(rw, buff_addr, len);
 			//NDFC_WRITE_REG_MDMA_ADDR(nand_dma_addr[NandIndex][0]);
 			//PHY_ERR("buff_addr 0x%x  nand_dma_addr[NandIndex][0] 0x%x\n", buff_addr, nand_dma_addr[NandIndex][0]);
-			nand_dma_config_start( rw, nand_dma_addr[NandIndex][0], len);	
+			nand_dma_config_start( rw, nand_dma_addr[NandIndex][0], len);
 		} else {
-			PHY_ERR("_dma_config_start, wrong dma mode, %d\n", NdfcDmaMode);	
-		}		
-		
+			PHY_ERR("_dma_config_start, wrong dma mode, %d\n", NdfcDmaMode);
+		}
+
 	} else if ( NdfcVersion == NDFC_VERSION_V2 ) {
-		
+
 		if (NdfcDmaMode == 1) {
-		
+
 			if (buff_addr & 0x3) {
 				PHY_ERR("_dma_config_start: buff addr(0x%x) is not 32bit aligned, "
 						"and it will be clipped to 0x%x", buff_addr, (buff_addr & 0x3));
 			}
 			NAND_CleanFlushDCacheRegion(buff_addr, len);
 			nand_dma_addr[NandIndex][0] = NAND_DMASingleMap(rw, buff_addr, len);
-	
+
 			reg_val = NDFC_READ_REG_CTL();
 			reg_val &= (~(0x1<<15));
 			NDFC_WRITE_REG_CTL(reg_val);
-	
+
 			ndfc_dma_desc_cpu[0].bcnt = 0;
 			ndfc_dma_desc_cpu[0].bcnt |= NDFC_DESC_BSIZE(len);
 			ndfc_dma_desc_cpu[0].buff = nand_dma_addr[NandIndex][0]; //buff_addr;
-	
+
 			ndfc_dma_desc_cpu[0].cfg = 0;
 			ndfc_dma_desc_cpu[0].cfg |= NDFC_DESC_FIRST_FLAG;
 			ndfc_dma_desc_cpu[0].cfg |= NDFC_DESC_LAST_FLAG;
-	
+
 			ndfc_dma_desc_cpu[0].next = (struct _ndfc_dma_desc_t *)&(ndfc_dma_desc[0]);
 
 			NAND_CleanFlushDCacheRegion((__u32)&(ndfc_dma_desc_cpu[0]), sizeof(ndfc_dma_desc_cpu[0]));
@@ -240,7 +238,7 @@ void _dma_config_start(__u8 rw, __u32 buff_addr, __u32 len)
 
 			_show_desc_list_cfg();
 		} else {
-			PHY_ERR("_dma_config_start, wrong dma mode, %d\n", NdfcDmaMode);	
+			PHY_ERR("_dma_config_start, wrong dma mode, %d\n", NdfcDmaMode);
 		}
 	} else {
 		PHY_ERR("_dma_config_start: wrong ndfc version, %d\n", NdfcVersion);
@@ -258,23 +256,23 @@ __s32 _wait_dma_end(__u8 rw, __u32 buff_addr, __u32 len)
 	if (timeout <= 0)
 	{
 	    PHY_ERR("nand _wait_dma_end time out, NandIndex: 0x%x, rw: 0x%x, status:0x%x\n", NandIndex, (__u32)rw, NDFC_READ_REG_ST());
-	    
+
 	    if ( NdfcVersion == NDFC_VERSION_V1 ) {
 	    	PHY_ERR("DMA addr: 0x%x, DMA len: 0x%x\n", NDFC_READ_REG_MDMA_ADDR(), NDFC_READ_REG_DMA_CNT());
-	    	
+
 			NAND_DumpReg();
-	    	
+
 	    	return -ERR_TIMEOUT;
-	    	
+
 	    } else if ( NdfcVersion == NDFC_VERSION_V2 ) {
 	    	pdesc = &ndfc_dma_desc_cpu[0];
 	    	PHY_ERR("DMA addr: 0x%x, DMA len: 0x%x, Desc CFG: 0x%x\n", pdesc->buff, pdesc->bcnt, pdesc->cfg);
-	    	
-	    	NAND_DumpReg();	    	
+
+	    	NAND_DumpReg();
 	    	_show_desc_list_cfg();
 
 			return -ERR_TIMEOUT;
-	    	
+
 	    } else {
 	    	PHY_ERR("_dma_config_start: wrong ndfc version, %d\n", NdfcVersion);
 	    }
@@ -344,25 +342,25 @@ __s32 _wait_dma_end_v2(__u8 rw, __u32 buf_cnt, __u32 buf_addr[], __u32 buf_size[
 {
 	__s32 i, timeout = 0xfffff;
 	_ndfc_dma_desc_t *pdesc;
-    
+
     while ( (timeout--) && (!(NDFC_READ_REG_ST() & NDFC_DMA_INT_FLAG)) );
 	if (timeout <= 0)
 	{
 	    if ( NdfcVersion == NDFC_VERSION_V2 ) {
 	    	pdesc = &ndfc_dma_desc_cpu[0];
 	    	PHY_ERR("DMA addr: 0x%x, DMA len: 0x%x, Desc CFG: 0x%x\n", pdesc->buff, pdesc->bcnt, pdesc->cfg);
-	    	
+
 			NAND_DumpReg();
-	    	
+
 	    	_show_desc_list_cfg();
-	
+
 			return -ERR_TIMEOUT;
-		    	
+
 	    } else {
 	    	PHY_ERR("_dma_config_start: wrong ndfc version, %d\n", NdfcVersion);
 	    }
 	}
-	    
+
 
 	NDFC_WRITE_REG_ST( NDFC_READ_REG_ST() & NDFC_DMA_INT_FLAG);
 
@@ -1255,7 +1253,7 @@ __s32 _read_eccblks_in_page_mode(NFC_CMD_LIST *rcmd, void *sparebuf, __u32 eccbl
 __s32 _read_secs_in_page_mode_v2(NFC_CMD_LIST  *rcmd, void *mainbuf, void *sparebuf, __u32 secbitmap)
 {
 	__s32 i, ret;
-	__u32 *tmpsparebuf, *tmpbuf1, *tmpbuf3; //*tmpbuf2, 
+	__u32 *tmpsparebuf, *tmpbuf1, *tmpbuf3; //*tmpbuf2,
 	__u32 fir_sect;
 	__u32 sect_cnt;
 	__u32 last_sect;
@@ -2198,7 +2196,7 @@ void NFC_ChangeInterfaceMode(NFC_INIT_INFO *nand_info)
 		cfg |= nand_info->ddr_delay;
 		NDFC_WRITE_REG_TIMING_CTL(cfg);
 	}
-	
+
 	/*
 		 ndfc's timing cfg
 		 1. default value: 0x95
@@ -2257,7 +2255,7 @@ __s32 NFC_Init(NFC_INIT_INFO *nand_info )
 
     if ( ndfc_init_version() )
     	return -1;
-    
+
     if ( ndfc_init_dma_mode() )
     	return -1;
 
@@ -2272,7 +2270,7 @@ __s32 NFC_Init(NFC_INIT_INFO *nand_info )
 		} else
 			PHY_DBG("request general dma channel ok!\n");
 	}
-	
+
     //init clk
     NAND_ClkRequest(NandIndex);
     NAND_SetClk(NandIndex, 10, 10*2);
@@ -2316,7 +2314,7 @@ void NFC_Exit( void )
     NAND_PIORelease(NandIndex);
 
 	NAND_ReleaseVoltage();
-	
+
 }
 
 /*******************************************************************************
@@ -2330,13 +2328,13 @@ void NFC_Exit( void )
 ********************************************************************************/
 __s32 _vender_get_param(__u8 *para, __u8 *addr, __u32 count)
 {
-    
+
 	return 0;
 }
 
 __s32 _vender_set_param(__u8 *para, __u8 *addr, __u32 count)
 {
-   
+
 	return 0;
 }
 
@@ -2348,7 +2346,7 @@ __s32 _vender_pre_condition(void)
 
 __s32 _vender_get_param_otp_hynix(__u8 *para, __u8 *addr, __u32 count)
 {
-   
+
 	return 0;
 }
 
@@ -2379,20 +2377,20 @@ __s32 _get_rr_value_otp_hynix(__u32 nchip)
 //for offset from defaul value
 __s32 NFC_ReadRetry(__u32 chip, __u32 retry_count, __u32 read_retry_type)
 {
-    
+
 	return 0;
 }
 
 __s32 NFC_ReadRetryInit(__u32 read_retry_type)
 {
-	
+
 
 	return 0;
 }
 
 void NFC_GetOTPValue(__u32 chip, __u8* otp_value, __u32 read_retry_type)
 {
-   
+
 }
 
 __s32 NFC_GetDefaultParam(__u32 chip,__u8* default_value, __u32 read_retry_type)
@@ -2403,8 +2401,8 @@ __s32 NFC_GetDefaultParam(__u32 chip,__u8* default_value, __u32 read_retry_type)
 
 __s32 NFC_SetDefaultParam(__u32 chip,__u8* default_value,__u32 read_retry_type)
 {
-   
-	return 0; 
+
+	return 0;
 }
 
 
@@ -2540,7 +2538,7 @@ __u32 NFC_DmaIntOccur(void)
 }
 
 //fix a80 brom tlc->slc mode  bug
-__s32 NFC_samsung_slc_mode_exit(void) 
+__s32 NFC_samsung_slc_mode_exit(void)
 {
 	return 0;
 }

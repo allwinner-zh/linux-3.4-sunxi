@@ -1,9 +1,16 @@
+/*
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
 #ifndef __NAND_OSAL_H__
 #define __NAND_OSAL_H__
 
 typedef signed char __s8;
 typedef unsigned char __u8;
- 
+
 typedef signed short __s16;
 typedef unsigned short __u16;
 
@@ -33,7 +40,7 @@ typedef  signed int     SINT32;
 
 #define __OS_NAND_SUPPORT_RB_INT__
 #define __OS_NAND_SUPPORT_DMA_INT__
-    
+
 
 #define __FPGA_TEST__
 
@@ -87,7 +94,7 @@ extern __u32 NAND_GetIOBaseAddrCH1(void);
 extern __u32 NAND_GetNdfcVersion(void);
 extern __u32 NAND_GetNdfcDmaMode(void);
 extern __u32 NAND_GetMaxChannelCnt(void);
-extern __u32 NAND_GetNandIDNumCtrl(void);        
+extern __u32 NAND_GetNandIDNumCtrl(void);
 extern __u32 NAND_GetNandExtPara(__u32 para_num);
 extern void NAND_DumpReg(void);
 extern void NAND_ShowEnv(__u32 type, char *name, __u32 len, __u32 *val);
@@ -121,8 +128,8 @@ extern int NAND_IS_Secure_sys(void);
 #define FREE(x,size)                    	NAND_Free((x),(size))
 
 //define the message print interface
-#define PRINT								NAND_Print	
-#define PRINT_DBG								NAND_Print_DBG	
+#define PRINT								NAND_Print
+#define PRINT_DBG								NAND_Print_DBG
 
 
 

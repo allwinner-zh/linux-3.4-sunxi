@@ -1,14 +1,12 @@
-/*********************************************************************************************************
-*                                                                NAND FLASH DRIVER
-*								(c) Copyright 2008, SoftWinners Co,Ld.
-*                                          			    All Right Reserved
-*file : nand_simple.c
-*description : this file creates some physic basic access function based on single plane for boot .
-*history :
-*	v0.1  2008-03-26 Richard
-* v0.2  2009-9-3 penggang modified for 1615
-*
-*********************************************************************************************************/
+/*
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+
 #include "../include/nand_type.h"
 #include "../include/nand_physic.h"
 #include "../include/nand_simple.h"
@@ -280,7 +278,7 @@ __s32 _phy_read_status(__u32 chip)
 	ret = 0;
 
 	rb = _cal_real_rb(chip);
-	
+
 	cmd_value = 0x70;
 
 	NFC_SelectChip(chip);
@@ -541,7 +539,7 @@ __s32 _check_scan_data(__u32 first_check, __u32 chip, __u32 *scan_good_blk_no)
 		PHY_ERR("_check_scan_data, main_buf 0x%x is null!\n", main_buf);
 		return -1;
 	}
-	
+
 	if (first_check)
 	{
 		for (b=start_blk; b<start_blk+blk_cnt; b++)
@@ -1010,21 +1008,21 @@ __s32 _get_right_timing_para(NFC_INIT_INFO *nand_info, __u32 *scan_blk_no)
 						PHY_DBG("_get_right_timing_para, {0x%x, 0x%x}\n", edo, delay);
 						good_flag = 1;
 						if (nand_info->ddr_type == 0) { //sdr mode
-							
-							/*  20130906-Gavin, 
-								This is for H27UCG8T2BTR special case. When sclk0 is 30MHz and 
+
+							/*  20130906-Gavin,
+								This is for H27UCG8T2BTR special case. When sclk0 is 30MHz and
 								timing cfg {edo, delay}={0, 0} also, check id operation and check burned data
-								are all right, but this timing cfg is not right for this access frequcency.	
+								are all right, but this timing cfg is not right for this access frequcency.
 								So, add flowing code to exclude this kind of case.
-							*/							
+							*/
 							if (edo == 0) {
 								NAND_GetClk(NandIndex, &sclk0_bak, &sclk1_bak);
 								PHY_DBG("sclk0 %d MHz, edo %d\n", sclk0_bak, edo);
 								if (sclk0_bak < 12) //less 12MHz
 									break;
-								else 
+								else
 									good_flag = 0;
-							} 
+							}
 							{
 								//debug code for H27UCG8T2BTR
 								//edo = 1;
@@ -1168,7 +1166,7 @@ __s32 _get_right_timing_para(NFC_INIT_INFO *nand_info, __u32 *scan_blk_no)
 			param[1] = (edo_delay[1][2] - edo_delay[1][1])*2/3;
 			param[1] += edo_delay[1][1];
 			if ((param[1]+4) > edo_delay[1][2])
-				param[1] = edo_delay[1][2] - 4;						
+				param[1] = edo_delay[1][2] - 4;
 			if (j >= GOOD_DDR_EDO_DELAY_CHAIN_TH)
 				good_flag = 1;
 			else
@@ -1181,7 +1179,7 @@ __s32 _get_right_timing_para(NFC_INIT_INFO *nand_info, __u32 *scan_blk_no)
 			param[1] = (edo_delay[0][2] - edo_delay[0][1])*2/3;
 			param[1] += edo_delay[0][1];
 			if ((param[1]+4) > edo_delay[0][2])
-				param[1] = edo_delay[0][2] - 4;	
+				param[1] = edo_delay[0][2] - 4;
 			if (j >= GOOD_DDR_EDO_DELAY_CHAIN_TH)
 				good_flag = 1;
 			else
@@ -1203,7 +1201,7 @@ __s32 _get_right_timing_para(NFC_INIT_INFO *nand_info, __u32 *scan_blk_no)
 		param[1] = (edo_delay[0][2] - edo_delay[0][1])*2/3;
 		param[1] += edo_delay[0][1];
 		if ((param[1]+4) > edo_delay[0][2])
-			param[1] = edo_delay[0][2] - 4;	
+			param[1] = edo_delay[0][2] - 4;
 
 		PHY_DBG("(0x%x, 0x%x - 0x%x) \n", edo_delay[0][0],edo_delay[0][1],edo_delay[0][2]);
 		if (i >= GOOD_DDR_EDO_DELAY_CHAIN_TH)
@@ -1225,7 +1223,7 @@ __s32 _get_right_timing_para(NFC_INIT_INFO *nand_info, __u32 *scan_blk_no)
 	nand_info->ddr_edo = param[0];
 	nand_info->ddr_delay = param[1];
 	NFC_InitDDRParam(chip, ((nand_info->ddr_edo<<8)|nand_info->ddr_delay));
-	
+
 RET:
 	if (good_flag == 0)
 		return -1;
@@ -1248,7 +1246,7 @@ __s32 _read_single_page(struct boot_physical_param *readop,__u8 dma_wait_mode)
 
 	for (i=0; i<4*64; i++)
 		sparebuf[i] = 0x55;
-	
+
 	//sparebuf = (__u8 *)MALLOC(SECTOR_CNT_OF_SINGLE_PAGE * 4);
 	/*create cmd list*/
 	/*samll block*/
@@ -1316,7 +1314,7 @@ __s32 _read_single_page(struct boot_physical_param *readop,__u8 dma_wait_mode)
 				if((0x32 == READ_RETRY_MODE)||(0x33 == READ_RETRY_MODE))
 				{
 					NFC_ReadRetry_Enable_Sandisk_A19();
-				}	
+				}
 			}
 
 			if(SUPPORT_RANDOM)
@@ -1425,12 +1423,12 @@ __s32 _read_single_page(struct boot_physical_param *readop,__u8 dma_wait_mode)
 					/* for sandisk A19nm */
 					for(m=0;m<3;m++)
 					{
-						
+
 						RetryCount[NandIndex][readop->chip] = 0;
-						
+
 						for(n=0; n<(READ_RETRY_CYCLE+1); n++)
 						{
-														
+
 							if(NFC_ReadRetry(readop->chip,RetryCount[NandIndex][readop->chip],READ_RETRY_TYPE))
 							{
 								PHY_ERR("[Read_single_page] NFC_ReadRetry fail\n");
@@ -1455,9 +1453,9 @@ __s32 _read_single_page(struct boot_physical_param *readop,__u8 dma_wait_mode)
 								NFC_ReadRetry_Prefix_Sandisk_A19();
 								NFC_DSP_ON_Sandisk_A19();
 							}
-			
+
 							NFC_ReadRetry_Enable_Sandisk_A19();
-						
+
 							if(SUPPORT_RANDOM)
 							{
 								random_seed = _cal_random_seed(readop->page);
@@ -1503,18 +1501,18 @@ __s32 _read_single_page(struct boot_physical_param *readop,__u8 dma_wait_mode)
 						{
 							break;
 						}
-						
+
 					}
 					if(ret == -ERR_ECC)
 						PHY_DBG("ecc error--1!\n");
 				}
 				else if(0x33 == READ_RETRY_MODE)
 				{
-					
+
 					RetryCount[NandIndex][readop->chip] = 0;
-					
+
 					for(n=0; n<(READ_RETRY_CYCLE+1); n++)
-					{							
+					{
 						if(NFC_ReadRetry(readop->chip,RetryCount[NandIndex][readop->chip],READ_RETRY_TYPE))
 						{
 							PHY_ERR("[Read_single_page] NFC_ReadRetry fail\n");
@@ -1527,9 +1525,9 @@ __s32 _read_single_page(struct boot_physical_param *readop,__u8 dma_wait_mode)
 							NFC_Test_Mode_Exit_Sandisk();
 						}
 						NFC_ReadRetry_Prefix_Sandisk_A19();
-		
+
 						NFC_ReadRetry_Enable_Sandisk_A19();
-					
+
 						if(SUPPORT_RANDOM)
 						{
 							random_seed = _cal_random_seed(readop->page);
@@ -1559,7 +1557,7 @@ __s32 _read_single_page(struct boot_physical_param *readop,__u8 dma_wait_mode)
 
 						RetryCount[NandIndex][readop->chip]++;
 					}
-						
+
 					if(ret == -ERR_ECC)
 						PHY_DBG("ecc error--2!\n");
 				}
@@ -2133,7 +2131,7 @@ __s32 PHY_GetDefaultParam(__u32 bank)
 									continue;
 								}
 							}
-							
+
 						}
 					}
 
@@ -2146,13 +2144,13 @@ __s32 PHY_GetDefaultParam(__u32 bank)
 	        NFC_GetDefaultParam(chip, default_value, READ_RETRY_TYPE);
 			if((READ_RETRY_MODE==0)||(READ_RETRY_MODE==1))  //hynix mode
 			{
-	            PHY_DBG("NFC_GetDefaultParam: ch: %d, chip: %d, value: 0x%x 0x%x 0x%x 0x%x \n", 
+	            PHY_DBG("NFC_GetDefaultParam: ch: %d, chip: %d, value: 0x%x 0x%x 0x%x 0x%x \n",
 	            	NandIndex, chip, default_value[0], default_value[1], default_value[2], default_value[3]);
 	        }
 		    NFC_SetDefaultParam(chip, default_value, READ_RETRY_TYPE);
 		    if((READ_RETRY_MODE==0)||(READ_RETRY_MODE==1))  //hynix mode
 	        {
-	            PHY_DBG("NFC_SetDefaultParam: ch: %d, chip: %d, value: 0x%x 0x%x 0x%x 0x%x \n", 
+	            PHY_DBG("NFC_SetDefaultParam: ch: %d, chip: %d, value: 0x%x 0x%x 0x%x 0x%x \n",
 	            	NandIndex, chip, default_value[0], default_value[1], default_value[2], default_value[3]);
 	        }
 
@@ -2183,7 +2181,7 @@ __s32 PHY_SetDefaultParam(__u32 bank)
 	        NFC_SetDefaultParam(chip, default_value, READ_RETRY_TYPE);
 			if((READ_RETRY_MODE==0)||(READ_RETRY_MODE==1))  //hynix mode
 	        {
-	            PHY_DBG("NFC_SetDefaultParam: ch: %d, chip: %d, value: 0x%x 0x%x 0x%x 0x%x \n", 
+	            PHY_DBG("NFC_SetDefaultParam: ch: %d, chip: %d, value: 0x%x 0x%x 0x%x 0x%x \n",
 	            	NandIndex, chip, default_value[0], default_value[1], default_value[2], default_value[3]);
 	        }
 	    }
@@ -2408,8 +2406,8 @@ __s32 PHY_ChangeMode(__u32 ddr_type, void *pddr_info, __u32 sclk0, __u32 sclk1)
 					classic_dclk = 30;
 				else
 					classic_dclk = 20;
-				PHY_DBG("PHY_ChangeMode: is_blank_page %d, set dclk to classic cfg %d MHz\n", 
-						is_blank_page, classic_dclk);	
+				PHY_DBG("PHY_ChangeMode: is_blank_page %d, set dclk to classic cfg %d MHz\n",
+						is_blank_page, classic_dclk);
 
 				ret = _change_nand_parameter(nand_info.ddr_type, ddr_type_bak, &ddr_info, classic_dclk);
 				if (ret) {
@@ -2427,14 +2425,14 @@ __s32 PHY_ChangeMode(__u32 ddr_type, void *pddr_info, __u32 sclk0, __u32 sclk1)
 
 				if (nand_info.ddr_type == SDR) {
 					nand_info.serial_access_mode = 1;
-					PHY_DBG("PHY_ChangeMode: set edo(%d) for ddr_type(%d) at classic clock cfg %d MHz\n", 
-						nand_info.serial_access_mode, nand_info.ddr_type, classic_dclk);	
+					PHY_DBG("PHY_ChangeMode: set edo(%d) for ddr_type(%d) at classic clock cfg %d MHz\n",
+						nand_info.serial_access_mode, nand_info.ddr_type, classic_dclk);
 				} else {
 					nand_info.ddr_edo = 0x2;
 					nand_info.ddr_delay = 0x1f;
 
 					NFC_InitDDRParam(0, (nand_info.ddr_edo<<8)|(nand_info.ddr_delay));
-					PHY_DBG("PHY_ChangeMode: set edo(%d) and delay(%d) for ddr_type(%d) at classic clock cfg %d MHz\n", 
+					PHY_DBG("PHY_ChangeMode: set edo(%d) and delay(%d) for ddr_type(%d) at classic clock cfg %d MHz\n",
 						nand_info.ddr_edo, nand_info.ddr_delay, nand_info.ddr_type, classic_dclk);
 				}
 				NFC_ChangeInterfaceMode(&nand_info);
@@ -2472,7 +2470,7 @@ __s32 PHY_ChangeMode(__u32 ddr_type, void *pddr_info, __u32 sclk0, __u32 sclk1)
 							nand_info.serial_access_mode = 2;
 							PHY_DBG("PHY_ChangeMode: sclk0 is beyond 30MHz,then set edo to 2\n");
 						}
-					
+
 						/* successful, set parameter*/
 						NFC_ChangeInterfaceMode(&nand_info);
 					}
@@ -2508,7 +2506,7 @@ __s32 PHY_ChangeMode(__u32 ddr_type, void *pddr_info, __u32 sclk0, __u32 sclk1)
 					reg_val = 0;             //set timing cfg
 					reg_val = 0xffffffff;
 					NDFC_WRITE_REG_TIMING_CFG(reg_val);
-					
+
 				}else if (((ddr_type_bak == ONFI_DDR2) || (ddr_type_bak == TOG_DDR2))
 					&& (nand_info.ddr_type == SDR)){
 
@@ -2664,7 +2662,7 @@ __s32 PHY_ResetChip(__u32 nChip)
 		while((timeout--) && (NFC_CheckRbReady(1)));
 		if (timeout < 0)
 			return -ERR_TIMEOUT;
-			
+
 		_phy_read_status(nChip);
 
 		NFC_DeSelectChip(nChip);
@@ -2705,7 +2703,7 @@ __s32 PHY_ResetChip_for_init(__u32 nChip)
 		if (timeout < 0)
 			return -ERR_TIMEOUT;
 
-		timeout = 0x7fff;	
+		timeout = 0x7fff;
 		while(timeout--);
 
 		NFC_DeSelectChip(nChip);

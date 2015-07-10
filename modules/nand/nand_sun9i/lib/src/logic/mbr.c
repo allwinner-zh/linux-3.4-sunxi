@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
 #include "../include/mbr.h"
 #include "../include/nand_type.h"
 #include "../include/nand_drv_cfg.h"
@@ -107,7 +115,7 @@ int mbr2disks(struct nand_disk* disk_array)
             disk_array[part_cnt].offset =nand_disk_array[part_cnt].offset;
     		disk_array[part_cnt].size = nand_disk_array[part_cnt].size;
     		DBUG_MSG("part %d: offset = %x, size = %x\n", part_cnt, disk_array[part_cnt].offset, disk_array[part_cnt].size);
-    }	
+    }
     return nand_part_cnt;
 
 #else
@@ -125,9 +133,9 @@ int mbr2disks(struct nand_disk* disk_array)
     		DBUG_MSG("part %d: offset = %x, size = %x\n", part_cnt, disk_array[part_cnt].offset, disk_array[part_cnt].size);
     	}
 		return nand_part_cnt;
-    }   
+    }
      else
-    {   
+    {
           PRINT("boot from sd/mmc\n");
           nand_part_cnt = 1;
           disk_array[0].offset = 0;

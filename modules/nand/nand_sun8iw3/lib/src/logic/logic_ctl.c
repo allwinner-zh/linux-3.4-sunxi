@@ -1,33 +1,12 @@
 /*
-************************************************************************************************************************
-*                                                      eNand
-*                                         Nand flash driver logic manage module
-*
-*                             Copyright(C), 2008-2009, SoftWinners Microelectronic Co., Ltd.
-*											       All Rights Reserved
-*
-* File Name : logic_ctl.c
-*
-* Author : Kevin.z
-*
-* Version : v0.1
-*
-* Date : 2008.03.29
-*
-* Description : This file is the nand flash driver logic manage control module, is the main
-*               module of logic manage module.
-*
-* Others : None at present.
-*
-*
-* History :
-*
-*  <Author>        <time>       <version>      <description>
-*
-* Kevin.z         2008.03.29      0.1          build the file
-*
-************************************************************************************************************************
-*/
+ * Copyright (C) 2013 Allwinnertech
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+
 #include "../include/nand_drv_cfg.h"
 #include "../include/nand_type.h"
 #include "../include/nand_physic.h"
@@ -707,7 +686,7 @@ __s32 LML_PageRead(__u32 nPage, __u64 nBitmap, void* pBuf)
         //swap the block mapping table to ram which is need be accessing currently
         if(tmpLogicalBlk!= 0xffff)
 		LML_MergeLogBlk_Quit();
-		
+
         result = BMM_SwitchMapTbl(tmpLogicPage.ZoneNum);
         if(result < 0)
         {
@@ -1166,7 +1145,7 @@ __s32 LML_Read(__u32 nSectNum, __u32 nSectorCnt, void* pBuf)
     //check if the parameter is valid
     if(((nSectNum + nSectorCnt) > LogicalCtl.DiskCap)||(nSectNum>LogicalCtl.DiskCap-1)||(nSectorCnt>LogicalCtl.DiskCap-1))
     {
-        LOGICCTL_ERR("[LOGICCTL_ERR] LML_Read, the addr of read(start:%x, cnt:%x) is beyond the disk volume %x!!!\n", 
+        LOGICCTL_ERR("[LOGICCTL_ERR] LML_Read, the addr of read(start:%x, cnt:%x) is beyond the disk volume %x!!!\n",
 						nSectNum, nSectorCnt,LogicalCtl.DiskCap);
         return -ERR_ADDRBEYOND;
     }
@@ -1293,7 +1272,7 @@ __s32 LML_Write(__u32 nSectNum, __u32 nSectorCnt, void* pBuf)
 
     if(((nSectNum + nSectorCnt) > LogicalCtl.DiskCap)||(nSectNum>LogicalCtl.DiskCap-1)||(nSectorCnt>LogicalCtl.DiskCap-1))
     {
-        LOGICCTL_ERR("[LOGICCTL_ERR] LML_Write, the addr of write(start:%x, cnt:%x) is beyond the disk volume %x!!!\n", 
+        LOGICCTL_ERR("[LOGICCTL_ERR] LML_Write, the addr of write(start:%x, cnt:%x) is beyond the disk volume %x!!!\n",
 						nSectNum, nSectorCnt,LogicalCtl.DiskCap);
 				return -ERR_ADDRBEYOND;
     }
@@ -1527,8 +1506,8 @@ __u32 NAND_GetDiskSize(void)
 
     disksize = (SECTOR_CNT_OF_SINGLE_PAGE * PAGE_CNT_OF_PHY_BLK * BLOCK_CNT_OF_DIE * \
             DIE_CNT_OF_CHIP * NandStorageInfo.ChipCnt*CHANNEL_CNT/ 1024 * DATA_BLK_CNT_OF_ZONE);
-            
-    LOGICCTL_DBG("NAND_GetDiskSize: 0x%x sec, %d M", disksize, disksize/2048);         
+
+    LOGICCTL_DBG("NAND_GetDiskSize: 0x%x sec, %d M", disksize, disksize/2048);
 
     return disksize;
 }
