@@ -30,6 +30,7 @@ config HDMI_SUNXI
   depends on (ARCH_SUN9IW1P1 && FB_SUNXI)
   default m
   ---help---
+  
 config DISP2_SUNXI
   tristate "DISP Driver Support(sunxi-disp2)"
   depends on (ARCH_SUN8IW6 || ARCH_SUN8IW7 || ARCH_SUN8IW8 || ARCH_SUN8IW9)
