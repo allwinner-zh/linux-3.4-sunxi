@@ -1286,7 +1286,7 @@ static int goodix_ts_probe(struct i2c_client *client, const struct i2c_device_id
     }
 
 config_info.dev = &(ts->input_dev->dev);
-	ret = input_request_int(&(config_info.input_type), goodix_ts_irq_handler,CTP_IRQ_MODE, ts);	   
+	ret = input_request_int(&(config_info.input_type), goodix_ts_irq_handler,irq_table[ts->int_trigger_type], ts);	   
     if (ret) {
             printk("Request irq fail!.\n");
     }
